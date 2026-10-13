@@ -1,0 +1,44 @@
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.title {
+  margin: 12px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.lead,
+.status {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.card {
+  max-width: 420px;
+}
+
+.button {
+  min-height: 44px;
+  margin-top: 20px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.error {
+  color: var(--accent);
+}

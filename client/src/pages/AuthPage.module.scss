@@ -1,0 +1,101 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: min(100%, 420px);
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+}
+
+.lead,
+.status {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.tab {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.tab[aria-selected="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.form {
+  margin-top: 20px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.button,
+.secondary {
+  min-height: 44px;
+  width: 100%;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.button {
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.secondary {
+  margin-top: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.error {
+  margin: 0 0 14px;
+  color: var(--accent);
+  line-height: 1.4;
+}

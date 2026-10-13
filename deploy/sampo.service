@@ -1,0 +1,18 @@
+[Unit]
+Description=Sampo
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=sampo
+Group=sampo
+WorkingDirectory=/opt/sampo/server
+Environment=NODE_ENV=production
+ExecStart=/usr/local/bin/node src/index.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

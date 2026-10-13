@@ -1,0 +1,396 @@
+.title {
+  margin: 28px 0 0;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.lead,
+.status,
+.range,
+.label {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+  color: var(--muted);
+}
+
+.legendBusy,
+.legendFree {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legendBusy::before,
+.legendFree::before {
+  content: "";
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+
+.legendBusy::before {
+  border-color: var(--accent);
+  background: var(--unavailable);
+}
+
+.legendFree::before {
+  border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 22%, var(--surface));
+}
+
+.week {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.range {
+  margin: 0;
+  text-align: center;
+}
+
+.strip {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+  overflow-x: auto;
+}
+
+.stripDay,
+.stripOn,
+.button,
+.primary,
+.input {
+  min-height: 44px;
+  border-radius: var(--radius);
+}
+
+.stripDay,
+.stripOn {
+  min-width: 44px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.stripOn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.stripDay:disabled,
+.stripOn:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.6;
+}
+
+.button,
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.primary {
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.primary:disabled,
+.button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.dock {
+  position: fixed;
+  z-index: 5;
+  right: 24px;
+  bottom: 80px;
+  display: grid;
+  gap: 12px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100dvh - 120px);
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.selectionLabel {
+  margin: 0;
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.label {
+  margin: 0;
+}
+
+.input {
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.area {
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.hint {
+  margin: 0;
+  color: var(--muted);
+}
+
+.hits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+}
+
+.hit {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hits li:last-child .hit {
+  border-bottom: 0;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fallback {
+  margin-top: 16px;
+}
+
+.error {
+  margin: 12px 0 0;
+  color: var(--accent);
+}
+
+.dock .lead,
+.dock .error {
+  margin: 0;
+}
+
+.backdrop {
+  position: fixed;
+  z-index: 6;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(28, 25, 22, 0.28);
+}
+
+.modal {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(520px, 100%);
+  max-height: min(80vh, 720px);
+  padding: 16px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.modalHead {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 44px;
+  margin: -16px -16px 0;
+  padding: 0 4px 0 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.adminFields {
+  display: grid;
+  gap: 12px;
+}
+
+.modalTitle,
+.timeValue {
+  margin: 0;
+}
+
+.modalTitle {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  min-height: 44px;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.timeValue {
+  font-weight: 600;
+}
+
+.modal .lead,
+.modal .error {
+  margin: 0;
+}
+
+.timeFields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+
+  .input {
+    width: 100%;
+    font: inherit;
+  }
+}
+
+.choices {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  margin: 0;
+  cursor: pointer;
+
+  input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+}
+
+.intervalInput {
+  width: 72px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.danger {
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.danger:disabled,
+.input:disabled,
+.area:disabled,
+.hit:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

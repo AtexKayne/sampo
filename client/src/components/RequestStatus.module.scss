@@ -1,0 +1,26 @@
+.badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.wait {
+  color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+}
+
+.ok {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 16%, var(--surface));
+}
+
+.no {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+}

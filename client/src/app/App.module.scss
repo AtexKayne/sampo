@@ -1,0 +1,21 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 24px;
+}
+
+.title {
+  margin: 0;
+  font-size: 40px;
+  font-weight: 600;
+}
+
+.lead {
+  margin: 12px 0 0;
+  max-width: 28rem;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.4;
+}

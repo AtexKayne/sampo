@@ -1,0 +1,14 @@
+:root {
+  --bg: #f6f3ee;
+  --surface: #fffdf9;
+  --ink: #1c1916;
+  --muted: #6e675f;
+  --line: #e4ddd4;
+  --accent: #9c3b2e;
+  --on-accent: #fffdf9;
+  --unavailable: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  --ok: #2f6f4e;
+  --warn: #8a5a12;
+  --radius: 12px;
+  --font: system-ui, "Segoe UI", sans-serif;
+}
