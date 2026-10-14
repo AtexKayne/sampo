@@ -2,11 +2,19 @@ import { eq } from "drizzle-orm";
 import { users } from "../db/schema.js";
 import { HttpError } from "../http/errors.js";
 import { hashPassword, normalizeLogin, validateDisplayName, verifyPassword } from "./password.js";
-import { publicUser, issueRefreshSession, revokeRefreshSession, rotateRefreshSession, findRefreshSession, REFRESH_COOKIE } from "./sessions.js";
+import {
+  presentUser,
+  issueRefreshSession,
+  revokeRefreshSession,
+  rotateRefreshSession,
+  findRefreshSession,
+  switchRefreshAccount,
+  REFRESH_COOKIE,
+} from "./sessions.js";
 import { closeSession, closeUser } from "../notifications/live.js";
-import { setLoginPassword } from "../domain/credentials.js";
-import { deleteProfile } from "../domain/profile.js";
-import { requireUser } from "./access.js";
+import { createPasswordUser, setLoginPassword } from "../domain/credentials.js";
+import { adminProfile, deleteOtherProfile, deleteProfile, requireExistingUser, saveProfile, searchAccounts } from "../domain/profile.js";
+import { requireAdmin, requireDancer, requireUser } from "./access.js";
 import { signAccessToken, verifyAccessToken, REFRESH_TTL_MS } from "./tokens.js";
 import {
   VK_COOKIE,
@@ -39,9 +47,9 @@ function cookieOptions(config, expiresAt) {
   };
 }
 
-function sendAuth(reply, config, accessToken, user, refresh) {
+async function sendAuth(reply, db, config, accessToken, user, refresh, loginUserId = user.id) {
   reply.setCookie(COOKIE, refresh.token, cookieOptions(config, refresh.expiresAt));
-  return { accessToken, user: publicUser(user) };
+  return { accessToken, user: await presentUser(db, user, loginUserId) };
 }
 
 function requireDatabase(db) {
@@ -103,7 +111,7 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
 
     const refresh = await issueRefreshSession(db, user.id);
     const accessToken = signAccessToken(user, config.jwtAccessSecret);
-    return sendAuth(reply, config, accessToken, user, refresh);
+    return sendAuth(reply, db, config, accessToken, user, refresh, user.id);
   });
 
   app.post("/api/auth/refresh", async (request, reply) => {
@@ -113,7 +121,25 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
     if (!rotated) throw new HttpError(401, "AUTH_INVALID", "Нужно войти");
     const accessToken = signAccessToken(rotated.user, config.jwtAccessSecret);
     const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
-    return sendAuth(reply, config, accessToken, rotated.user, { token: rotated.token, expiresAt });
+    return sendAuth(reply, db, config, accessToken, rotated.user, { token: rotated.token, expiresAt }, rotated.loginUserId);
+  });
+
+  app.post("/api/auth/switch", async (request, reply) => {
+    requireDatabase(db);
+    requireJwt(config);
+    const switched = await switchRefreshAccount(db, request.cookies?.[COOKIE]);
+    if (switched.status === "unauthorized") throw new HttpError(401, "AUTH_INVALID", "Нужно войти");
+    if (switched.status !== "ok") throw new HttpError(403, "FORBIDDEN", "Переключение аккаунта недоступно");
+    const accessToken = signAccessToken(switched.user, config.jwtAccessSecret);
+    return sendAuth(
+      reply,
+      db,
+      config,
+      accessToken,
+      switched.user,
+      { token: request.cookies[COOKIE], expiresAt: switched.expiresAt },
+      switched.loginUserId,
+    );
   });
 
   app.post("/api/auth/logout", async (request, reply) => {
@@ -127,6 +153,7 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
 
   app.delete("/api/me", async (request, reply) => {
     const user = await requireUser(request, db, config);
+    requireDancer(user);
     await deleteProfile(sql, user.id);
     closeUser(user.id);
     reply.clearCookie(COOKIE, { path: "/" });
@@ -194,19 +221,73 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
     if (!payload) throw new HttpError(401, "AUTH_INVALID", "Нужно войти");
     const [user] = await db.select().from(users).where(eq(users.id, payload.sub));
     if (!user) throw new HttpError(401, "AUTH_INVALID", "Нужно войти");
-    return publicUser(user);
+    return presentCurrent(request, user);
   });
 
   app.patch("/api/me", async (request) => {
     const current = await requireUser(request, db, config);
+    requireDancer(current);
     const name = validateDisplayName(request.body?.displayName);
     if (!name.ok) throw new HttpError(400, "VALIDATION", name.message);
     const [user] = await db.update(users).set({ displayName: name.displayName }).where(eq(users.id, current.id)).returning();
-    return publicUser(user);
+    return presentCurrent(request, user);
   });
+
+  async function presentCurrent(request, user) {
+    const session = await findRefreshSession(db, request.cookies?.[COOKIE]);
+    const loginUserId = session?.userId === user.id ? session.loginUserId : user.id;
+    return presentUser(db, user, loginUserId);
+  }
 
   app.post("/api/me/password", async (request) => {
     const current = await requireUser(request, db, config);
+    requireDancer(current);
     return setLoginPassword(sql, current.id, request.body);
+  });
+
+  app.post("/api/admin/users", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    return createPasswordUser(sql, request.body);
+  });
+
+  app.get("/api/admin/users", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    const q = typeof request.query?.q === "string" ? request.query.q : "";
+    return { users: await searchAccounts(sql, current.id, q) };
+  });
+
+  app.get("/api/admin/users/:id", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    const user = await requireExistingUser(sql, request.params.id);
+    if (user.id === current.id) throw new HttpError(400, "VALIDATION", "Свой профиль открывается в своих настройках");
+    return adminProfile(sql, user.id);
+  });
+
+  app.put("/api/admin/users/:id", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    const user = await requireExistingUser(sql, request.params.id);
+    if (user.id === current.id) throw new HttpError(400, "VALIDATION", "Свой профиль меняется в своих настройках");
+    await saveProfile(sql, user.id, request.body);
+    return adminProfile(sql, user.id);
+  });
+
+  app.post("/api/admin/users/:id/password", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    const user = await requireExistingUser(sql, request.params.id);
+    if (user.id === current.id) throw new HttpError(400, "VALIDATION", "Свой логин меняется в своём профиле");
+    return setLoginPassword(sql, user.id, request.body);
+  });
+
+  app.delete("/api/admin/users/:id", async (request, reply) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    await deleteOtherProfile(sql, current.id, request.params.id);
+    closeUser(request.params.id);
+    return reply.code(204).send();
   });
 }

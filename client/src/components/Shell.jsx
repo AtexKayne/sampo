@@ -1,7 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
-import { api } from "../api/client.js";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api, switchAccount } from "../api/client.js";
+import { useSession } from "../session/SessionProvider.jsx";
 import { useNotifications } from "../notifications/NotificationsProvider.jsx";
 import styles from "./Shell.module.scss";
 
@@ -10,7 +11,7 @@ export function Shell({ user, onLogout, pending, children }) {
   const incoming = useQuery({
     queryKey: ["requests", "incoming", "pending"],
     queryFn: () => api("/api/requests?box=incoming&status=pending"),
-    enabled: Boolean(user),
+    enabled: Boolean(user) && user.appRole !== "admin",
   });
   const incomingCount = incoming.data?.requests?.length ?? 0;
   return (
@@ -21,14 +22,11 @@ export function Shell({ user, onLogout, pending, children }) {
           <span className={styles.brandName}>Сампо</span>
         </Link>
         <nav className={styles.nav}>
-          {user?.appRole === "admin" ? (
-            <Link className={styles.link} to="/admin/slots">
-              Слоты
-            </Link>
-          ) : null}
           {user ? (
             <>
-              <NoticeBell open={menu === "bell"} onToggle={() => setMenu((value) => (value === "bell" ? null : "bell"))} onClose={() => setMenu(null)} />
+              {user.appRole === "admin" ? null : (
+                <NoticeBell open={menu === "bell"} onToggle={() => setMenu((value) => (value === "bell" ? null : "bell"))} onClose={() => setMenu(null)} />
+              )}
               <ProfileMenu
                 user={user}
                 onLogout={onLogout}
@@ -133,8 +131,30 @@ function NoticeBell({ open, onToggle, onClose }) {
 function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, onClose }) {
   const rootRef = useRef(null);
   const menuId = useId();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const session = useSession();
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState("");
   const name = user.displayName?.trim() || "Профиль";
   const initial = name.charAt(0).toLocaleUpperCase("ru");
+  const accountSwitch = user.accountSwitch;
+
+  async function onSwitch() {
+    setSwitchError("");
+    setSwitching(true);
+    try {
+      const next = await switchAccount();
+      queryClient.clear();
+      session.setUser(next);
+      onClose();
+      navigate("/calendar", { replace: true });
+    } catch (error) {
+      setSwitchError(error.message || "Не удалось переключить аккаунт");
+    } finally {
+      setSwitching(false);
+    }
+  }
 
   useEffect(() => {
     if (!open) return undefined;
@@ -173,12 +193,20 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
       {open ? (
         <nav className={styles.dropdown} id={menuId} aria-label="Аккаунт">
           <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/me" onClick={onClose}>
-            Профиль
+            {user.appRole === "admin" ? "Пользователи" : "Профиль"}
           </NavLink>
-          <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/requests" onClick={onClose}>
-            <span>Мои запросы</span>
-            {incomingCount > 0 ? <span className={styles.count}>{incomingCount}</span> : null}
-          </NavLink>
+          {user.appRole === "admin" ? null : (
+            <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/requests" onClick={onClose}>
+              <span>Мои запросы</span>
+              {incomingCount > 0 ? <span className={styles.count}>{incomingCount}</span> : null}
+            </NavLink>
+          )}
+          {accountSwitch ? (
+            <button className={styles.item} type="button" disabled={pending || switching} onClick={onSwitch}>
+              {accountSwitch.to === "admin" ? "Переключиться на администратора" : "Вернуться в свой аккаунт"}
+            </button>
+          ) : null}
+          {switchError ? <p className={styles.switchError}>{switchError}</p> : null}
           <button className={styles.item} type="button" disabled={pending} onClick={onLogout}>
             Выйти
           </button>

@@ -1,3 +1,5 @@
+import { eq } from "drizzle-orm";
+import { users } from "../db/schema.js";
 import { findRefreshSession, refreshSessionAlive, REFRESH_COOKIE } from "../auth/sessions.js";
 
 const CHANNEL = "sampo_notification";
@@ -24,10 +26,15 @@ export function registerNotificationStream(app, { db, config }) {
     }
 
     findRefreshSession(db, request.cookies?.[REFRESH_COOKIE])
-      .then((session) => {
+      .then(async (session) => {
         if (socket.readyState !== 1) return;
         if (!session) {
           socket.close(4401, "Нужно войти");
+          return;
+        }
+        const [user] = await db.select({ appRole: users.appRole }).from(users).where(eq(users.id, session.userId));
+        if (user?.appRole === "admin") {
+          socket.close(4403, "Недостаточно прав");
           return;
         }
         add(bySession, session.id, socket);

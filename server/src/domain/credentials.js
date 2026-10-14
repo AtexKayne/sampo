@@ -1,5 +1,5 @@
 import { HttpError } from "../http/errors.js";
-import { hashPassword, validateLogin, validatePassword } from "../auth/password.js";
+import { hashPassword, validateDisplayName, validateLogin, validatePassword } from "../auth/password.js";
 
 function fail(statusCode, code, message) {
   throw new HttpError(statusCode, code, message);
@@ -57,6 +57,27 @@ export async function setLoginPassword(sql, userId, body) {
         `;
     if (!updated) fail(404, "NOT_FOUND", "Профиль не найден");
     return publicCredentials(updated);
+  } catch (error) {
+    if (isUniqueViolation(error)) fail(409, "LOGIN_TAKEN", "Этот логин уже занят");
+    throw error;
+  }
+}
+
+export async function createPasswordUser(sql, body) {
+  const login = validateLogin(body?.login);
+  if (!login.ok) fail(400, "VALIDATION", login.message);
+  const password = validatePassword(body?.password);
+  if (!password.ok) fail(400, "VALIDATION", password.message);
+  const name = validateDisplayName(body?.displayName);
+  if (!name.ok) fail(400, "VALIDATION", name.message);
+  const passwordHash = await hashPassword(password.password);
+  try {
+    const [created] = await sql`
+      INSERT INTO users (id, login, password_hash, display_name, app_role)
+      VALUES (${crypto.randomUUID()}, ${login.login}, ${passwordHash}, ${name.displayName}, 'user')
+      RETURNING id, login, display_name, app_role, vk_user_id
+    `;
+    return publicCredentials(created);
   } catch (error) {
     if (isUniqueViolation(error)) fail(409, "LOGIN_TAKEN", "Этот логин уже занят");
     throw error;

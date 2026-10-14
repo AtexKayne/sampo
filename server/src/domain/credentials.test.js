@@ -5,7 +5,8 @@ import postgres from "postgres";
 import { verifyPassword } from "../auth/password.js";
 import { migrate } from "../db/migrate.js";
 import { HttpError } from "../http/errors.js";
-import { setLoginPassword } from "./credentials.js";
+import { createPasswordUser, setLoginPassword } from "./credentials.js";
+import { adminProfile, deleteOtherProfile, saveProfile, searchAccounts } from "./profile.js";
 
 dotenv.config();
 
@@ -62,4 +63,74 @@ test("login and password are required until both exist, and a taken login is rej
     setLoginPassword(sql, second, { login: "boris_1", password: "long-enough" }),
     (error) => error instanceof HttpError && error.code === "LOGIN_TAKEN",
   );
+});
+
+test("password registration creates a user who can sign in with that login", async () => {
+  const created = await createPasswordUser(sql, {
+    login: "Galya_9",
+    password: "long-enough",
+    displayName: "  Галя ",
+  });
+  users.push(created.id);
+  assert.equal(created.login, "galya_9");
+  assert.equal(created.displayName, "Галя");
+  assert.equal(created.appRole, "user");
+  assert.equal(created.hasLogin, true);
+  assert.equal(created.vkLinked, false);
+  const [row] = await sql`SELECT password_hash FROM users WHERE id = ${created.id}`;
+  assert.equal(await verifyPassword("long-enough", row.password_hash), true);
+  await assert.rejects(
+    createPasswordUser(sql, { login: "galya_9", password: "long-enough", displayName: "Другая" }),
+    (error) => error instanceof HttpError && error.code === "LOGIN_TAKEN",
+  );
+});
+
+test("admin can find and edit another profile, and cannot delete an admin", async () => {
+  const adminId = crypto.randomUUID();
+  const adminLogin = `adm${adminId.replaceAll("-", "").slice(0, 8)}`;
+  await sql`
+    INSERT INTO users (id, login, password_hash, display_name, app_role)
+    VALUES (${adminId}, ${adminLogin}, 'x', 'Админ', 'admin')
+  `;
+  users.push(adminId);
+  const created = await createPasswordUser(sql, {
+    login: `edit${adminId.replaceAll("-", "").slice(0, 8)}`,
+    password: "long-enough",
+    displayName: "Редактор",
+  });
+  users.push(created.id);
+
+  const byName = await searchAccounts(sql, adminId, "редакт");
+  assert.equal(byName.some((person) => person.id === created.id), true);
+  const hidden = await searchAccounts(sql, adminId, adminLogin);
+  assert.equal(hidden.some((person) => person.id === adminId), false);
+
+  await saveProfile(sql, created.id, {
+    displayName: "Редактор два",
+    danceLevel: null,
+    blockedLevels: [],
+    listMode: "black",
+    blacklist: [],
+    whitelist: [],
+    notifyInvites: true,
+    notifyHourBefore: false,
+    shareAvailability: true,
+  });
+  const profile = await adminProfile(sql, created.id);
+  assert.equal(profile.displayName, "Редактор два");
+  assert.equal(profile.login, created.login);
+  assert.equal(profile.notifyHourBefore, false);
+  assert.equal(profile.shareAvailability, true);
+
+  await assert.rejects(
+    deleteOtherProfile(sql, adminId, adminId),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+  await assert.rejects(
+    deleteOtherProfile(sql, created.id, adminId),
+    (error) => error instanceof HttpError && error.code === "FORBIDDEN",
+  );
+  await deleteOtherProfile(sql, adminId, created.id);
+  const [gone] = await sql`SELECT id FROM users WHERE id = ${created.id}`;
+  assert.equal(gone, undefined);
 });

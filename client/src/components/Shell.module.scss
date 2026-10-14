@@ -304,6 +304,13 @@
   opacity: 0.6;
 }
 
+.switchError {
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--danger);
+  font-size: 13px;
+}
+
 .bottom {
   position: fixed;
   z-index: 4;

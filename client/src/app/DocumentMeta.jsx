@@ -4,10 +4,10 @@ import { SITE_ORIGIN, SITE_TITLE } from "../site.js";
 
 const PRIVATE_TITLES = [
   [/^\/calendar$/, "Календарь"],
-  [/^\/admin\/slots$/, "Слоты"],
   [/^\/requests$/, "Запросы"],
   [/^\/requests\//, "Запрос"],
   [/^\/me\/availability$/, "Свободное время"],
+  [/^\/admin\/users\//, "Профиль"],
   [/^\/me$/, "Профиль"],
   [/^\/dancers\//, "Участник"],
   [/^\/slots\//, "Слот"],

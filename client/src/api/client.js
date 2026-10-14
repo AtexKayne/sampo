@@ -72,6 +72,12 @@ export async function login(body) {
   return data.user;
 }
 
+export async function switchAccount() {
+  const data = await api("/api/auth/switch", { method: "POST" });
+  setAccessToken(data.accessToken);
+  return data.user;
+}
+
 export async function logout() {
   try {
     await api("/api/auth/logout", { method: "POST", skipRefresh: true });

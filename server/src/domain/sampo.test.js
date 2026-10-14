@@ -183,8 +183,13 @@ test("an admin cannot be invited to a slot", async () => {
   const slotId = await makeSlot(4, "2026-11-03T14:00:00.000Z", "2026-11-03T16:00:00.000Z");
   await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${admin}, ${slotId}), (${guest}, ${slotId})`;
   await assert.rejects(() => createRequest(sql, host, slotId, admin), (error) => error instanceof HttpError && error.statusCode === 409);
+  await assert.rejects(
+    () => createRequest(sql, admin, slotId, guest),
+    (error) => error instanceof HttpError && error.code === "FORBIDDEN",
+  );
   assert.deepEqual((await freePeople(sql, slotId, host, "Приглашаемый")).map((person) => person.id), [guest]);
   assert.deepEqual(await freePeople(sql, slotId, host, "Неприглашаемый"), []);
+  assert.deepEqual(await searchDancers(sql, host, "Неприглашаемый"), []);
 });
 
 test("a weekly window makes a person free for a covered slot", async () => {
@@ -922,8 +927,8 @@ test("deleting a profile removes that dancer and keeps the partner's visit", asy
   await addToBlacklist(sql, partner, owner);
   await sql`INSERT INTO invitation_blocks (user_id, level) VALUES (${owner}, 'M')`;
   await sql`
-    INSERT INTO refresh_sessions (id, user_id, token_hash, expires_at)
-    VALUES (${crypto.randomUUID()}, ${owner}, ${crypto.randomUUID()}, ${new Date(Date.now() + 60_000)})
+    INSERT INTO refresh_sessions (id, user_id, login_user_id, token_hash, expires_at)
+    VALUES (${crypto.randomUUID()}, ${owner}, ${owner}, ${crypto.randomUUID()}, ${new Date(Date.now() + 60_000)})
   `;
   await sql`
     INSERT INTO notifications (id, user_id, type, payload)

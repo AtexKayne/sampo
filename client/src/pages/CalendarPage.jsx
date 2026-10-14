@@ -76,7 +76,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const windowsQuery = useQuery({
     queryKey: ["windows"],
     queryFn: () => api("/api/me/windows"),
-    enabled: session.status === "ready" && Boolean(session.user),
+    enabled: session.status === "ready" && session.user?.appRole !== "admin",
   });
 
   useEffect(() => {
@@ -187,6 +187,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   }
   if (!session.user) return <Navigate to="/login" replace />;
   if (adminOnly && session.user.appRole !== "admin") return <Navigate to="/calendar" replace />;
+  if (availabilityOnly && session.user.appRole === "admin") return <Navigate to="/calendar" replace />;
 
   async function onLogout() {
     setPending(true);
@@ -275,7 +276,8 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const todayKey = studioDayKey(now);
   const selectedDay = days.find((day) => studioDayKey(day) === selection?.dayKey);
   const slots = slotsQuery.data?.slots ?? [];
-  const markingAvailability = !adminOnly && (availabilityOnly || !canCreate || purpose !== "slot");
+  const dancer = session.user.appRole !== "admin";
+  const markingAvailability = dancer && !adminOnly && (availabilityOnly || !canCreate || purpose !== "slot");
   const selectionBusy = Boolean(selection?.insideFree);
   const freeLimits = {
     maxMinutes: 15 * 60,
@@ -306,16 +308,18 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     <Shell user={session.user} onLogout={onLogout} pending={pending}>
       <div className={styles.head}>
         <h1 className={styles.title}>{heading}</h1>
-        <button className={styles.helpLink} type="button" onClick={() => setHelpOpen(true)}>
-          Как пользоваться?
-        </button>
+        {dancer ? (
+          <button className={styles.helpLink} type="button" onClick={() => setHelpOpen(true)}>
+            Как пользоваться?
+          </button>
+        ) : null}
       </div>
-      {canCreate && !adminOnly && !availabilityOnly ? (
+      {dancer && canCreate && !adminOnly && !availabilityOnly ? (
         <div className={styles.modes}>
           <button
             className={purpose === "slot" ? styles.primary : styles.button}
             type="button"
-            onClick={() => choosePurpose(purpose === "slot" ? "free" : "slot")}
+            onClick={() => choosePurpose(!dancer || purpose !== "slot" ? "slot" : "free")}
           >
             Новый слот
           </button>
@@ -639,9 +643,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       ) : null}
       {helpOpen ? (
         <HelpDialog
-          showAvailability={markingAvailability || (canCreate && !adminOnly && !availabilityOnly)}
+          showAvailability={markingAvailability || (dancer && canCreate && !adminOnly && !availabilityOnly)}
           showSlotCreate={canCreate && !availabilityOnly}
-          showModeSwitch={canCreate && !adminOnly && !availabilityOnly}
+          showModeSwitch={dancer && canCreate && !adminOnly && !availabilityOnly}
           onClose={() => setHelpOpen(false)}
         />
       ) : null}

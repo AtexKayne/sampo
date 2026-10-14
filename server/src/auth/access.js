@@ -18,3 +18,7 @@ export async function requireUser(request, db, config) {
 export function requireAdmin(user) {
   if (user.appRole !== "admin") throw new HttpError(403, "FORBIDDEN", "Недостаточно прав");
 }
+
+export function requireDancer(user) {
+  if (user.appRole === "admin") throw new HttpError(403, "FORBIDDEN", "Администратор не участвует в приглашениях");
+}

@@ -33,6 +33,7 @@ export function RequestsPage() {
 
   if (session.status === "loading") return <p className={styles.status}>Загрузка</p>;
   if (!session.user) return <Navigate to="/login" replace />;
+  if (session.user.appRole === "admin") return <Navigate to="/calendar" replace />;
 
   async function onLogout() {
     setPendingLogout(true);

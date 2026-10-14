@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
@@ -10,7 +10,13 @@ import styles from "./user.module.scss";
 
 export function ProfilePage() {
   const session = useSession();
+  const location = useLocation();
   const [pendingLogout, setPendingLogout] = useState(false);
+
+  useEffect(() => {
+    if (location.hash !== "#admin-users") return;
+    document.getElementById("admin-users")?.scrollIntoView({ block: "start" });
+  }, [location.hash, session.user]);
 
   if (session.status === "loading") return <p className={styles.status}>Загрузка</p>;
   if (session.status === "error") {
@@ -35,6 +41,18 @@ export function ProfilePage() {
     }
   }
 
+  if (session.user.appRole === "admin") {
+    return (
+      <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
+        <h1 className={styles.title}>Пользователи</h1>
+        <div className={styles.profile}>
+          <AdminCreateUser />
+          <AdminUserSearch />
+        </div>
+      </Shell>
+    );
+  }
+
   return (
     <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
       <h1 className={styles.title}>Профиль</h1>
@@ -43,9 +61,51 @@ export function ProfilePage() {
   );
 }
 
-function ProfileSettings() {
+export function AdminUserPage() {
+  const { id } = useParams();
   const session = useSession();
+  const [pendingLogout, setPendingLogout] = useState(false);
+
+  if (session.status === "loading") return <p className={styles.status}>Загрузка</p>;
+  if (session.status === "error") {
+    return (
+      <main className={styles.fallback}>
+        <p className={styles.error}>Нет сети</p>
+        <button className={styles.button} type="button" onClick={session.retry}>
+          Повторить
+        </button>
+      </main>
+    );
+  }
+  if (!session.user) return <Navigate to="/login" replace />;
+  if (session.user.appRole !== "admin" || id === session.user.id) return <Navigate to="/calendar" replace />;
+
+  async function onLogout() {
+    setPendingLogout(true);
+    try {
+      await logout();
+      session.setUser(null);
+    } catch {
+      setPendingLogout(false);
+    }
+  }
+
+  return (
+    <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
+      <Link className={styles.back} to="/me#admin-users">К пользователям</Link>
+      <h1 className={styles.title}>Профиль</h1>
+      <ProfileSettings key={id} userId={id} />
+    </Shell>
+  );
+}
+
+function ProfileSettings({ userId }) {
+  const session = useSession();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const editing = Boolean(userId);
+  const settingsKey = ["profile-settings", userId || "me"];
+  const settingsPath = editing ? `/api/admin/users/${userId}` : "/api/me/settings";
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
@@ -53,8 +113,8 @@ function ProfileSettings() {
   const [query, setQuery] = useState("");
   const [needle, setNeedle] = useState("");
   const settingsQuery = useQuery({
-    queryKey: ["profile-settings"],
-    queryFn: () => api("/api/me/settings"),
+    queryKey: settingsKey,
+    queryFn: () => api(settingsPath),
   });
   const saved = settingsQuery.data;
   useEffect(() => {
@@ -72,7 +132,7 @@ function ProfileSettings() {
   });
   const save = useMutation({
     mutationFn: (profile) =>
-      api("/api/me/settings", {
+      api(settingsPath, {
         method: "PUT",
         body: {
           displayName: profile.displayName,
@@ -89,13 +149,17 @@ function ProfileSettings() {
     onSuccess: (next) => {
       setError("");
       setDraft(next);
-      queryClient.setQueryData(["profile-settings"], next);
-      session.setUser({ ...session.user, displayName: next.displayName });
+      queryClient.setQueryData(settingsKey, next);
+      if (!editing) session.setUser({ ...session.user, displayName: next.displayName });
     },
     onError: (reason) => setError(reason.message),
   });
   const remove = useMutation({
     mutationFn: async () => {
+      if (editing) {
+        await api(settingsPath, { method: "DELETE" });
+        return;
+      }
       await api("/api/me", { method: "DELETE" });
       try {
         await logout();
@@ -104,6 +168,11 @@ function ProfileSettings() {
       }
     },
     onSuccess: () => {
+      if (editing) {
+        queryClient.removeQueries({ queryKey: settingsKey });
+        navigate("/me#admin-users");
+        return;
+      }
       queryClient.clear();
       session.setUser(null);
     },
@@ -208,7 +277,25 @@ function ProfileSettings() {
       </form>
       <div className={styles.settings}>
       <h2 className={styles.settingsTitle}>Дополнительные настройки</h2>
-      <LoginCredentials />
+      {editing && !saved ? null : (
+        <LoginCredentials
+          account={editing ? { login: saved.login, hasLogin: saved.hasLogin } : null}
+          path={editing ? `${settingsPath}/password` : "/api/me/password"}
+          onSaved={editing
+            ? (user) => {
+                queryClient.setQueryData(settingsKey, (current) => (
+                  current ? { ...current, login: user.login, hasLogin: user.hasLogin } : current
+                ));
+              }
+            : undefined}
+        />
+      )}
+      {session.user?.appRole === "admin" && !editing ? (
+        <>
+          <AdminCreateUser />
+          <AdminUserSearch />
+        </>
+      ) : null}
       {settingsQuery.isLoading ? <p className={styles.groupHint}>Загрузка</p> : null}
       {settingsQuery.isError ? <p className={styles.error}>{settingsQuery.error.message}</p> : null}
       {draft ? (
@@ -400,7 +487,8 @@ function ProfileSettings() {
                   </button>
                 </div>
                 <p className={styles.dialogText} id="delete-profile-text">
-                  Профиль и все связанные данные будут удалены: имя, уровень, списки, посещения, свободное время, запросы и уведомления. Восстановить их нельзя.
+                  {editing && saved?.displayName ? `Профиль «${saved.displayName}» и все связанные данные будут удалены: ` : "Профиль и все связанные данные будут удалены: "}
+                  имя, уровень, списки, посещения, свободное время, запросы и уведомления. Восстановить их нельзя.
                 </p>
                 {deleteError ? <p className={styles.error}>{deleteError}</p> : null}
                 <div className={styles.row}>
@@ -420,10 +508,10 @@ function ProfileSettings() {
   );
 }
 
-function LoginCredentials() {
+function LoginCredentials({ account, path, onSaved }) {
   const session = useSession();
-  const savedLogin = session.user?.login || "";
-  const hasLogin = Boolean(session.user?.hasLogin);
+  const savedLogin = account ? account.login || "" : session.user?.login || "";
+  const hasLogin = account ? Boolean(account.hasLogin) : Boolean(session.user?.hasLogin);
   const [loginName, setLoginName] = useState(savedLogin);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -433,13 +521,14 @@ function LoginCredentials() {
     setLoginName(savedLogin);
   }, [savedLogin]);
   const save = useMutation({
-    mutationFn: (body) => api("/api/me/password", { method: "POST", body }),
+    mutationFn: (body) => api(path, { method: "POST", body }),
     onSuccess: (user) => {
       setError("");
       setNotice(hasLogin ? "Логин и пароль сохранены" : "Теперь можно входить по логину и паролю");
       setPassword("");
       setConfirm("");
-      session.setUser(user);
+      if (onSaved) onSaved(user);
+      else session.setUser({ ...session.user, ...user, accountSwitch: session.user?.accountSwitch });
     },
     onError: (reason) => {
       setNotice("");
@@ -524,6 +613,174 @@ function LoginCredentials() {
       <div className={styles.row}>
         <button className={styles.primary} type="submit" disabled={!canSave}>
           {hasLogin ? "Сохранить логин и пароль" : "Задать логин и пароль"}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function AdminUserSearch() {
+  const [query, setQuery] = useState("");
+  const [needle, setNeedle] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setNeedle(query.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [query]);
+  const accounts = useQuery({
+    queryKey: ["admin-users", needle],
+    queryFn: () => api(`/api/admin/users?q=${encodeURIComponent(needle)}`),
+    enabled: needle.length > 0,
+  });
+  const trimmed = query.trim();
+
+  return (
+    <section className={styles.group} id="admin-users" aria-labelledby="admin-users-title">
+      <div className={styles.caption}>
+        <h3 className={styles.groupTitle} id="admin-users-title">Пользователи</h3>
+        <p className={styles.groupHint}>Найдите профиль по имени или логину, чтобы изменить или удалить его.</p>
+      </div>
+      <input
+        className={styles.input}
+        value={query}
+        placeholder="Имя или логин"
+        aria-label="Поиск пользователя"
+        autoComplete="off"
+        onChange={(event) => setQuery(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") event.preventDefault();
+        }}
+      />
+      {trimmed ? (
+        needle !== trimmed || accounts.isLoading ? (
+          <p className={styles.groupHint}>Загрузка</p>
+        ) : accounts.isError ? (
+          <p className={styles.error}>{accounts.error.message}</p>
+        ) : accounts.data.users.length === 0 ? (
+          <p className={styles.groupHint}>Никого нет</p>
+        ) : (
+          <ul className={styles.list}>
+            {accounts.data.users.map((person) => (
+              <li className={styles.person} key={person.id}>
+                <Link className={styles.personLink} to={`/admin/users/${person.id}`}>
+                  {person.login ? `${person.displayName} · ${person.login}` : person.displayName}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+    </section>
+  );
+}
+
+function AdminCreateUser() {
+  const [displayName, setDisplayName] = useState("");
+  const [loginName, setLoginName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const save = useMutation({
+    mutationFn: (body) => api("/api/admin/users", { method: "POST", body }),
+    onSuccess: (user) => {
+      setError("");
+      setNotice(`Пользователь ${user.displayName} создан. Вход по логину ${user.login}.`);
+      setDisplayName("");
+      setLoginName("");
+      setPassword("");
+      setConfirm("");
+    },
+    onError: (reason) => {
+      setNotice("");
+      setError(reason.message);
+    },
+  });
+  const canSave = !save.isPending && displayName.trim() && loginName.trim() && password;
+
+  function submit() {
+    setError("");
+    setNotice("");
+    if (password !== confirm) {
+      setError("Пароли не совпадают");
+      return;
+    }
+    save.mutate({ displayName, login: loginName, password });
+  }
+
+  return (
+    <form
+      className={styles.group}
+      aria-labelledby="admin-user-title"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSave) submit();
+      }}
+    >
+      <div className={styles.caption}>
+        <h3 className={styles.groupTitle} id="admin-user-title">Новый пользователь</h3>
+        <p className={styles.groupHint}>Регистрация по логину и паролю. Войти можно сразу после создания.</p>
+      </div>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Имя</span>
+        <input
+          className={styles.input}
+          value={displayName}
+          autoComplete="off"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setDisplayName(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Логин</span>
+        <input
+          className={styles.input}
+          value={loginName}
+          autoComplete="off"
+          autoCapitalize="none"
+          spellCheck="false"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setLoginName(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Пароль</span>
+        <input
+          className={styles.input}
+          type="password"
+          value={password}
+          autoComplete="new-password"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Пароль ещё раз</span>
+        <input
+          className={styles.input}
+          type="password"
+          value={confirm}
+          autoComplete="new-password"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setConfirm(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      {error ? <p className={styles.error}>{error}</p> : null}
+      {notice ? <p className={styles.saved}>{notice}</p> : null}
+      <div className={styles.row}>
+        <button className={styles.primary} type="submit" disabled={!canSave}>
+          Зарегистрировать
         </button>
       </div>
     </form>

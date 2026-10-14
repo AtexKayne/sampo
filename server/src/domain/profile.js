@@ -76,6 +76,58 @@ export async function deleteProfile(sql, userId) {
   });
 }
 
+export async function requireExistingUser(sql, userId) {
+  if (typeof userId !== "string" || !USER_ID.test(userId)) fail(400, "VALIDATION", "Выберите пользователя");
+  const [user] = await sql`SELECT id, app_role FROM users WHERE id = ${userId}`;
+  if (!user) fail(404, "NOT_FOUND", "Профиль не найден");
+  return user;
+}
+
+export async function deleteOtherProfile(sql, actorId, userId) {
+  const user = await requireExistingUser(sql, userId);
+  if (user.id === actorId) fail(400, "VALIDATION", "Свой профиль удаляется в своих настройках");
+  if (user.app_role === "admin") fail(403, "FORBIDDEN", "Нельзя удалить администратора");
+  await deleteProfile(sql, userId);
+}
+
+export async function searchAccounts(sql, actorId, q) {
+  const query = String(q ?? "").trim().slice(0, 80);
+  if (!query) return [];
+  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
+  const rows = await sql`
+    SELECT id, display_name, dance_level, login
+    FROM users
+    WHERE id <> ${actorId}
+      AND (display_name ILIKE ${pattern} OR login ILIKE ${pattern})
+    ORDER BY display_name, id
+    LIMIT 20
+  `;
+  return rows.map((row) => ({
+    id: row.id,
+    displayName: row.display_name,
+    danceLevel: row.dance_level,
+    login: row.login,
+  }));
+}
+
+export async function adminProfile(sql, userId, now = new Date()) {
+  const [user] = await sql`
+    SELECT id, login, vk_user_id, app_role
+    FROM users
+    WHERE id = ${userId}
+  `;
+  if (!user) fail(404, "NOT_FOUND", "Профиль не найден");
+  const settings = await profileSettings(sql, userId, now);
+  return {
+    ...settings,
+    id: user.id,
+    login: user.login,
+    hasLogin: Boolean(user.login),
+    vkLinked: user.vk_user_id != null,
+    appRole: user.app_role,
+  };
+}
+
 export async function visitCounts(sql, userId, now = new Date()) {
   const month = studioMonthRange(now);
   const [row] = await sql`
@@ -195,13 +247,13 @@ export async function searchDancers(sql, actorId, q, options = {}) {
   const rows = options.includeSelf
     ? await sql`
         SELECT id, display_name, dance_level FROM users
-        WHERE display_name ILIKE ${pattern}
+        WHERE app_role <> 'admin' AND display_name ILIKE ${pattern}
         ORDER BY display_name, id
         LIMIT 20
       `
     : await sql`
         SELECT id, display_name, dance_level FROM users
-        WHERE id <> ${actorId} AND display_name ILIKE ${pattern}
+        WHERE id <> ${actorId} AND app_role <> 'admin' AND display_name ILIKE ${pattern}
         ORDER BY display_name, id
         LIMIT 20
       `;
@@ -211,8 +263,8 @@ export async function searchDancers(sql, actorId, q, options = {}) {
 async function rememberDancer(sql, userId, otherId) {
   if (typeof otherId !== "string" || !USER_ID.test(otherId)) fail(400, "VALIDATION", "Выберите танцора");
   if (otherId === userId) fail(400, "VALIDATION", "Нельзя добавить себя");
-  const [person] = await sql`SELECT id FROM users WHERE id = ${otherId}`;
-  if (!person) fail(404, "NOT_FOUND", "Танцор не найден");
+  const [person] = await sql`SELECT id, app_role FROM users WHERE id = ${otherId}`;
+  if (!person || person.app_role === "admin") fail(404, "NOT_FOUND", "Танцор не найден");
 }
 
 export async function addToBlacklist(sql, userId, blockedUserId) {

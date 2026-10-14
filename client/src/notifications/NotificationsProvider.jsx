@@ -28,16 +28,21 @@ export function NotificationsProvider({ children }) {
   const navigate = useNavigate();
   const [toasts, setToasts] = useState(liveToasts);
   const [connected, setConnected] = useState(false);
+  const dancer = session.status === "ready" && Boolean(session.user) && session.user.appRole !== "admin";
   const notesQuery = useQuery({
     queryKey: ["notifications"],
     queryFn: () => api("/api/notifications"),
-    enabled: session.status === "ready" && Boolean(session.user),
+    enabled: Boolean(dancer),
     refetchInterval: connected ? 60000 : 15000,
     refetchOnWindowFocus: true,
   });
 
   useEffect(() => {
-    if (session.status !== "ready" || !session.user) return undefined;
+    if (session.status === "ready" && session.user?.appRole === "admin") dismissToasts();
+  }, [session.status, session.user]);
+
+  useEffect(() => {
+    if (!dancer) return undefined;
     let stopped = false;
     let socket;
     let attempt = 0;
@@ -68,7 +73,7 @@ export function NotificationsProvider({ children }) {
       setConnected(false);
       socket?.close();
     };
-  }, [session.status, session.user, queryClient]);
+  }, [dancer, queryClient]);
 
   useEffect(() => {
     publishToasts = setToasts;

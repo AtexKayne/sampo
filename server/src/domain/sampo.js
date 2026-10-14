@@ -149,10 +149,9 @@ const INVITE_NOTICE = new Set([
 ]);
 
 async function notify(tx, userId, type, payload) {
-  if (INVITE_NOTICE.has(type)) {
-    const [user] = await tx`SELECT notify_invites FROM users WHERE id = ${userId}`;
-    if (user?.notify_invites === false) return;
-  }
+  const [user] = await tx`SELECT app_role, notify_invites FROM users WHERE id = ${userId}`;
+  if (user?.app_role === "admin") return;
+  if (INVITE_NOTICE.has(type) && user?.notify_invites === false) return;
   const id = crypto.randomUUID();
   await tx`INSERT INTO notifications (id, user_id, type, payload) VALUES (${id}, ${userId}, ${type}, ${tx.json(payload)})`;
   const event = JSON.stringify({
@@ -1007,6 +1006,8 @@ export async function createRequest(sql, actorId, slotId, toUserId) {
     const slot = slotOf(raw);
     if (slot.status !== "open") fail(409, "SLOT_NOT_OPEN", "Слот уже отменён");
     if (slot.startsAt <= new Date()) fail(409, "SLOT_STARTED", "Слот уже начался");
+    const [actor] = await tx`SELECT app_role FROM users WHERE id = ${actorId}`;
+    if (actor?.app_role === "admin") fail(403, "FORBIDDEN", "Администратор не участвует в приглашениях");
     const [target] = await tx`SELECT id, app_role FROM users WHERE id = ${toUserId}`;
     if (!target) fail(404, "NOT_FOUND", "Участник не найден");
     if (target.app_role === "admin") fail(409, "NOT_AVAILABLE", "Этого человека нельзя пригласить");
@@ -1306,6 +1307,7 @@ export async function remindDue(sql) {
     JOIN slots s ON s.id = a.slot_id
     JOIN users u ON u.id = a.user_id
     WHERE u.notify_hour_before
+      AND u.app_role <> 'admin'
       AND s.status = 'open'
       AND s.starts_at > now()
       AND s.starts_at <= now() + interval '1 hour'
@@ -1331,6 +1333,7 @@ export async function remindDue(sql) {
         WHERE a.user_id = ${row.user_id}
           AND a.slot_id = ${row.id}
           AND u.notify_hour_before
+          AND u.app_role <> 'admin'
           AND s.status = 'open'
           AND s.starts_at > now()
           AND s.starts_at <= now() + interval '1 hour'
@@ -1578,10 +1581,10 @@ export async function dancerProfile(sql, viewerId, subjectId) {
   }
   if (viewerId === subjectId) fail(400, "VALIDATION", "Это ваш профиль");
   const [user] = await sql`
-    SELECT id, display_name, dance_level, share_availability
+    SELECT id, display_name, dance_level, share_availability, app_role
     FROM users WHERE id = ${subjectId}
   `;
-  if (!user) fail(404, "NOT_FOUND", "Танцор не найден");
+  if (!user || user.app_role === "admin") fail(404, "NOT_FOUND", "Танцор не найден");
   const lists = await listMembership(sql, viewerId, subjectId);
   const hidden = await inviteListHides(sql, subjectId, viewerId);
   return {
