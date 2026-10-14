@@ -100,10 +100,11 @@ test("admin can find and edit another profile, and cannot delete an admin", asyn
   });
   users.push(created.id);
 
-  const byName = await searchAccounts(sql, adminId, "редакт");
-  assert.equal(byName.some((person) => person.id === created.id), true);
+  const byName = await searchAccounts(sql, adminId, created.login);
+  assert.equal(byName.users.some((person) => person.id === created.id), true);
+  assert.equal(byName.pageSize, 15);
   const hidden = await searchAccounts(sql, adminId, adminLogin);
-  assert.equal(hidden.some((person) => person.id === adminId), false);
+  assert.equal(hidden.users.some((person) => person.id === adminId), false);
 
   await saveProfile(sql, created.id, {
     displayName: "Редактор два",
@@ -114,6 +115,8 @@ test("admin can find and edit another profile, and cannot delete an admin", asyn
     whitelist: [],
     notifyInvites: true,
     notifyHourBefore: false,
+    notifyNewSlots: false,
+    notifyNewSlotsScope: "free",
     shareAvailability: true,
   });
   const profile = await adminProfile(sql, created.id);
@@ -133,4 +136,47 @@ test("admin can find and edit another profile, and cannot delete an admin", asyn
   await deleteOtherProfile(sql, adminId, created.id);
   const [gone] = await sql`SELECT id FROM users WHERE id = ${created.id}`;
   assert.equal(gone, undefined);
+});
+
+test("admin user list is 15 people per page and matches name or login", async () => {
+  const adminId = crypto.randomUUID();
+  const stamp = adminId.replaceAll("-", "").slice(0, 8);
+  await sql`
+    INSERT INTO users (id, login, password_hash, display_name, app_role)
+    VALUES (${adminId}, ${`adm${stamp}`}, 'x', 'Админ', 'admin')
+  `;
+  users.push(adminId);
+  const ids = [];
+  for (let index = 0; index < 16; index += 1) {
+    const id = crypto.randomUUID();
+    const label = String(index).padStart(2, "0");
+    await sql`
+      INSERT INTO users (id, login, password_hash, display_name)
+      VALUES (${id}, ${`pg${stamp}${index}`}, 'x', ${`Страница ${stamp} ${label}`})
+    `;
+    ids.push(id);
+    users.push(id);
+  }
+
+  const first = await searchAccounts(sql, adminId, `Страница ${stamp}`);
+  assert.equal(first.total, 16);
+  assert.equal(first.page, 1);
+  assert.equal(first.pageSize, 15);
+  assert.equal(first.users.length, 15);
+  assert.equal(first.users[0].displayName, `Страница ${stamp} 00`);
+  assert.equal(first.users.some((person) => person.id === ids[15]), false);
+
+  const second = await searchAccounts(sql, adminId, `Страница ${stamp}`, "2");
+  assert.equal(second.page, 2);
+  assert.equal(second.users.length, 1);
+  assert.equal(second.users[0].id, ids[15]);
+
+  const byLogin = await searchAccounts(sql, adminId, `pg${stamp}3`);
+  assert.equal(byLogin.total, 1);
+  assert.equal(byLogin.users[0].id, ids[3]);
+
+  const everyone = await searchAccounts(sql, adminId, "");
+  assert.equal(everyone.users.some((person) => person.id === adminId), false);
+  assert.equal(everyone.users.length <= 15, true);
+  assert.equal(everyone.total >= 16, true);
 });

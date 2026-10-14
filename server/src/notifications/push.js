@@ -60,9 +60,10 @@ export function pushMessage(note, options = {}) {
   const requestId = payload.requestId || null;
   const slotId = payload.slotId || null;
   const url = payload.url || (requestId ? `/requests/${requestId}` : slotId ? `/slots/${slotId}` : "/calendar");
+  const text = typeof payload.text === "string" && payload.text.trim() ? payload.text : "Новое уведомление";
   const message = {
-    title: "Сампо",
-    body: payload.text || "Новое уведомление",
+    title: text,
+    body: "",
     tag: note?.id,
     data: { url, requestId },
   };

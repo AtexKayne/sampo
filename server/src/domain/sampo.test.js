@@ -5,6 +5,7 @@ import postgres from "postgres";
 import { migrate } from "../db/migrate.js";
 import {
   acceptRequest,
+  announceNewSlots,
   attend,
   cancelAcceptedRequest,
   cancelPair,
@@ -99,6 +100,10 @@ test("decline, withdraw, capacity and overlap", async () => {
   assert.equal(status, "pending");
   const declined = await declineRequest(sql, boris, pending.id);
   assert.equal(declined.status, "declined");
+  const [{ count: declinedNotes }] = await sql`
+    SELECT count(*)::int AS count FROM notifications WHERE user_id = ${anna} AND type = 'request_declined'
+  `;
+  assert.equal(declinedNotes, 0);
 
   const other = await makeSlot(4, "2026-10-22T14:00:00.000Z", "2026-10-22T16:00:00.000Z");
   await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${boris}, ${other})`;
@@ -144,6 +149,7 @@ test("one slot can hold many invitations until somebody accepts", async () => {
   const toVera = await createRequest(sql, anna, slotId, vera);
   const toAnna = await createRequest(sql, gleb, other, anna);
   const toDina = await createRequest(sql, boris, other, dina);
+  await sql`UPDATE users SET notify_invites = true WHERE id IN ${sql([anna, vera])}`;
   await acceptRequest(sql, boris, toBoris.id);
   const rows = await sql`
     SELECT id, status, cancel_reason FROM sampo_requests
@@ -262,7 +268,7 @@ test("either partner can cancel a confirmed request with a reason", async () => 
   const [{ text }] = await sql`
     SELECT payload->>'text' AS text FROM notifications WHERE user_id = ${boris} ORDER BY created_at DESC LIMIT 1
   `;
-  assert.match(text, /Не смогу прийти/);
+  assert.equal(text, "Нина отменил ваше сампо");
   const repeat = await createRequest(sql, anna, slotId, boris);
   assert.equal(repeat.status, "pending");
 });
@@ -280,8 +286,7 @@ test("a confirmed request can be cancelled without a reason", async () => {
   const [{ text }] = await sql`
     SELECT payload->>'text' AS text FROM notifications WHERE user_id = ${boris} ORDER BY created_at DESC LIMIT 1
   `;
-  assert.match(text, /отменил сампо/);
-  assert.equal(text.endsWith(":"), false);
+  assert.equal(text, "Кира отменил ваше сампо");
 });
 
 test("a stored notification is published for live delivery", async () => {
@@ -289,6 +294,7 @@ test("a stored notification is published for live delivery", async () => {
   const boris = await makeUser("Соня");
   const slotId = await makeSlot(4, "2026-11-12T14:00:00.000Z", "2026-11-12T16:00:00.000Z");
   await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${boris}, ${slotId})`;
+  await sql`UPDATE users SET notify_invites = true WHERE id = ${boris}`;
   let resolveNote;
   const received = new Promise((resolve) => {
     resolveNote = resolve;
@@ -766,10 +772,14 @@ test("profile changes are stored together and a blank name keeps the previous pr
     whitelist: [],
     notifyInvites: false,
     notifyHourBefore: false,
+    notifyNewSlots: true,
+    notifyNewSlotsScope: "all",
     shareAvailability: true,
   });
   assert.equal(saved.notifyInvites, false);
   assert.equal(saved.notifyHourBefore, false);
+  assert.equal(saved.notifyNewSlots, true);
+  assert.equal(saved.notifyNewSlotsScope, "all");
   assert.equal(saved.shareAvailability, true);
   assert.equal(saved.displayName, "Платон П.");
   assert.equal(saved.danceLevel, "S");
@@ -804,6 +814,8 @@ test("the active list decides who can send an invitation", async () => {
     whitelist: [allowed],
     notifyInvites: true,
     notifyHourBefore: true,
+    notifyNewSlots: false,
+    notifyNewSlotsScope: "free",
     shareAvailability: false,
   });
   assert.equal((await createRequest(sql, allowed, slotId, host)).status, "pending");
@@ -819,6 +831,8 @@ test("the active list decides who can send an invitation", async () => {
     whitelist: [allowed],
     notifyInvites: true,
     notifyHourBefore: true,
+    notifyNewSlots: false,
+    notifyNewSlotsScope: "free",
     shareAvailability: false,
   });
   const outsider = await makeUser("Фаина");
@@ -859,12 +873,66 @@ test("invitation notices follow the profile switch and the hour reminder is sent
   const soon = await makeSlot(4, start.toISOString(), end.toISOString());
   await sql`INSERT INTO attendances (user_id, slot_id) VALUES (${quiet}, ${soon}), (${loud}, ${soon})`;
   await sql`UPDATE users SET notify_hour_before = false WHERE id = ${quiet}`;
+  await sql`UPDATE users SET notify_hour_before = true WHERE id = ${loud}`;
   await remindDue(sql);
   await remindDue(sql);
   const quietNotes = await sql`SELECT count(*)::int AS count FROM notifications WHERE user_id = ${quiet} AND type = 'slot_reminder'`;
   const loudNotes = await sql`SELECT count(*)::int AS count FROM notifications WHERE user_id = ${loud} AND type = 'slot_reminder'`;
   assert.equal(quietNotes[0].count, 0);
   assert.equal(loudNotes[0].count, 1);
+});
+
+test("a new user starts with notification switches off", async () => {
+  const fresh = await profileSettings(sql, await makeUser("Глеб"));
+  assert.equal(fresh.notifyInvites, false);
+  assert.equal(fresh.notifyHourBefore, false);
+  assert.equal(fresh.notifyNewSlots, false);
+  assert.equal(fresh.notifyNewSlotsScope, "free");
+});
+
+test("new slot notices follow the free-window or all-slots choice", async () => {
+  const quiet = await makeUser("Зоя");
+  const freeUser = await makeUser("Илья");
+  const allUser = await makeUser("Кира");
+  const admin = await makeUser("Админ слотов");
+  await createWindow(sql, freeUser, { kind: "once", startsAtLocal: "2026-12-10T17:00", endsAtLocal: "2026-12-10T21:00" });
+  await sql`UPDATE users SET notify_new_slots = true, notify_new_slots_scope = 'free' WHERE id = ${freeUser}`;
+  await sql`UPDATE users SET notify_new_slots = true, notify_new_slots_scope = 'all' WHERE id = ${allUser}`;
+  await sql`UPDATE users SET notify_new_slots = true, notify_new_slots_scope = 'all', app_role = 'admin' WHERE id = ${admin}`;
+
+  const inside = await makeSlot(4, "2026-12-10T13:00:00.000Z", "2026-12-10T15:00:00.000Z");
+  const outside = await makeSlot(4, "2026-12-10T05:00:00.000Z", "2026-12-10T07:00:00.000Z");
+  const partial = await makeSlot(4, "2026-12-10T15:30:00.000Z", "2026-12-10T17:00:00.000Z");
+  const past = await makeSlot(4, "2026-01-10T13:00:00.000Z", "2026-01-10T15:00:00.000Z");
+  const rows = await sql`SELECT * FROM slots WHERE id IN ${sql([inside, outside, partial, past])}`;
+  await announceNewSlots(sql, rows);
+
+  const freeNotes = await sql`SELECT payload->>'slotId' AS slot_id FROM notifications WHERE user_id = ${freeUser} AND type = 'slot_opened'`;
+  const allNotes = await sql`SELECT payload->>'slotId' AS slot_id, payload->>'text' AS text FROM notifications WHERE user_id = ${allUser} AND type = 'slot_opened'`;
+  const quietNotes = await sql`SELECT count(*)::int AS count FROM notifications WHERE user_id = ${quiet} AND type = 'slot_opened'`;
+  const adminNotes = await sql`SELECT count(*)::int AS count FROM notifications WHERE user_id = ${admin} AND type = 'slot_opened'`;
+  assert.deepEqual(freeNotes.map((row) => row.slot_id), [inside]);
+  assert.deepEqual(allNotes.map((row) => row.slot_id).sort(), [inside, outside, partial].sort());
+  assert.equal(allNotes[0].text, "Появился новый слот сампо");
+  assert.equal(quietNotes[0].count, 0);
+  assert.equal(adminNotes[0].count, 0);
+
+  await assert.rejects(
+    saveProfile(sql, freeUser, {
+      displayName: "Илья",
+      danceLevel: null,
+      blockedLevels: [],
+      listMode: "black",
+      blacklist: [],
+      whitelist: [],
+      notifyInvites: false,
+      notifyHourBefore: false,
+      notifyNewSlots: true,
+      notifyNewSlotsScope: "weekly",
+      shareAvailability: false,
+    }),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
 });
 
 test("a dancer profile shares the three nearest free slots only when the viewer is allowed", async () => {

@@ -60,6 +60,13 @@ function parseFlag(value, message) {
   return { ok: true, value };
 }
 
+const SLOT_SCOPES = ["free", "all"];
+
+function parseSlotScope(value) {
+  if (typeof value === "string" && SLOT_SCOPES.includes(value)) return { ok: true, scope: value };
+  return { ok: false, message: "Выберите, о каких новых слотах сообщать" };
+}
+
 function studioMonthRange(now) {
   const parts = studioParts(now);
   const start = new Date(Date.UTC(parts.year, parts.month - 1, 1) - TIME_ZONE_OFFSET_MS);
@@ -90,24 +97,57 @@ export async function deleteOtherProfile(sql, actorId, userId) {
   await deleteProfile(sql, userId);
 }
 
-export async function searchAccounts(sql, actorId, q) {
-  const query = String(q ?? "").trim().slice(0, 80);
-  if (!query) return [];
-  const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
-  const rows = await sql`
-    SELECT id, display_name, dance_level, login
-    FROM users
-    WHERE id <> ${actorId}
-      AND (display_name ILIKE ${pattern} OR login ILIKE ${pattern})
-    ORDER BY display_name, id
-    LIMIT 20
-  `;
-  return rows.map((row) => ({
+const USERS_PAGE_SIZE = 15;
+
+function accountPage(value) {
+  const page = Number(value);
+  if (!Number.isInteger(page) || page < 1) return 1;
+  return Math.min(page, 100_000);
+}
+
+function accountMatch(sql, pattern) {
+  return pattern
+    ? sql`AND (display_name ILIKE ${pattern} OR login ILIKE ${pattern})`
+    : sql``;
+}
+
+function presentAccount(row) {
+  return {
     id: row.id,
     displayName: row.display_name,
     danceLevel: row.dance_level,
     login: row.login,
-  }));
+  };
+}
+
+export async function searchAccounts(sql, actorId, q, page = 1) {
+  const query = String(q ?? "").trim().slice(0, 80);
+  const current = accountPage(page);
+  const offset = (current - 1) * USERS_PAGE_SIZE;
+  const pattern = query ? `%${query.replace(/[\\%_]/g, "\\$&")}%` : null;
+  const [counted, rows] = await Promise.all([
+    sql`
+      SELECT count(*)::int AS total
+      FROM users
+      WHERE id <> ${actorId}
+      ${accountMatch(sql, pattern)}
+    `,
+    sql`
+      SELECT id, display_name, dance_level, login
+      FROM users
+      WHERE id <> ${actorId}
+      ${accountMatch(sql, pattern)}
+      ORDER BY display_name, id
+      LIMIT ${USERS_PAGE_SIZE}
+      OFFSET ${offset}
+    `,
+  ]);
+  return {
+    users: rows.map(presentAccount),
+    total: counted[0]?.total ?? 0,
+    page: current,
+    pageSize: USERS_PAGE_SIZE,
+  };
 }
 
 export async function adminProfile(sql, userId, now = new Date()) {
@@ -150,7 +190,8 @@ export async function visitCounts(sql, userId, now = new Date()) {
 
 export async function profileSettings(sql, userId, now = new Date()) {
   const [user] = await sql`
-    SELECT display_name, dance_level, invite_list, notify_invites, notify_hour_before, share_availability
+    SELECT display_name, dance_level, invite_list, notify_invites, notify_hour_before,
+           notify_new_slots, notify_new_slots_scope, share_availability
     FROM users WHERE id = ${userId}
   `;
   const levels = await sql`SELECT level FROM invitation_blocks WHERE user_id = ${userId}`;
@@ -163,8 +204,10 @@ export async function profileSettings(sql, userId, now = new Date()) {
     listMode: user?.invite_list === "white" ? "white" : "black",
     blacklist: await namedList(sql, userId, "black"),
     whitelist: await namedList(sql, userId, "white"),
-    notifyInvites: user?.notify_invites !== false,
-    notifyHourBefore: user?.notify_hour_before !== false,
+    notifyInvites: user?.notify_invites === true,
+    notifyHourBefore: user?.notify_hour_before === true,
+    notifyNewSlots: user?.notify_new_slots === true,
+    notifyNewSlotsScope: user?.notify_new_slots_scope === "all" ? "all" : "free",
     shareAvailability: user?.share_availability === true,
     visits: await visitCounts(sql, userId, now),
   };
@@ -187,6 +230,10 @@ export async function saveProfile(sql, userId, body) {
   if (!notifyInvites.ok) fail(400, "VALIDATION", notifyInvites.message);
   const notifyHourBefore = parseFlag(body?.notifyHourBefore, "Укажите, присылать ли уведомления за час до сампо");
   if (!notifyHourBefore.ok) fail(400, "VALIDATION", notifyHourBefore.message);
+  const notifyNewSlots = parseFlag(body?.notifyNewSlots, "Укажите, присылать ли уведомления о новых слотах");
+  if (!notifyNewSlots.ok) fail(400, "VALIDATION", notifyNewSlots.message);
+  const notifyNewSlotsScope = parseSlotScope(body?.notifyNewSlotsScope);
+  if (!notifyNewSlotsScope.ok) fail(400, "VALIDATION", notifyNewSlotsScope.message);
   const shareAvailability = parseFlag(body?.shareAvailability, "Укажите, делиться ли свободным временем");
   if (!shareAvailability.ok) fail(400, "VALIDATION", shareAvailability.message);
   const listed = [...new Set([...blacklist.ids, ...whitelist.ids])];
@@ -202,6 +249,8 @@ export async function saveProfile(sql, userId, body) {
           invite_list = ${mode.listMode},
           notify_invites = ${notifyInvites.value},
           notify_hour_before = ${notifyHourBefore.value},
+          notify_new_slots = ${notifyNewSlots.value},
+          notify_new_slots_scope = ${notifyNewSlotsScope.scope},
           share_availability = ${shareAvailability.value}
       WHERE id = ${userId}
     `;

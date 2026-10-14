@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { DocumentMeta } from "./DocumentMeta.jsx";
 import { AuthPage } from "../pages/AuthPage.jsx";
+import { FaqPage } from "../pages/FaqPage.jsx";
 import { CalendarPage } from "../pages/CalendarPage.jsx";
 import { SlotPage } from "../pages/SlotPage.jsx";
 import { RequestsPage } from "../pages/RequestsPage.jsx";
@@ -25,6 +26,7 @@ export function App() {
           <NotificationsProvider>
             <Routes>
               <Route path="/login" element={<AuthPage />} />
+              <Route path="/faq" element={<FaqPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/slots/:id" element={<SlotPage />} />
               <Route path="/requests" element={<RequestsPage />} />

@@ -255,7 +255,9 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
     const current = await requireUser(request, db, config);
     requireAdmin(current);
     const q = typeof request.query?.q === "string" ? request.query.q : "";
-    return { users: await searchAccounts(sql, current.id, q) };
+    const rawPage = request.query?.page;
+    const page = Array.isArray(rawPage) ? rawPage[0] : rawPage;
+    return searchAccounts(sql, current.id, q, page);
   });
 
   app.get("/api/admin/users/:id", async (request) => {

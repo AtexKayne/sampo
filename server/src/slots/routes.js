@@ -12,7 +12,7 @@ import {
   validateRepeat,
   validateResponsible,
 } from "./rules.js";
-import { assertCapacity, assertTimeEditable, cancelSlot, presentSlot, presentSlots } from "../domain/sampo.js";
+import { announceNewSlots, assertCapacity, assertTimeEditable, cancelSlot, presentSlot, presentSlots } from "../domain/sampo.js";
 
 function fail(result) {
   throw new HttpError(result.statusCode, result.code, result.message);
@@ -114,6 +114,7 @@ export function registerSlotRoutes(app, { db, sql, config }) {
     }));
     const created = await db.insert(slots).values(rows).returning();
     created.sort((left, right) => left.startsAt - right.startsAt);
+    await announceNewSlots(sql, created);
     return { slots: created.map(toSlot) };
   });
 

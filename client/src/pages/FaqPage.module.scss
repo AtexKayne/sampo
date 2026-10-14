@@ -1,0 +1,87 @@
+.title {
+  margin: 28px 0 0;
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.lead,
+.status {
+  margin: 12px 0 0;
+  max-width: 40rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  max-width: 40rem;
+  margin-top: 28px;
+}
+
+.item {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.question {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  background: var(--bg);
+}
+
+.caret,
+.caretOpen {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  color: var(--muted);
+  transition: transform 160ms ease;
+}
+
+.caretOpen {
+  transform: rotate(180deg);
+}
+
+.answers {
+  display: grid;
+  gap: 8px;
+  margin: 0 16px 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.answer {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .caret,
+  .caretOpen {
+    transition: none;
+  }
+}

@@ -104,7 +104,7 @@
   }
 
   .gridBar .legend {
-    margin-right: 0;
+    display: none;
   }
 
   .pager {
@@ -389,21 +389,16 @@
   gap: 20px;
 }
 
-.guideSection {
-  display: grid;
-  gap: 8px;
-}
-
-.guideTitle {
-  margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .guideText {
   margin: 0;
   color: var(--muted);
   line-height: 1.45;
+}
+
+.guideLink {
+  color: var(--ink);
+  font-weight: 600;
+  text-underline-offset: 3px;
 }
 
 .modalHead {

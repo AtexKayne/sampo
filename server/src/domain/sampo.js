@@ -104,6 +104,19 @@ function windowMatches(row, slot) {
   return false;
 }
 
+function slotInsideFree(row, slot) {
+  if (row.blocked) return false;
+  if (skipDatesOf(row).includes(studioDayKey(slot.startsAt))) return false;
+  if (row.kind === "once") {
+    return new Date(row.starts_at) <= slot.startsAt && slot.endsAt <= new Date(row.ends_at);
+  }
+  if (!row.local_start || !row.local_end) return false;
+  const start = clockMinutes(row.local_start);
+  const end = clockMinutes(row.local_end);
+  if (slotStartMinutes(slot) < start || slotEndMinutes(slot) > end) return false;
+  return windowMatches(row, slot);
+}
+
 function daysWord(count) {
   const mod10 = count % 10;
   const mod100 = count % 100;
@@ -149,9 +162,10 @@ const INVITE_NOTICE = new Set([
 ]);
 
 async function notify(tx, userId, type, payload) {
-  const [user] = await tx`SELECT app_role, notify_invites, vk_user_id FROM users WHERE id = ${userId}`;
+  const [user] = await tx`SELECT app_role, notify_invites, notify_new_slots, vk_user_id FROM users WHERE id = ${userId}`;
   if (user?.app_role === "admin") return;
   if (INVITE_NOTICE.has(type) && user?.notify_invites === false) return;
+  if (type === "slot_opened" && user?.notify_new_slots !== true) return;
   const id = crypto.randomUUID();
   await tx`INSERT INTO notifications (id, user_id, type, payload) VALUES (${id}, ${userId}, ${type}, ${tx.json(payload)})`;
   const event = JSON.stringify({
@@ -1061,7 +1075,7 @@ export async function createRequest(sql, actorId, slotId, toUserId) {
     `;
     const name = await displayName(tx, actorId);
     await notify(tx, toUserId, "request_received", {
-      text: `${name} приглашает вас на сампо ${formatWhen(slot.startsAt)}, ${slot.place}`,
+      text: `У вас новое приглашение от ${name}`,
       requestId: id,
       slotId,
       name,
@@ -1178,16 +1192,6 @@ export async function declineRequest(sql, actorId, requestId) {
     if (row.to_user_id !== actorId) fail(403, "FORBIDDEN", "Недостаточно прав");
     if (row.status !== "pending") return requestView(tx, row, actorId);
     const updated = await closeRequest(tx, row, "declined", null);
-    const [slot] = await tx`SELECT * FROM slots WHERE id = ${row.slot_id}`;
-    const name = await displayName(tx, actorId);
-    await notify(tx, row.from_user_id, "request_declined", {
-      text: `${name} отказал в сампо ${formatWhen(slot.starts_at)}, ${slot.place}`,
-      requestId,
-      slotId: slot.id,
-      name,
-      place: slot.place,
-      startsAt: new Date(slot.starts_at).toISOString(),
-    });
     return requestView(tx, updated, actorId);
   });
 }
@@ -1234,9 +1238,7 @@ export async function cancelAcceptedRequest(sql, actorId, requestId, reason) {
     const otherId = row.from_user_id === actorId ? row.to_user_id : row.from_user_id;
     const name = await displayName(tx, actorId);
     await notify(tx, otherId, "pair_cancelled", {
-      text: stored
-        ? `${name} отменил сампо ${formatWhen(slot.startsAt)}, ${slot.place}: ${stored}`
-        : `${name} отменил сампо ${formatWhen(slot.startsAt)}, ${slot.place}`,
+      text: `${name} отменил ваше сампо`,
       requestId: row.id,
       pairId: pair?.id ?? null,
       slotId: slot.id,
@@ -1268,7 +1270,7 @@ export async function cancelPair(sql, actorId, pairId) {
     const otherId = pair.user_low_id === actorId ? pair.user_high_id : pair.user_low_id;
     const name = await displayName(tx, actorId);
     await notify(tx, otherId, "pair_cancelled", {
-      text: `${name} отменил сампо ${formatWhen(slot.startsAt)}, ${slot.place}`,
+      text: `${name} отменил ваше сампо`,
       pairId,
       slotId: slot.id,
       name,
@@ -1315,6 +1317,31 @@ export async function cancelSlot(sql, slotId) {
   });
 }
 
+export async function announceNewSlots(sql, rows, now = new Date()) {
+  const fresh = rows.map(slotOf).filter((slot) => slot.status === "open" && slot.startsAt > now);
+  if (!fresh.length) return;
+  await sql.begin(async (tx) => {
+    const listeners = await tx`
+      SELECT id, notify_new_slots_scope
+      FROM users
+      WHERE notify_new_slots AND app_role <> 'admin'
+    `;
+    for (const listener of listeners) {
+      const windows = listener.notify_new_slots_scope === "all" ? null : await loadWindows(tx, listener.id);
+      for (const slot of fresh) {
+        if (windows && !windows.some((row) => slotInsideFree(row, slot))) continue;
+        await notify(tx, listener.id, "slot_opened", {
+          text: "Появился новый слот сампо",
+          slotId: slot.id,
+          place: slot.place,
+          startsAt: slot.startsAt.toISOString(),
+          endsAt: slot.endsAt.toISOString(),
+        });
+      }
+    }
+  });
+}
+
 export async function remindDue(sql) {
   const due = await sql`
     SELECT a.user_id, s.id
@@ -1358,7 +1385,7 @@ export async function remindDue(sql) {
         return;
       }
       await notify(tx, row.user_id, "slot_reminder", {
-        text: `Через час сампо ${formatWhen(ready.starts_at)}, ${ready.place}`,
+        text: "Вы просили напомнить, что через час начнется сампо",
         slotId: row.id,
         place: ready.place,
         startsAt: new Date(ready.starts_at).toISOString(),

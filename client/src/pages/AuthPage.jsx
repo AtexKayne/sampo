@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../api/client.js";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./AuthPage.module.scss";
@@ -84,6 +84,9 @@ export function AuthPage() {
             Войти через ВКонтакте
           </a>
           <p className={styles.hint}>Новый профиль создаётся только через ВКонтакте. Логин и пароль можно задать после входа, в профиле.</p>
+          <p className={styles.hint}>
+            Как пользоваться — в разделе <Link className={styles.faq} to="/faq">FAQ</Link>.
+          </p>
         </div>
       </section>
     </main>

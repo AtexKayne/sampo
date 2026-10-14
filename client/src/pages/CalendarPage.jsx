@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
 import { Shell } from "../components/Shell.jsx";
@@ -641,19 +641,12 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           </div>
         </div>
       ) : null}
-      {helpOpen ? (
-        <HelpDialog
-          showAvailability={markingAvailability || (dancer && canCreate && !adminOnly && !availabilityOnly)}
-          showSlotCreate={canCreate && !availabilityOnly}
-          showModeSwitch={dancer && canCreate && !adminOnly && !availabilityOnly}
-          onClose={() => setHelpOpen(false)}
-        />
-      ) : null}
+      {helpOpen ? <HelpDialog onClose={() => setHelpOpen(false)} /> : null}
     </Shell>
   );
 }
 
-function HelpDialog({ showAvailability, showSlotCreate, showModeSwitch, onClose }) {
+function HelpDialog({ onClose }) {
   return (
     <div className={styles.backdrop} onClick={onClose}>
       <div
@@ -670,45 +663,21 @@ function HelpDialog({ showAvailability, showSlotCreate, showModeSwitch, onClose 
           <ModalClose onClick={onClose} />
         </div>
         <div className={styles.guide}>
-          <GuideSection title="Время">
-            <p className={styles.guideText}>
-              Тюменское, с 9:00 до 00:00, шаг 30 минут. Прошедшее отметить нельзя. Недели листаются стрелками над таблицей.
-            </p>
-          </GuideSection>
-          {showAvailability ? (
-            <GuideSection title="Свободное время">
-              <p className={styles.guideText}>
-                Нажмите начало и конец или протяните интервал. На пустом месте — свободно, внутри свободного — недоступно. Без отметки пригласить нельзя. Один раз — до 15 часов, повтор — до 12 часов и не позже 23:30. Правый клик или долгое нажатие меняет отметку: этот день или вся серия.
-              </p>
-            </GuideSection>
-          ) : null}
-          <GuideSection title="Слоты">
-            <p className={styles.guideText}>
-              {showSlotCreate
-                ? "Нажмите слот, который ещё не закончился."
-                : "Нажмите слот, который ещё не закончился. В окне — приглашение, запросы и кого можно позвать."}
-            </p>
-          </GuideSection>
-          {showSlotCreate ? (
-            <GuideSection title="Новый слот">
-              <p className={styles.guideText}>
-                {showModeSwitch ? "Кнопка «Новый слот» переключает создание слота и отметку времени. " : ""}
-                Интервал от 30 минут до 6 часов: зал, вместимость, описание, ответственный и повтор до 12 недель. Начавшийся слот изменить и удалить нельзя.
-              </p>
-            </GuideSection>
-          ) : null}
+          <p className={styles.guideText}>
+            Отмечай в календаре свободные даты и время. Можно задать повторяющиеся интервалы, например по будням с 18:00. Редактировать интервалы можно правым кликом мыши или удержанием тапа на телефоне.
+          </p>
+          <p className={styles.guideText}>
+            Если слот сампо попадает в отмеченный интервал, он становится активным, и другой пользователь увидит тебя в списке тех, кого можно пригласить. Или выбери конкретный слот и сделай его активным одной кнопкой.
+          </p>
+          <p className={styles.guideText}>
+            В профиле можешь настроить списки тех, кто может приглашать тебя на сампо, а также быстрый вход по логину и уведомления. При установке на телефон можно включить пуш-уведомления.
+          </p>
+          <p className={styles.guideText}>
+            Подробная инструкция и другие вопросы — в разделе <Link className={styles.guideLink} to="/faq">FAQ</Link>.
+          </p>
         </div>
       </div>
     </div>
-  );
-}
-
-function GuideSection({ title, children }) {
-  return (
-    <section className={styles.guideSection}>
-      <h3 className={styles.guideTitle}>{title}</h3>
-      {children}
-    </section>
   );
 }
 

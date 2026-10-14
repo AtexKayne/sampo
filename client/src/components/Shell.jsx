@@ -15,7 +15,7 @@ export function Shell({ user, onLogout, pending, children }) {
   });
   const incomingCount = incoming.data?.requests?.length ?? 0;
   return (
-    <div className={styles.shell}>
+    <div className={user ? styles.shell : `${styles.shell} ${styles.guest}`}>
       <header className={styles.header}>
         <Link className={styles.brand} to="/calendar">
           <span className={styles.brandSite}>vparaplane</span>
@@ -37,15 +37,21 @@ export function Shell({ user, onLogout, pending, children }) {
                 onClose={() => setMenu(null)}
               />
             </>
-          ) : null}
+          ) : (
+            <Link className={styles.link} to="/login">
+              Войти
+            </Link>
+          )}
         </nav>
       </header>
       {children}
-      <nav className={styles.bottom}>
-        <NavLink className={({ isActive }) => (isActive ? styles.tabOn : styles.tab)} to="/calendar">
-          Календарь
-        </NavLink>
-      </nav>
+      {user ? (
+        <nav className={styles.bottom}>
+          <NavLink className={({ isActive }) => (isActive ? styles.tabOn : styles.tab)} to="/calendar">
+            Календарь
+          </NavLink>
+        </nav>
+      ) : null}
     </div>
   );
 }
@@ -201,6 +207,9 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
               {incomingCount > 0 ? <span className={styles.count}>{incomingCount}</span> : null}
             </NavLink>
           )}
+          <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/faq" onClick={onClose}>
+            FAQ
+          </NavLink>
           {accountSwitch ? (
             <button className={styles.item} type="button" disabled={pending || switching} onClick={onSwitch}>
               {accountSwitch.to === "admin" ? "Переключиться на администратора" : "Вернуться в свой аккаунт"}

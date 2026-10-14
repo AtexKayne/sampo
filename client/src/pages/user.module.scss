@@ -512,6 +512,115 @@
   margin-top: 16px;
 }
 
+.adminPage {
+  display: grid;
+  gap: 32px;
+  max-width: 920px;
+  margin-top: 16px;
+}
+
+.adminPage > form {
+  max-width: 520px;
+}
+
+.userSearch {
+  max-width: 520px;
+}
+
+.userTableWrap {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.userTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.userTable th,
+.userTable td {
+  padding: 10px 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.userTable th {
+  padding-bottom: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.userTable td {
+  border-top: 1px solid var(--line);
+}
+
+.userTable tbody tr:hover {
+  background: var(--surface);
+}
+
+.userLink {
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.userLink:hover {
+  text-decoration: underline;
+}
+
+.userLogin,
+.userLevel {
+  white-space: nowrap;
+}
+
+.userLogin {
+  color: var(--muted);
+}
+
+.userPager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+.userNav {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.userNav:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.userNav:disabled {
+  color: var(--line);
+  cursor: default;
+}
+
+.userRange {
+  margin: 0;
+  min-width: 7.5rem;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .profile .title {
   margin: 0;
 }
@@ -605,6 +714,12 @@
 .checks {
   display: grid;
   gap: 4px;
+}
+
+.nested {
+  display: grid;
+  gap: 4px;
+  margin-left: 34px;
 }
 
 .check {

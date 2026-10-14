@@ -70,6 +70,8 @@ test("an incoming request push carries confirm and decline actions", () => {
     type: "request_received",
     payload: { text: "Миша приглашает вас на сампо 14 октября, 19:00, Hall", requestId },
   });
+  assert.equal(incoming.title, "Миша приглашает вас на сампо 14 октября, 19:00, Hall");
+  assert.equal(incoming.body, "");
   assert.equal(incoming.data.url, `/requests/${requestId}`);
   assert.deepEqual(
     incoming.actions.map((action) => action.action),
@@ -134,6 +136,7 @@ describe("push delivery", { concurrency: false }, () => {
       endpoint: endpoint("guest"),
       keys: { p256dh: "guest-key", auth: "guest-auth" },
     });
+    await sql`UPDATE users SET notify_invites = true WHERE id IN ${sql([guest, quiet])}`;
 
     await createRequest(sql, host, slotId, guest);
     await createRequest(sql, host, slotId, quiet);
@@ -159,6 +162,8 @@ describe("push delivery", { concurrency: false }, () => {
     });
     assert.equal(result.sent, 1);
     assert.equal(sentTo.length, 1);
+    assert.equal(sentTo[0].body.title, "У вас новое приглашение от Вера");
+    assert.equal(sentTo[0].body.body, "");
     assert.equal(sentTo[0].subscription.endpoint.includes("guest"), true);
     assert.equal(sentTo[0].body.data.requestId !== null, true);
     assert.ok(sentTo[0].body.actions);

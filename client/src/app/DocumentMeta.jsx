@@ -18,10 +18,12 @@ export function DocumentMeta() {
 
   useEffect(() => {
     const named = PRIVATE_TITLES.find(([pattern]) => pattern.test(pathname));
-    const isPublic = pathname === "/login";
-    document.title = isPublic ? SITE_TITLE : named ? `${named[1]} — Сампо` : "Сампо";
+    const isLogin = pathname === "/login";
+    const isFaq = pathname === "/faq";
+    const isPublic = isLogin || isFaq;
+    document.title = isFaq ? "FAQ — Сампо" : isPublic ? SITE_TITLE : named ? `${named[1]} — Сампо` : "Сампо";
     setMeta("robots", isPublic ? "index, follow, max-image-preview:large" : "noindex, nofollow");
-    setLink("canonical", isPublic ? `${SITE_ORIGIN}/login` : `${SITE_ORIGIN}${pathname}`);
+    setLink("canonical", isLogin ? `${SITE_ORIGIN}/login` : `${SITE_ORIGIN}${pathname}`);
   }, [pathname]);
 
   return null;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
 import { disablePhonePush, enablePhonePush, iosNeedsHomeScreen, preparePush, readPhonePush } from "../notifications/push.js";
@@ -46,7 +46,7 @@ export function ProfilePage() {
     return (
       <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
         <h1 className={styles.title}>Пользователи</h1>
-        <div className={styles.profile}>
+        <div className={styles.adminPage}>
           <AdminCreateUser />
           <AdminUserSearch />
         </div>
@@ -144,6 +144,8 @@ function ProfileSettings({ userId }) {
           whitelist: profile.whitelist.map((person) => person.id),
           notifyInvites: profile.notifyInvites,
           notifyHourBefore: profile.notifyHourBefore,
+          notifyNewSlots: profile.notifyNewSlots,
+          notifyNewSlotsScope: profile.notifyNewSlotsScope === "all" ? "all" : "free",
           shareAvailability: profile.shareAvailability,
         },
       }),
@@ -224,6 +226,10 @@ function ProfileSettings({ userId }) {
 
   function toggleFlag(key) {
     setDraft((current) => (current ? { ...current, [key]: !current[key] } : current));
+  }
+
+  function setSlotScope(notifyNewSlotsScope) {
+    setDraft((current) => (current && current.notifyNewSlotsScope !== notifyNewSlotsScope ? { ...current, notifyNewSlotsScope } : current));
   }
 
   function closeDelete() {
@@ -443,6 +449,30 @@ function ProfileSettings({ userId }) {
                 disabled={save.isPending}
                 onChange={() => toggleFlag("notifyHourBefore")}
               />
+              <Check
+                label="Присылать уведомления о новых слотах"
+                checked={draft.notifyNewSlots}
+                disabled={save.isPending}
+                onChange={() => toggleFlag("notifyNewSlots")}
+              />
+              {draft.notifyNewSlots ? (
+                <div className={styles.nested} role="radiogroup" aria-label="Какие новые слоты присылать">
+                  <Radio
+                    name="notify-new-slots"
+                    label="Только слоты, которые попадают в свободное время"
+                    checked={draft.notifyNewSlotsScope !== "all"}
+                    disabled={save.isPending}
+                    onChange={() => setSlotScope("free")}
+                  />
+                  <Radio
+                    name="notify-new-slots"
+                    label="Все новые слоты"
+                    checked={draft.notifyNewSlotsScope === "all"}
+                    disabled={save.isPending}
+                    onChange={() => setSlotScope("all")}
+                  />
+                </div>
+              ) : null}
             </div>
             {editing ? null : <PhonePush />}
           </section>
@@ -624,25 +654,42 @@ function LoginCredentials({ account, path, onSaved }) {
 function AdminUserSearch() {
   const [query, setQuery] = useState("");
   const [needle, setNeedle] = useState("");
+  const [page, setPage] = useState(1);
   useEffect(() => {
-    const timer = setTimeout(() => setNeedle(query.trim()), 200);
+    const timer = setTimeout(() => {
+      setNeedle(query.trim());
+      setPage(1);
+    }, 200);
     return () => clearTimeout(timer);
   }, [query]);
   const accounts = useQuery({
-    queryKey: ["admin-users", needle],
-    queryFn: () => api(`/api/admin/users?q=${encodeURIComponent(needle)}`),
-    enabled: needle.length > 0,
+    queryKey: ["admin-users", needle, page],
+    queryFn: () => api(`/api/admin/users?q=${encodeURIComponent(needle)}&page=${page}`),
+    placeholderData: keepPreviousData,
   });
-  const trimmed = query.trim();
+  const data = accounts.data;
+  const users = data?.users ?? [];
+  const total = data?.total ?? 0;
+  const pageSize = data?.pageSize || 15;
+  const pageCount = Math.max(1, Math.ceil(total / pageSize));
+  const shownPage = Math.min(page, pageCount);
+  const from = total === 0 ? 0 : (shownPage - 1) * pageSize + 1;
+  const to = Math.min(shownPage * pageSize, total);
+
+  useEffect(() => {
+    if (!data) return;
+    const pages = Math.max(1, Math.ceil(data.total / (data.pageSize || 15)));
+    if (page > pages) setPage(pages);
+  }, [data, page]);
 
   return (
     <section className={styles.group} id="admin-users" aria-labelledby="admin-users-title">
       <div className={styles.caption}>
         <h3 className={styles.groupTitle} id="admin-users-title">Пользователи</h3>
-        <p className={styles.groupHint}>Найдите профиль по имени или логину, чтобы изменить или удалить его.</p>
+        <p className={styles.groupHint}>Откройте профиль, чтобы изменить или удалить его.</p>
       </div>
       <input
-        className={styles.input}
+        className={`${styles.input} ${styles.userSearch}`}
         value={query}
         placeholder="Имя или логин"
         aria-label="Поиск пользователя"
@@ -652,30 +699,70 @@ function AdminUserSearch() {
           if (event.key === "Enter") event.preventDefault();
         }}
       />
-      {trimmed ? (
-        needle !== trimmed || accounts.isLoading ? (
-          <p className={styles.groupHint}>Загрузка</p>
-        ) : accounts.isError ? (
-          <p className={styles.error}>{accounts.error.message}</p>
-        ) : accounts.data.users.length === 0 ? (
-          <p className={styles.groupHint}>Никого нет</p>
-        ) : (
-          <ul className={styles.list}>
-            {accounts.data.users.map((person) => (
-              <li className={styles.person} key={person.id}>
-                <Link className={styles.personLink} to={`/admin/users/${person.id}`}>
-                  {person.login ? `${person.displayName} · ${person.login}` : person.displayName}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )
+      {!data && accounts.isPending ? <p className={styles.groupHint}>Загрузка</p> : null}
+      {accounts.isError ? <p className={styles.error}>{accounts.error.message}</p> : null}
+      {data && users.length === 0 ? <p className={styles.groupHint}>Никого нет</p> : null}
+      {users.length > 0 ? (
+        <>
+          <div className={styles.userTableWrap}>
+            <table className={styles.userTable}>
+              <thead>
+                <tr>
+                  <th scope="col">Имя</th>
+                  <th scope="col">Логин</th>
+                  <th scope="col">Уровень</th>
+                </tr>
+              </thead>
+              <tbody>
+                {users.map((person) => (
+                  <tr key={person.id}>
+                    <td>
+                      <Link className={styles.userLink} to={`/admin/users/${person.id}`}>
+                        {person.displayName}
+                      </Link>
+                    </td>
+                    <td className={styles.userLogin}>{person.login || "—"}</td>
+                    <td className={styles.userLevel}>{person.danceLevel || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          {total > pageSize ? (
+            <div className={styles.userPager}>
+              <button
+                className={styles.userNav}
+                type="button"
+                aria-label="Предыдущая страница"
+                disabled={shownPage <= 1}
+                onClick={() => setPage(shownPage - 1)}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+              <p className={styles.userRange}>{from}–{to} из {total}</p>
+              <button
+                className={styles.userNav}
+                type="button"
+                aria-label="Следующая страница"
+                disabled={shownPage >= pageCount}
+                onClick={() => setPage(shownPage + 1)}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path d="M9.5 6.5 15 12l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </section>
   );
 }
 
 function AdminCreateUser() {
+  const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
@@ -685,6 +772,7 @@ function AdminCreateUser() {
   const save = useMutation({
     mutationFn: (body) => api("/api/admin/users", { method: "POST", body }),
     onSuccess: (user) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       setError("");
       setNotice(`Пользователь ${user.displayName} создан. Вход по логину ${user.login}.`);
       setDisplayName("");
@@ -900,6 +988,15 @@ function Check({ label, checked, disabled, onChange }) {
   );
 }
 
+function Radio({ name, label, checked, disabled, onChange }) {
+  return (
+    <label className={styles.check}>
+      <input type="radio" name={name} checked={checked} disabled={disabled} onChange={onChange} />
+      {label}
+    </label>
+  );
+}
+
 function personLabel(person) {
   return person.danceLevel ? `${person.displayName} · ${person.danceLevel}` : person.displayName;
 }
@@ -922,6 +1019,8 @@ function isDirty(draft, saved) {
   if (draft.listMode !== saved.listMode) return true;
   if (draft.notifyInvites !== saved.notifyInvites) return true;
   if (draft.notifyHourBefore !== saved.notifyHourBefore) return true;
+  if (draft.notifyNewSlots !== saved.notifyNewSlots) return true;
+  if ((draft.notifyNewSlotsScope === "all" ? "all" : "free") !== (saved.notifyNewSlotsScope === "all" ? "all" : "free")) return true;
   if (draft.shareAvailability !== saved.shareAvailability) return true;
   if (!sameIds(draft.blockedLevels, saved.blockedLevels)) return true;
   if (!sameIds(draft.blacklist.map((person) => person.id), saved.blacklist.map((person) => person.id))) return true;
