@@ -333,6 +333,29 @@ function matchesName(name, query) {
   return name.toLocaleLowerCase("ru").includes(needle);
 }
 
+function samePlace(prev, next) {
+  return prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.maxHeight === next.maxHeight && prev.upward === next.upward;
+}
+
+function menuPlace(field, probe) {
+  const rect = field.getBoundingClientRect();
+  const origin = probe.getBoundingClientRect();
+  const viewHeight = window.visualViewport?.height ?? window.innerHeight;
+  const gap = 4;
+  const limit = 220;
+  const spaceBelow = viewHeight - rect.bottom - gap;
+  const spaceAbove = rect.top - gap;
+  const upward = spaceBelow < 160 && spaceAbove > spaceBelow;
+  const anchor = upward ? rect.top - gap : rect.bottom + gap;
+  return {
+    left: Math.round(rect.left - origin.left),
+    top: Math.round(anchor - origin.top),
+    width: Math.round(rect.width),
+    maxHeight: Math.round(Math.max(44, Math.min(limit, upward ? spaceAbove : spaceBelow))),
+    upward,
+  };
+}
+
 function InvitePicker({ people, pending, blocked, locked, onInvite }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -347,29 +370,47 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
 
   useLayoutEffect(() => {
     if (!open) return undefined;
+    const field = fieldRef.current;
+    if (!field) return undefined;
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;visibility:hidden";
+    document.body.appendChild(probe);
+    let frame = 0;
+
     function updatePlace() {
-      const field = fieldRef.current;
-      if (!field) return;
-      const rect = field.getBoundingClientRect();
-      const gap = 4;
-      const limit = 220;
-      const spaceBelow = window.innerHeight - rect.bottom - gap;
-      const spaceAbove = rect.top - gap;
-      const upward = spaceBelow < 160 && spaceAbove > spaceBelow;
-      setPlace({
-        left: rect.left,
-        width: rect.width,
-        maxHeight: Math.max(44, Math.min(limit, upward ? spaceAbove : spaceBelow)),
-        top: upward ? undefined : rect.bottom + gap,
-        bottom: upward ? window.innerHeight - rect.top + gap : undefined,
-      });
+      const current = fieldRef.current;
+      if (!current) return;
+      const next = menuPlace(current, probe);
+      setPlace((prev) => (prev && samePlace(prev, next) ? prev : next));
     }
+
+    function schedule() {
+      updatePlace();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updatePlace);
+    }
+
     updatePlace();
-    window.addEventListener("resize", updatePlace);
-    window.addEventListener("scroll", updatePlace, true);
+    const observer = new ResizeObserver(schedule);
+    let node = field;
+    while (node) {
+      observer.observe(node);
+      node = node.parentElement;
+    }
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", schedule);
+    viewport?.addEventListener("scroll", schedule);
     return () => {
-      window.removeEventListener("resize", updatePlace);
-      window.removeEventListener("scroll", updatePlace, true);
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      viewport?.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("scroll", schedule);
+      probe.remove();
     };
   }, [open]);
 
@@ -479,7 +520,13 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
               id="invite-list"
               role="list"
               ref={menuRef}
-              style={{ left: place.left, width: place.width, maxHeight: place.maxHeight, top: place.top, bottom: place.bottom }}
+              style={{
+                left: place.left,
+                top: place.top,
+                width: place.width,
+                maxHeight: place.maxHeight,
+                transform: place.upward ? "translateY(-100%)" : undefined,
+              }}
             >
               {matches.map((person, index) => (
                 <li
