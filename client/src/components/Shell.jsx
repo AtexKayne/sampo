@@ -6,7 +6,7 @@ import { useSession } from "../session/SessionProvider.jsx";
 import { useNotifications } from "../notifications/NotificationsProvider.jsx";
 import styles from "./Shell.module.scss";
 
-export function Shell({ user, onLogout, pending, children }) {
+export function Shell({ user, onLogout, pending, fill = false, children }) {
   const [menu, setMenu] = useState(null);
   const incoming = useQuery({
     queryKey: ["requests", "incoming", "pending"],
@@ -15,7 +15,7 @@ export function Shell({ user, onLogout, pending, children }) {
   });
   const incomingCount = incoming.data?.requests?.length ?? 0;
   return (
-    <div className={user ? styles.shell : `${styles.shell} ${styles.guest}`}>
+    <div className={[styles.shell, user ? "" : styles.guest, fill ? styles.fill : ""].filter(Boolean).join(" ")}>
       <header className={styles.header}>
         <Link className={styles.brand} to="/calendar">
           <span className={styles.brandSite}>vparaplane</span>
@@ -212,7 +212,7 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
           </NavLink>
           {accountSwitch ? (
             <button className={styles.item} type="button" disabled={pending || switching} onClick={onSwitch}>
-              {accountSwitch.to === "admin" ? "Переключиться на администратора" : "Вернуться в свой аккаунт"}
+              {accountSwitch.to === "admin" ? "Админ" : "Пользователь"}
             </button>
           ) : null}
           {switchError ? <p className={styles.switchError}>{switchError}</p> : null}

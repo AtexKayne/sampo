@@ -97,7 +97,7 @@ export async function deleteOtherProfile(sql, actorId, userId) {
   await deleteProfile(sql, userId);
 }
 
-const USERS_PAGE_SIZE = 15;
+const USERS_PAGE_SIZE = 10;
 
 function accountPage(value) {
   const page = Number(value);

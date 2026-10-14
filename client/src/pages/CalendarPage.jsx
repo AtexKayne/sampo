@@ -357,26 +357,6 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           </button>
         </div>
       ) : null}
-      {wide ? null : (
-        <div className={styles.strip}>
-          {days.map((day, index) => {
-            const key = studioDayKey(day);
-            const past = key < todayKey;
-            return (
-              <button
-                className={index === pickedDay && !past ? styles.stripOn : styles.stripDay}
-                key={key}
-                type="button"
-                disabled={past}
-                onClick={() => setPickedDay(index)}
-              >
-                <span>{formatWeekday(day)}</span>
-                <span>{formatDayNumber(day)}</span>
-              </button>
-            );
-          })}
-        </div>
-      )}
       <div className={styles.gridBar}>
         {slotsQuery.isSuccess && markingAvailability ? (
           <div className={styles.legend}>
@@ -404,6 +384,26 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           </button>
         </div>
       </div>
+      {wide ? null : (
+        <div className={styles.strip}>
+          {days.map((day, index) => {
+            const key = studioDayKey(day);
+            const past = key < todayKey;
+            return (
+              <button
+                className={index === pickedDay && !past ? styles.stripOn : styles.stripDay}
+                key={key}
+                type="button"
+                disabled={past}
+                onClick={() => setPickedDay(index)}
+              >
+                <span>{formatWeekday(day)}</span>
+                <span>{formatDayNumber(day)}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
       {slotsQuery.isLoading ? <p className={styles.status}>Загрузка</p> : null}
       {slotsQuery.isError ? (
         <div className={styles.fallback}>

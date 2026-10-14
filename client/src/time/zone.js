@@ -37,8 +37,10 @@ export function formatRange(start, endExclusive) {
   return `${formatInTimeZone(start, TIME_ZONE, "d MMM", { locale: ru })} – ${formatInTimeZone(end, TIME_ZONE, "d MMM", { locale: ru })}`;
 }
 
+const WEEKDAY_LABELS = ["", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
+
 export function formatWeekday(date) {
-  return formatInTimeZone(date, TIME_ZONE, "EEE", { locale: ru }).replace(".", "");
+  return WEEKDAY_LABELS[studioWeekday(date)];
 }
 
 export function formatDayNumber(date) {

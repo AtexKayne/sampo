@@ -28,6 +28,14 @@
   color: var(--accent);
 }
 
+@media (max-width: 799px) {
+  .corner,
+  .dayHead,
+  .today {
+    display: none;
+  }
+}
+
 .times,
 .column,
 .columnStatic {

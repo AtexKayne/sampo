@@ -512,40 +512,105 @@
   margin-top: 16px;
 }
 
-.adminPage {
-  display: grid;
-  gap: 32px;
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   max-width: 920px;
+  margin-top: 28px;
+}
+
+.pageHead .title {
+  margin: 0;
+}
+
+.pageHead .primary {
+  flex: none;
+}
+
+.adminLayout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 920px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.adminLayout .pageHead {
+  flex: none;
+}
+
+.adminPage {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   margin-top: 16px;
 }
 
-.adminPage > form {
-  max-width: 520px;
+.createDialog {
+  width: min(520px, 100%);
+  max-height: min(90vh, 760px);
+  overflow: auto;
 }
 
-.userSearch {
-  max-width: 520px;
+.group.adminUsers {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 12px;
+}
+
+.group.adminUsers > :not(.userTableCard) {
+  flex: none;
+}
+
+.userTableCard {
+  --table-line: color-mix(in srgb, var(--ink) 16%, var(--line));
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid var(--table-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
 }
 
 .userTableWrap {
-  margin-top: 8px;
-  overflow-x: auto;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .userTable {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .userTable th,
 .userTable td {
-  padding: 10px 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--table-line);
   text-align: left;
   vertical-align: middle;
 }
 
+.userTable th + th,
+.userTable td + td {
+  border-left: 1px solid var(--table-line);
+}
+
 .userTable th {
-  padding-bottom: 8px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
@@ -553,18 +618,41 @@
   text-transform: uppercase;
 }
 
+.userTable th:nth-child(1) {
+  width: 46%;
+}
+
+.userTable th:nth-child(2) {
+  width: 32%;
+}
+
 .userTable td {
-  border-top: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .userTable tbody tr:hover {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--bg) 65%, var(--surface));
+}
+
+.userTableNote td {
+  color: var(--muted);
+  white-space: normal;
+}
+
+.userTable tbody tr.userTableNote:hover {
+  background: transparent;
 }
 
 .userLink {
+  display: block;
+  overflow: hidden;
   color: inherit;
   font-weight: 600;
   text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .userLink:hover {
@@ -581,10 +669,14 @@
 }
 
 .userPager {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 2px;
+  padding: 4px 8px;
+  border-top: 1px solid var(--table-line);
+  background: var(--bg);
 }
 
 .userNav {

@@ -102,7 +102,7 @@ test("admin can find and edit another profile, and cannot delete an admin", asyn
 
   const byName = await searchAccounts(sql, adminId, created.login);
   assert.equal(byName.users.some((person) => person.id === created.id), true);
-  assert.equal(byName.pageSize, 15);
+  assert.equal(byName.pageSize, 10);
   const hidden = await searchAccounts(sql, adminId, adminLogin);
   assert.equal(hidden.users.some((person) => person.id === adminId), false);
 
@@ -138,7 +138,7 @@ test("admin can find and edit another profile, and cannot delete an admin", asyn
   assert.equal(gone, undefined);
 });
 
-test("admin user list is 15 people per page and matches name or login", async () => {
+test("admin user list is 10 people per page and matches name or login", async () => {
   const adminId = crypto.randomUUID();
   const stamp = adminId.replaceAll("-", "").slice(0, 8);
   await sql`
@@ -147,7 +147,7 @@ test("admin user list is 15 people per page and matches name or login", async ()
   `;
   users.push(adminId);
   const ids = [];
-  for (let index = 0; index < 16; index += 1) {
+  for (let index = 0; index < 11; index += 1) {
     const id = crypto.randomUUID();
     const label = String(index).padStart(2, "0");
     await sql`
@@ -159,17 +159,17 @@ test("admin user list is 15 people per page and matches name or login", async ()
   }
 
   const first = await searchAccounts(sql, adminId, `Страница ${stamp}`);
-  assert.equal(first.total, 16);
+  assert.equal(first.total, 11);
   assert.equal(first.page, 1);
-  assert.equal(first.pageSize, 15);
-  assert.equal(first.users.length, 15);
+  assert.equal(first.pageSize, 10);
+  assert.equal(first.users.length, 10);
   assert.equal(first.users[0].displayName, `Страница ${stamp} 00`);
-  assert.equal(first.users.some((person) => person.id === ids[15]), false);
+  assert.equal(first.users.some((person) => person.id === ids[10]), false);
 
   const second = await searchAccounts(sql, adminId, `Страница ${stamp}`, "2");
   assert.equal(second.page, 2);
   assert.equal(second.users.length, 1);
-  assert.equal(second.users[0].id, ids[15]);
+  assert.equal(second.users[0].id, ids[10]);
 
   const byLogin = await searchAccounts(sql, adminId, `pg${stamp}3`);
   assert.equal(byLogin.total, 1);

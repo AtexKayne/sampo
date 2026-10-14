@@ -13,6 +13,7 @@ export function ProfilePage() {
   const session = useSession();
   const location = useLocation();
   const [pendingLogout, setPendingLogout] = useState(false);
+  const [creatingUser, setCreatingUser] = useState(false);
 
   useEffect(() => {
     if (location.hash !== "#admin-users") return;
@@ -44,11 +45,17 @@ export function ProfilePage() {
 
   if (session.user.appRole === "admin") {
     return (
-      <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
-        <h1 className={styles.title}>Пользователи</h1>
-        <div className={styles.adminPage}>
-          <AdminCreateUser />
-          <AdminUserSearch />
+      <Shell user={session.user} onLogout={onLogout} pending={pendingLogout} fill>
+        <div className={styles.adminLayout}>
+          <div className={styles.pageHead}>
+            <h1 className={styles.title}>Пользователи</h1>
+            <button className={styles.primary} type="button" onClick={() => setCreatingUser(true)}>
+              Новый пользователь
+            </button>
+          </div>
+          <div className={styles.adminPage}>
+            <AdminUserSearch creating={creatingUser} onCreatingChange={setCreatingUser} />
+          </div>
         </div>
       </Shell>
     );
@@ -297,12 +304,7 @@ function ProfileSettings({ userId }) {
             : undefined}
         />
       )}
-      {session.user?.appRole === "admin" && !editing ? (
-        <>
-          <AdminCreateUser />
-          <AdminUserSearch />
-        </>
-      ) : null}
+      {session.user?.appRole === "admin" && !editing ? <AdminUserSearch /> : null}
       {settingsQuery.isLoading ? <p className={styles.groupHint}>Загрузка</p> : null}
       {settingsQuery.isError ? <p className={styles.error}>{settingsQuery.error.message}</p> : null}
       {draft ? (
@@ -651,10 +653,11 @@ function LoginCredentials({ account, path, onSaved }) {
   );
 }
 
-function AdminUserSearch() {
+function AdminUserSearch({ creating = false, onCreatingChange }) {
   const [query, setQuery] = useState("");
   const [needle, setNeedle] = useState("");
   const [page, setPage] = useState(1);
+  const [notice, setNotice] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
       setNeedle(query.trim());
@@ -670,7 +673,7 @@ function AdminUserSearch() {
   const data = accounts.data;
   const users = data?.users ?? [];
   const total = data?.total ?? 0;
-  const pageSize = data?.pageSize || 15;
+  const pageSize = data?.pageSize || 10;
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const shownPage = Math.min(page, pageCount);
   const from = total === 0 ? 0 : (shownPage - 1) * pageSize + 1;
@@ -678,18 +681,23 @@ function AdminUserSearch() {
 
   useEffect(() => {
     if (!data) return;
-    const pages = Math.max(1, Math.ceil(data.total / (data.pageSize || 15)));
+    const pages = Math.max(1, Math.ceil(data.total / (data.pageSize || 10)));
     if (page > pages) setPage(pages);
   }, [data, page]);
 
+  useEffect(() => {
+    if (creating) setNotice("");
+  }, [creating]);
+
   return (
-    <section className={styles.group} id="admin-users" aria-labelledby="admin-users-title">
+    <section className={`${styles.group} ${styles.adminUsers}`} id="admin-users" aria-labelledby="admin-users-title">
       <div className={styles.caption}>
         <h3 className={styles.groupTitle} id="admin-users-title">Пользователи</h3>
         <p className={styles.groupHint}>Откройте профиль, чтобы изменить или удалить его.</p>
       </div>
+      {notice ? <p className={styles.saved}>{notice}</p> : null}
       <input
-        className={`${styles.input} ${styles.userSearch}`}
+        className={styles.input}
         value={query}
         placeholder="Имя или логин"
         aria-label="Поиск пользователя"
@@ -699,97 +707,108 @@ function AdminUserSearch() {
           if (event.key === "Enter") event.preventDefault();
         }}
       />
-      {!data && accounts.isPending ? <p className={styles.groupHint}>Загрузка</p> : null}
       {accounts.isError ? <p className={styles.error}>{accounts.error.message}</p> : null}
-      {data && users.length === 0 ? <p className={styles.groupHint}>Никого нет</p> : null}
-      {users.length > 0 ? (
-        <>
-          <div className={styles.userTableWrap}>
-            <table className={styles.userTable}>
-              <thead>
-                <tr>
-                  <th scope="col">Имя</th>
-                  <th scope="col">Логин</th>
-                  <th scope="col">Уровень</th>
+      <div className={styles.userTableCard}>
+        <div className={styles.userTableWrap}>
+          <table className={styles.userTable}>
+            <thead>
+              <tr>
+                <th scope="col">Имя</th>
+                <th scope="col">Логин</th>
+                <th scope="col">Уровень</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!data && accounts.isPending ? (
+                <tr className={styles.userTableNote}>
+                  <td colSpan={3}>Загрузка</td>
                 </tr>
-              </thead>
-              <tbody>
-                {users.map((person) => (
-                  <tr key={person.id}>
-                    <td>
-                      <Link className={styles.userLink} to={`/admin/users/${person.id}`}>
-                        {person.displayName}
-                      </Link>
-                    </td>
-                    <td className={styles.userLogin}>{person.login || "—"}</td>
-                    <td className={styles.userLevel}>{person.danceLevel || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          {total > pageSize ? (
-            <div className={styles.userPager}>
-              <button
-                className={styles.userNav}
-                type="button"
-                aria-label="Предыдущая страница"
-                disabled={shownPage <= 1}
-                onClick={() => setPage(shownPage - 1)}
-              >
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                  <path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <p className={styles.userRange}>{from}–{to} из {total}</p>
-              <button
-                className={styles.userNav}
-                type="button"
-                aria-label="Следующая страница"
-                disabled={shownPage >= pageCount}
-                onClick={() => setPage(shownPage + 1)}
-              >
-                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                  <path d="M9.5 6.5 15 12l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-            </div>
-          ) : null}
-        </>
+              ) : null}
+              {data && users.length === 0 ? (
+                <tr className={styles.userTableNote}>
+                  <td colSpan={3}>Никого нет</td>
+                </tr>
+              ) : null}
+              {users.map((person) => (
+                <tr key={person.id}>
+                  <td>
+                    <Link className={styles.userLink} to={`/admin/users/${person.id}`}>
+                      {person.displayName}
+                    </Link>
+                  </td>
+                  <td className={styles.userLogin}>{person.login || "—"}</td>
+                  <td className={styles.userLevel}>{person.danceLevel || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className={styles.userPager}>
+          <button
+            className={styles.userNav}
+            type="button"
+            aria-label="Предыдущая страница"
+            disabled={shownPage <= 1}
+            onClick={() => setPage(shownPage - 1)}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <p className={styles.userRange}>{total === 0 ? "0 из 0" : `${from}–${to} из ${total}`}</p>
+          <button
+            className={styles.userNav}
+            type="button"
+            aria-label="Следующая страница"
+            disabled={shownPage >= pageCount}
+            onClick={() => setPage(shownPage + 1)}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M9.5 6.5 15 12l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      {creating ? (
+        <CreateUserDialog
+          onClose={() => onCreatingChange(false)}
+          onCreated={(user) => {
+            onCreatingChange(false);
+            setNotice(`Пользователь ${user.displayName} создан. Вход по логину ${user.login}.`);
+          }}
+        />
       ) : null}
     </section>
   );
 }
 
-function AdminCreateUser() {
+function CreateUserDialog({ onClose, onCreated }) {
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const save = useMutation({
     mutationFn: (body) => api("/api/admin/users", { method: "POST", body }),
     onSuccess: (user) => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      setError("");
-      setNotice(`Пользователь ${user.displayName} создан. Вход по логину ${user.login}.`);
-      setDisplayName("");
-      setLoginName("");
-      setPassword("");
-      setConfirm("");
+      onCreated(user);
     },
-    onError: (reason) => {
-      setNotice("");
-      setError(reason.message);
-    },
+    onError: (reason) => setError(reason.message),
   });
   const canSave = !save.isPending && displayName.trim() && loginName.trim() && password;
 
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key === "Escape" && !save.isPending) onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose, save.isPending]);
+
   function submit() {
     setError("");
-    setNotice("");
     if (password !== confirm) {
       setError("Пароли не совпадают");
       return;
@@ -797,83 +816,82 @@ function AdminCreateUser() {
     save.mutate({ displayName, login: loginName, password });
   }
 
-  return (
-    <form
-      className={styles.group}
-      aria-labelledby="admin-user-title"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (canSave) submit();
-      }}
-    >
-      <div className={styles.caption}>
-        <h3 className={styles.groupTitle} id="admin-user-title">Новый пользователь</h3>
-        <p className={styles.groupHint}>Регистрация по логину и паролю. Войти можно сразу после создания.</p>
-      </div>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Имя</span>
-        <input
-          className={styles.input}
-          value={displayName}
-          autoComplete="off"
-          disabled={save.isPending}
-          onChange={(event) => {
-            setDisplayName(event.target.value);
-            setNotice("");
-          }}
-        />
-      </label>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Логин</span>
-        <input
-          className={styles.input}
-          value={loginName}
-          autoComplete="off"
-          autoCapitalize="none"
-          spellCheck="false"
-          disabled={save.isPending}
-          onChange={(event) => {
-            setLoginName(event.target.value);
-            setNotice("");
-          }}
-        />
-      </label>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Пароль</span>
-        <input
-          className={styles.input}
-          type="password"
-          value={password}
-          autoComplete="new-password"
-          disabled={save.isPending}
-          onChange={(event) => {
-            setPassword(event.target.value);
-            setNotice("");
-          }}
-        />
-      </label>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Пароль ещё раз</span>
-        <input
-          className={styles.input}
-          type="password"
-          value={confirm}
-          autoComplete="new-password"
-          disabled={save.isPending}
-          onChange={(event) => {
-            setConfirm(event.target.value);
-            setNotice("");
-          }}
-        />
-      </label>
-      {error ? <p className={styles.error}>{error}</p> : null}
-      {notice ? <p className={styles.saved}>{notice}</p> : null}
-      <div className={styles.row}>
-        <button className={styles.primary} type="submit" disabled={!canSave}>
-          Зарегистрировать
-        </button>
-      </div>
-    </form>
+  return createPortal(
+    <div className={styles.backdrop} onClick={() => !save.isPending && onClose()}>
+      <form
+        className={`${styles.dialog} ${styles.createDialog}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="admin-user-title"
+        onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (canSave) submit();
+        }}
+      >
+        <div className={styles.dialogHead}>
+          <h2 className={styles.dialogTitle} id="admin-user-title">Новый пользователь</h2>
+          <button className={styles.close} type="button" aria-label="Закрыть" disabled={save.isPending} onClick={onClose}>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
+        <p className={styles.dialogText}>Регистрация по логину и паролю. Войти можно сразу после создания.</p>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Имя</span>
+          <input
+            className={styles.input}
+            value={displayName}
+            autoComplete="off"
+            autoFocus
+            disabled={save.isPending}
+            onChange={(event) => setDisplayName(event.target.value)}
+          />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Логин</span>
+          <input
+            className={styles.input}
+            value={loginName}
+            autoComplete="off"
+            autoCapitalize="none"
+            spellCheck="false"
+            disabled={save.isPending}
+            onChange={(event) => setLoginName(event.target.value)}
+          />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Пароль</span>
+          <input
+            className={styles.input}
+            type="password"
+            value={password}
+            autoComplete="new-password"
+            disabled={save.isPending}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </label>
+        <label className={styles.field}>
+          <span className={styles.fieldLabel}>Пароль ещё раз</span>
+          <input
+            className={styles.input}
+            type="password"
+            value={confirm}
+            autoComplete="new-password"
+            disabled={save.isPending}
+            onChange={(event) => setConfirm(event.target.value)}
+          />
+        </label>
+        {error ? <p className={styles.error}>{error}</p> : null}
+        <div className={styles.row}>
+          <button className={styles.primary} type="submit" disabled={!canSave}>
+            Зарегистрировать
+          </button>
+        </div>
+      </form>
+    </div>,
+    document.body,
   );
 }
 

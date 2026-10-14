@@ -106,10 +106,6 @@
   .gridBar .legend {
     display: none;
   }
-
-  .pager {
-    align-self: flex-end;
-  }
 }
 
 .pager {
@@ -150,6 +146,19 @@
   line-height: 1.2;
   text-align: center;
   white-space: nowrap;
+}
+
+@media (max-width: 799px) {
+  .pager {
+    align-self: stretch;
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .range {
+    flex: 1;
+    min-width: 0;
+  }
 }
 
 .strip {
