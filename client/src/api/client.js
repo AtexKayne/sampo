@@ -85,12 +85,3 @@ export async function logout() {
     accessToken = null;
   }
 }
-
-export async function vkLoginMessage() {
-  const data = await api("/api/auth/vk", {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    skipRefresh: true,
-  });
-  return data;
-}

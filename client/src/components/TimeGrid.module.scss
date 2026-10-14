@@ -1,7 +1,7 @@
 .grid {
   --row: 18px;
   display: grid;
-  margin-top: 16px;
+  margin-top: 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -74,7 +74,7 @@
   top: 0;
   right: 0;
   left: 0;
-  background: rgba(28, 25, 22, 0.04);
+  background: rgba(18, 18, 18, 0.04);
   pointer-events: none;
 }
 
@@ -140,10 +140,10 @@
   gap: 6px;
   box-sizing: border-box;
   overflow: hidden;
-  padding: 0 4px;
+  padding: 0 6px;
   border: 1px solid var(--line);
-  border-left: 3px solid var(--ink);
-  border-radius: 4px;
+  border-left: 2px solid var(--ink);
+  border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
   font: inherit;

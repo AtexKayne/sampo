@@ -59,6 +59,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const [windowEdit, setWindowEdit] = useState(null);
   const [windowDelete, setWindowDelete] = useState(false);
   const [windowError, setWindowError] = useState("");
+  const [helpOpen, setHelpOpen] = useState(false);
   const [repeat, setRepeat] = useState("once");
   const [intervalDays, setIntervalDays] = useState("2");
   const anchor = calendarAnchor(weekOffset);
@@ -79,9 +80,13 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   });
 
   useEffect(() => {
-    if (!editing && !selection && !windowEdit) return undefined;
+    if (!editing && !selection && !windowEdit && !helpOpen) return undefined;
     function onKey(event) {
       if (event.key !== "Escape") return;
+      if (helpOpen) {
+        setHelpOpen(false);
+        return;
+      }
       if (windowDelete) {
         setWindowDelete(false);
         return;
@@ -100,7 +105,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing, selection, windowEdit, windowDelete]);
+  }, [editing, selection, windowEdit, windowDelete, helpOpen]);
 
   const createSlot = useMutation({
     mutationFn: (body) => api("/api/admin/slots", { method: "POST", body }),
@@ -299,15 +304,12 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
 
   return (
     <Shell user={session.user} onLogout={onLogout} pending={pending}>
-      <h1 className={styles.title}>{heading}</h1>
-      <p className={styles.lead}>
-        Время тюменское, с 9:00 до 00:00, шаг 30 минут.
-        {markingAvailability
-          ? " Нажмите начало и конец или протяните курсор. На недоступном месте отметится свободное время, внутри свободного — недоступность. Правый клик или долгое нажатие меняет уже отмеченное время. Пока время не отмечено, пригласить нельзя."
-          : canCreate
-            ? " Нажмите начало и конец или протяните курсор."
-            : " Пока время не отмечено, пригласить нельзя."}
-      </p>
+      <div className={styles.head}>
+        <h1 className={styles.title}>{heading}</h1>
+        <button className={styles.helpLink} type="button" onClick={() => setHelpOpen(true)}>
+          Как пользоваться?
+        </button>
+      </div>
       {canCreate && !adminOnly && !availabilityOnly ? (
         <div className={styles.modes}>
           <button
@@ -319,15 +321,6 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           </button>
         </div>
       ) : null}
-      <div className={styles.week}>
-        <button className={styles.button} type="button" disabled={weekOffset <= 0} onClick={() => changeWeek(weekOffset - 1)}>
-          Назад
-        </button>
-        <p className={styles.range}>{formatRange(anchor, rangeEnd)}</p>
-        <button className={styles.button} type="button" onClick={() => changeWeek(weekOffset + 1)}>
-          Дальше
-        </button>
-      </div>
       {wide ? null : (
         <div className={styles.strip}>
           {days.map((day, index) => {
@@ -348,6 +341,33 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           })}
         </div>
       )}
+      <div className={styles.gridBar}>
+        {slotsQuery.isSuccess && markingAvailability ? (
+          <div className={styles.legend}>
+            <span className={styles.legendBusy}>Недоступен</span>
+            <span className={styles.legendFree}>Свободен</span>
+          </div>
+        ) : null}
+        <div className={styles.pager}>
+          <button
+            className={styles.navButton}
+            type="button"
+            aria-label="Предыдущая неделя"
+            disabled={weekOffset <= 0}
+            onClick={() => changeWeek(weekOffset - 1)}
+          >
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <p className={styles.range}>{formatRange(anchor, rangeEnd)}</p>
+          <button className={styles.navButton} type="button" aria-label="Следующая неделя" onClick={() => changeWeek(weekOffset + 1)}>
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M9.5 6.5 15 12l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      </div>
       {slotsQuery.isLoading ? <p className={styles.status}>Загрузка</p> : null}
       {slotsQuery.isError ? (
         <div className={styles.fallback}>
@@ -359,12 +379,6 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       ) : null}
       {slotsQuery.isSuccess ? (
         <>
-          {markingAvailability ? (
-            <div className={styles.legend}>
-              <span className={styles.legendBusy}>Недоступен</span>
-              <span className={styles.legendFree}>Свободен</span>
-            </div>
-          ) : null}
           <TimeGrid
             days={visibleDays}
             slots={slots}
@@ -623,7 +637,74 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           </div>
         </div>
       ) : null}
+      {helpOpen ? (
+        <HelpDialog
+          showAvailability={markingAvailability || (canCreate && !adminOnly && !availabilityOnly)}
+          showSlotCreate={canCreate && !availabilityOnly}
+          showModeSwitch={canCreate && !adminOnly && !availabilityOnly}
+          onClose={() => setHelpOpen(false)}
+        />
+      ) : null}
     </Shell>
+  );
+}
+
+function HelpDialog({ showAvailability, showSlotCreate, showModeSwitch, onClose }) {
+  return (
+    <div className={styles.backdrop} onClick={onClose}>
+      <div
+        className={`${styles.modal} ${styles.helpModal}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="calendar-help-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className={styles.modalHead}>
+          <h2 className={styles.modalTitle} id="calendar-help-title">
+            Как пользоваться
+          </h2>
+          <ModalClose onClick={onClose} />
+        </div>
+        <div className={styles.guide}>
+          <GuideSection title="Время">
+            <p className={styles.guideText}>
+              Тюменское, с 9:00 до 00:00, шаг 30 минут. Прошедшее отметить нельзя. Недели листаются стрелками над таблицей.
+            </p>
+          </GuideSection>
+          {showAvailability ? (
+            <GuideSection title="Свободное время">
+              <p className={styles.guideText}>
+                Нажмите начало и конец или протяните интервал. На пустом месте — свободно, внутри свободного — недоступно. Без отметки пригласить нельзя. Один раз — до 15 часов, повтор — до 12 часов и не позже 23:30. Правый клик или долгое нажатие меняет отметку: этот день или вся серия.
+              </p>
+            </GuideSection>
+          ) : null}
+          <GuideSection title="Слоты">
+            <p className={styles.guideText}>
+              {showSlotCreate
+                ? "Нажмите слот, который ещё не закончился."
+                : "Нажмите слот, который ещё не закончился. В окне — приглашение, запросы и кого можно позвать."}
+            </p>
+          </GuideSection>
+          {showSlotCreate ? (
+            <GuideSection title="Новый слот">
+              <p className={styles.guideText}>
+                {showModeSwitch ? "Кнопка «Новый слот» переключает создание слота и отметку времени. " : ""}
+                Интервал от 30 минут до 6 часов: зал, вместимость, описание, ответственный и повтор до 12 недель. Начавшийся слот изменить и удалить нельзя.
+              </p>
+            </GuideSection>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GuideSection({ title, children }) {
+  return (
+    <section className={styles.guideSection}>
+      <h3 className={styles.guideTitle}>{title}</h3>
+      {children}
+    </section>
   );
 }
 

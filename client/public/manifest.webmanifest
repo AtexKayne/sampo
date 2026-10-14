@@ -1,12 +1,15 @@
 {
-  "name": "Сампо",
+  "name": "Сампо — самоподготовка",
   "short_name": "Сампо",
+  "description": "Запись на самоподготовку в студии парных танцев: календарь слотов, приглашения в пару и свободное время.",
+  "id": "/",
   "start_url": "/calendar",
   "scope": "/",
   "display": "standalone",
   "lang": "ru",
-  "background_color": "#f6f3ee",
-  "theme_color": "#9c3b2e",
+  "dir": "ltr",
+  "background_color": "#f6f5f2",
+  "theme_color": "#f6f5f2",
   "icons": [
     {
       "src": "/icons/icon-192.png",

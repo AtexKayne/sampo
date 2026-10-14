@@ -8,8 +8,9 @@
 
 .title {
   margin: 12px 0 0;
-  font-size: 32px;
-  font-weight: 600;
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1;
 }
 
 .lead,
@@ -40,5 +41,5 @@
 }
 
 .error {
-  color: var(--accent);
+  color: var(--danger);
 }

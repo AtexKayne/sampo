@@ -17,4 +17,7 @@ export const config = {
   seedAdminLogin: process.env.SEED_ADMIN_LOGIN || "",
   seedAdminPassword: process.env.SEED_ADMIN_PASSWORD || "",
   secureCookies: readSecureCookies(),
+  vkClientId: process.env.VK_CLIENT_ID || "",
+  vkRedirectUri: process.env.VK_REDIRECT_URI || "",
+  vkServiceKey: process.env.VK_SERVICE_KEY || "",
 };

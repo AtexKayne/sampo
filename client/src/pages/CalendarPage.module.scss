@@ -1,7 +1,36 @@
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-top: 28px;
+}
+
 .title {
-  margin: 28px 0 0;
-  font-size: 32px;
-  font-weight: 600;
+  margin: 0;
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.helpLink {
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 32px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.helpLink:hover {
+  color: var(--ink);
 }
 
 .lead,
@@ -54,17 +83,73 @@
   background: color-mix(in srgb, var(--ok) 22%, var(--surface));
 }
 
-.week {
+.gridBar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
+  gap: 16px;
   margin-top: 20px;
+}
+
+.gridBar .legend {
+  margin: 0;
+  margin-right: auto;
+}
+
+@media (max-width: 799px) {
+  .gridBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .gridBar .legend {
+    margin-right: 0;
+  }
+
+  .pager {
+    align-self: flex-end;
+  }
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.navButton {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.navButton:hover:not(:disabled) {
+  background: var(--surface);
+}
+
+.navButton:disabled {
+  color: var(--line);
+  cursor: default;
 }
 
 .range {
   margin: 0;
+  min-width: 9.5rem;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.2;
   text-align: center;
+  white-space: nowrap;
 }
 
 .strip {
@@ -72,6 +157,12 @@
   gap: 8px;
   margin-top: 16px;
   overflow-x: auto;
+}
+
+@media (max-width: 799px) {
+  .strip {
+    gap: 4px;
+  }
 }
 
 .stripDay,
@@ -131,10 +222,18 @@
   color: var(--on-accent);
 }
 
+.button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.primary:hover:not(:disabled) {
+  background: #2a2a2a;
+}
+
 .primary:disabled,
 .button:disabled {
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.45;
 }
 
 .dock {
@@ -147,11 +246,18 @@
   width: min(420px, calc(100vw - 32px));
   max-height: calc(100dvh - 120px);
   margin: 0;
-  padding: 12px;
+  padding: 16px;
   overflow: auto;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+@media (min-width: 800px) {
+  .dock {
+    bottom: 24px;
+  }
 }
 
 .selectionLabel {
@@ -240,7 +346,7 @@
 
 .error {
   margin: 12px 0 0;
-  color: var(--accent);
+  color: var(--danger);
 }
 
 .dock .lead,
@@ -256,7 +362,7 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: rgba(28, 25, 22, 0.28);
+  background: var(--overlay);
 }
 
 .modal {
@@ -270,6 +376,34 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.helpModal {
+  width: min(640px, 100%);
+  max-height: min(86vh, 840px);
+}
+
+.guide {
+  display: grid;
+  gap: 20px;
+}
+
+.guideSection {
+  display: grid;
+  gap: 8px;
+}
+
+.guideTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.guideText {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .modalHead {
@@ -380,10 +514,10 @@
 .danger {
   min-height: 44px;
   padding: 0 16px;
-  border: 1px solid var(--accent);
+  border: 1px solid var(--danger);
   border-radius: var(--radius);
   background: var(--surface);
-  color: var(--accent);
+  color: var(--danger);
   cursor: pointer;
 }
 

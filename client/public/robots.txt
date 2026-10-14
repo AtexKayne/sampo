@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /login
+Allow: /icons/
+Allow: /manifest.webmanifest
+Disallow: /api/
+Disallow: /calendar
+Disallow: /slots
+Disallow: /requests
+Disallow: /me
+Disallow: /dancers
+Disallow: /admin
+
+Host: vparaplane.ru
+Sitemap: https://vparaplane.ru/sitemap.xml

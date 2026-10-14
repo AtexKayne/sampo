@@ -1,12 +1,24 @@
 import { eq } from "drizzle-orm";
 import { users } from "../db/schema.js";
-import { HttpError, errorBody } from "../http/errors.js";
+import { HttpError } from "../http/errors.js";
 import { hashPassword, normalizeLogin, validateDisplayName, validateLogin, validatePassword, verifyPassword } from "./password.js";
 import { publicUser, issueRefreshSession, revokeRefreshSession, rotateRefreshSession, findRefreshSession, REFRESH_COOKIE } from "./sessions.js";
 import { closeSession, closeUser } from "../notifications/live.js";
 import { deleteProfile } from "../domain/profile.js";
 import { requireUser } from "./access.js";
 import { signAccessToken, verifyAccessToken, REFRESH_TTL_MS } from "./tokens.js";
+import {
+  VK_COOKIE,
+  VK_COOKIE_MS,
+  createPkce,
+  decodeVkState,
+  encodeVkState,
+  fetchVkIdentity,
+  sameSecret,
+  vkAuthorizeUrl,
+  vkCallbackQuery,
+  vkReady,
+} from "./vk.js";
 
 const COOKIE = REFRESH_COOKIE;
 let dummyPasswordHash;
@@ -45,6 +57,28 @@ function requireJwt(config) {
 
 function isUniqueViolation(error) {
   return error?.code === "23505" || error?.cause?.code === "23505";
+}
+
+async function findOrCreateVkUser(db, vkUserId, displayName) {
+  const [existing] = await db.select().from(users).where(eq(users.vkUserId, vkUserId));
+  if (existing) return existing;
+  try {
+    const [created] = await db
+      .insert(users)
+      .values({
+        id: crypto.randomUUID(),
+        vkUserId,
+        displayName,
+        appRole: "user",
+      })
+      .returning();
+    return created;
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const [again] = await db.select().from(users).where(eq(users.vkUserId, vkUserId));
+    if (again) return again;
+    throw error;
+  }
 }
 
 export function registerAuthRoutes(app, { db, sql, config, limiter }) {
@@ -134,21 +168,55 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
   });
 
   app.get("/api/auth/vk", async (request, reply) => {
-    const message = "Вход через ВКонтакте не настроен";
-    if (request.headers.accept?.includes("application/json")) {
-      return reply.code(503).send(errorBody("UNAVAILABLE", message));
+    if (!vkReady(config) || !db || !config.jwtAccessSecret) return reply.redirect("/login?vk=unavailable");
+    const pkce = createPkce();
+    reply.setCookie(
+      VK_COOKIE,
+      encodeVkState({ state: pkce.state, verifier: pkce.verifier, purpose: "login" }),
+      cookieOptions(config, new Date(Date.now() + VK_COOKIE_MS)),
+    );
+    return reply.redirect(
+      vkAuthorizeUrl({
+        clientId: config.vkClientId,
+        redirectUri: config.vkRedirectUri,
+        state: pkce.state,
+        codeChallenge: pkce.challenge,
+      }),
+    );
+  });
+
+  app.get("/api/auth/vk/callback", async (request, reply) => {
+    const saved = decodeVkState(request.cookies?.[VK_COOKIE]);
+    reply.clearCookie(VK_COOKIE, { path: "/" });
+    const fail = (code) => reply.redirect(`/login?vk=${code}`);
+    if (!vkReady(config)) return fail("unavailable");
+
+    const query = vkCallbackQuery(request.query);
+    if (query.error === "access_denied") return fail("denied");
+    if (query.error || !query.code || !query.device_id) return fail("failed");
+    if (!saved || !sameSecret(saved.state, query.state)) return fail("state");
+    if (!db || !config.jwtAccessSecret) return fail("unavailable");
+
+    let identity;
+    try {
+      identity = await fetchVkIdentity({
+        clientId: config.vkClientId,
+        serviceKey: config.vkServiceKey,
+        redirectUri: config.vkRedirectUri,
+        code: String(query.code),
+        verifier: saved.verifier,
+        deviceId: String(query.device_id),
+        state: saved.state,
+      });
+    } catch (error) {
+      request.log.warn({ vkError: error?.code || "failed" }, "vk login failed");
+      return fail("failed");
     }
-    return reply.code(503).type("text/html; charset=utf-8").send(`<!doctype html>
-<html lang="ru">
-<head>
-  <meta charset="utf-8" />
-  <title>Сампо</title>
-</head>
-<body style="margin:0;padding:24px;background:#f6f3ee;color:#1c1916;font-family:system-ui,'Segoe UI',sans-serif">
-  <p>${message}.</p>
-  <p><a href="/login">Вернуться ко входу</a></p>
-</body>
-</html>`);
+
+    const user = await findOrCreateVkUser(db, identity.userId, identity.displayName);
+    const refresh = await issueRefreshSession(db, user.id);
+    reply.setCookie(COOKIE, refresh.token, cookieOptions(config, refresh.expiresAt));
+    return reply.redirect("/calendar");
   });
 
   app.get("/api/me", async (request) => {

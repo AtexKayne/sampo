@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { DocumentMeta } from "./DocumentMeta.jsx";
 import { AuthPage } from "../pages/AuthPage.jsx";
 import { AdminSlotsPage } from "../pages/AdminSlotsPage.jsx";
 import { CalendarPage } from "../pages/CalendarPage.jsx";
@@ -20,6 +21,7 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <DocumentMeta />
         <SessionProvider>
           <NotificationsProvider>
             <Routes>

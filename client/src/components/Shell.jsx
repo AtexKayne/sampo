@@ -17,7 +17,8 @@ export function Shell({ user, onLogout, pending, children }) {
     <div className={styles.shell}>
       <header className={styles.header}>
         <Link className={styles.brand} to="/calendar">
-          Сампо
+          <span className={styles.brandSite}>vparaplane</span>
+          <span className={styles.brandName}>Сампо</span>
         </Link>
         <nav className={styles.nav}>
           {user?.appRole === "admin" ? (

@@ -119,18 +119,32 @@ install_node() {
     fi
   fi
 
-  local node_arch version_url version tmp
+  local candidate major node_arch version tmp
+  candidate="$(apt-cache policy nodejs 2>/dev/null | awk '/Candidate:/ {print $2; exit}')"
+  major="${candidate%%.*}"
+  if [[ "$major" =~ ^[0-9]+$ && "$major" -ge 22 ]]; then
+    apt-get install -y nodejs
+    if ! command -v npm >/dev/null 2>&1; then
+      apt-get install -y npm
+    fi
+    hash -r
+    if ! command -v node >/dev/null 2>&1 && command -v nodejs >/dev/null 2>&1; then
+      ln -sfn "$(command -v nodejs)" /usr/local/bin/node
+    fi
+    hash -r
+    echo "Node.js $(node -v) из репозитория Ubuntu"
+    return
+  fi
+
   case "$(uname -m)" in
     x86_64) node_arch=x64 ;;
     aarch64|arm64) node_arch=arm64 ;;
     *) echo "Архитектура $(uname -m) не поддерживается" >&2; exit 1 ;;
   esac
 
-  version_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' https://nodejs.org/dist/latest-v22.x/)"
-  version="$(basename "${version_url%/}")"
-  version="${version#v}"
+  version="$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt | sed -n 's/.*node-v\([0-9][0-9.]*\)-linux-.*/\1/p' | head -n 1)"
   if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Не удалось определить версию Node.js: ${version_url}" >&2
+    echo "Не удалось определить версию Node.js" >&2
     exit 1
   fi
 
