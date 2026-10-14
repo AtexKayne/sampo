@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   GRID_ROW_COUNT,
@@ -105,12 +105,39 @@ function selectionInsideFree(day, anchor, current, freeBlocks, busyBlocks) {
 
 const HOLD_MS = 500;
 
+function clearAccidentalSelection() {
+  const selection = window.getSelection?.();
+  if (!selection || selection.isCollapsed) return;
+  const node = selection.anchorNode;
+  const element = node instanceof Element ? node : node?.parentElement;
+  if (element?.closest("input, textarea, select")) return;
+  selection.removeAllRanges();
+}
+
 export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], selection, selectionLimits, interactive, now, onSelect, onOpenSlot, onOpenWindow, selectInsideFree = false, showAvailability = false }) {
+  const gridRef = useRef(null);
   const dragRef = useRef(null);
   const holdRef = useRef(null);
   const [hover, setHover] = useState(null);
   const todayKey = studioDayKey(now);
   const nowMinutes = studioMinutes(now);
+
+  useEffect(() => {
+    const root = gridRef.current;
+    if (!root) return undefined;
+    const onTouchStart = (event) => {
+      const column = event.target.closest("[data-column]");
+      if (!column || !root.contains(column)) return;
+      if (event.target.closest("[data-slot], a")) return;
+      const touch = event.changedTouches[0];
+      if (!touch) return;
+      const pastRows = Number(column.dataset.pastRows);
+      if (indexFromY(column, touch.clientY) < pastRows) return;
+      event.preventDefault();
+    };
+    root.addEventListener("touchstart", onTouchStart, { passive: false });
+    return () => root.removeEventListener("touchstart", onTouchStart);
+  }, []);
 
   function trackHover(event, day) {
     const key = studioDayKey(day);
@@ -147,6 +174,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   function openWindow(day, block) {
     clearHold();
     dragRef.current = null;
+    clearAccidentalSelection();
     onSelect(studioDayKey(day), { startMin: null, message: "" });
     onOpenWindow?.({
       id: block.windowId ?? block.id,
@@ -158,6 +186,10 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   function emit(day, anchor, current, committed) {
     const pastRows = pastRowCount(studioDayKey(day), todayKey, nowMinutes);
     const result = resolveSelection(anchor, current, interactive ? pastRows : GRID_ROW_COUNT, selectionLimits);
+    if (result.startMin == null) {
+      onSelect(studioDayKey(day), { startMin: null, message: "" });
+      return;
+    }
     onSelect(studioDayKey(day), {
       ...result,
       insideFree: selectionInsideFree(day, anchor, current, freeBlocks, busyBlocks),
@@ -168,6 +200,10 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   function onPointerDown(event, day) {
     if (!interactive || event.button !== 0) return;
     if (event.target.closest("[data-slot]")) return;
+    const pastRows = pastRowCount(studioDayKey(day), todayKey, nowMinutes);
+    const index = indexFromY(event.currentTarget, event.clientY);
+    const touchOnPast = event.pointerType !== "mouse" && index < pastRows;
+    if (touchOnPast) return;
     const block = freeBlockAt(event.currentTarget, day, event.clientY);
     if (block && event.pointerType !== "mouse") {
       clearHold();
@@ -185,7 +221,6 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
       holdRef.current = hold;
     }
     if (!selectInsideFree && block) return;
-    const index = indexFromY(event.currentTarget, event.clientY);
     dragRef.current = {
       pointerId: event.pointerId,
       day,
@@ -196,6 +231,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
       pointerType: event.pointerType,
     };
     if (event.pointerType === "mouse") setHover(null);
+    if (event.pointerType !== "mouse") event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
@@ -247,6 +283,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   return (
     <div
       className={styles.grid}
+      ref={gridRef}
       style={{ gridTemplateColumns: `64px repeat(${days.length}, minmax(0, 1fr))` }}
     >
       <div className={styles.corner} />
@@ -287,11 +324,16 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
         return (
           <div
             className={[interactive ? styles.column : styles.columnStatic, showAvailability ? styles.availability : ""].filter(Boolean).join(" ")}
+            data-column="true"
+            data-past-rows={pastRows}
             key={key}
             onPointerDown={(event) => onPointerDown(event, day)}
             onPointerMove={(event) => onPointerMove(event, day)}
             onPointerUp={(event) => onPointerUp(event, day)}
-            onPointerLeave={() => setHover((current) => (current ? null : current))}
+            onPointerLeave={() => {
+              if (!dragRef.current) clearHold();
+              setHover((current) => (current ? null : current));
+            }}
             onPointerCancel={() => {
               clearHold();
               dragRef.current = null;
@@ -305,6 +347,9 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
             }}
           >
             {pastRows > 0 ? <div className={styles.past} style={{ height: `calc(var(--row) * ${pastRows})` }} /> : null}
+            {interactive && pastRows < GRID_ROW_COUNT ? (
+              <div className={styles.selectable} style={{ top: `calc(var(--row) * ${pastRows})` }} />
+            ) : null}
             {showAvailability ? freePlaced.map((block) => paintWindow(block, styles.free)) : null}
             {hover?.dayKey === key ? (
               <div

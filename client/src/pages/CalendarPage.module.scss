@@ -377,6 +377,16 @@
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+
+  input,
+  textarea,
+  select {
+    -webkit-user-select: text;
+    user-select: text;
+  }
 }
 
 .helpModal {

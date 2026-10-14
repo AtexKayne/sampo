@@ -48,8 +48,17 @@
   cursor: pointer;
 }
 
-.toggle:hover {
-  background: var(--bg);
+@media (hover: hover) and (pointer: fine) {
+  .toggle:hover {
+    background: var(--bg);
+  }
+}
+
+.question s {
+  color: var(--muted);
+  font-weight: 500;
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1.5px;
 }
 
 .caret,
@@ -77,6 +86,19 @@
   margin: 0;
   color: var(--muted);
   line-height: 1.5;
+}
+
+.answer a,
+.answer a:visited {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.answer a:hover {
+  color: var(--gold);
 }
 
 @media (prefers-reduced-motion: reduce) {

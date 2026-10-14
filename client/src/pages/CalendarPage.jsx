@@ -80,6 +80,38 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   });
 
   useEffect(() => {
+    if (!editing && !windowEdit) return undefined;
+    const clear = () => {
+      const picked = window.getSelection();
+      if (!picked || picked.isCollapsed) return;
+      const node = picked.anchorNode;
+      const element = node instanceof Element ? node : node?.parentElement;
+      if (element?.closest("input, textarea, select")) return;
+      picked.removeAllRanges();
+    };
+    clear();
+    const frame = requestAnimationFrame(clear);
+    document.addEventListener("selectionchange", clear);
+    let tail = 0;
+    const stop = () => {
+      document.removeEventListener("pointerup", stop, true);
+      document.removeEventListener("pointercancel", stop, true);
+      clear();
+      window.clearTimeout(tail);
+      tail = window.setTimeout(() => document.removeEventListener("selectionchange", clear), 400);
+    };
+    document.addEventListener("pointerup", stop, true);
+    document.addEventListener("pointercancel", stop, true);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(tail);
+      document.removeEventListener("selectionchange", clear);
+      document.removeEventListener("pointerup", stop, true);
+      document.removeEventListener("pointercancel", stop, true);
+    };
+  }, [editing, windowEdit]);
+
+  useEffect(() => {
     if (!editing && !selection && !windowEdit && !helpOpen) return undefined;
     function onKey(event) {
       if (event.key !== "Escape") return;
