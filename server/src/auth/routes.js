@@ -1,9 +1,10 @@
 import { eq } from "drizzle-orm";
 import { users } from "../db/schema.js";
 import { HttpError } from "../http/errors.js";
-import { hashPassword, normalizeLogin, validateDisplayName, validateLogin, validatePassword, verifyPassword } from "./password.js";
+import { hashPassword, normalizeLogin, validateDisplayName, verifyPassword } from "./password.js";
 import { publicUser, issueRefreshSession, revokeRefreshSession, rotateRefreshSession, findRefreshSession, REFRESH_COOKIE } from "./sessions.js";
 import { closeSession, closeUser } from "../notifications/live.js";
+import { setLoginPassword } from "../domain/credentials.js";
 import { deleteProfile } from "../domain/profile.js";
 import { requireUser } from "./access.js";
 import { signAccessToken, verifyAccessToken, REFRESH_TTL_MS } from "./tokens.js";
@@ -82,41 +83,6 @@ async function findOrCreateVkUser(db, vkUserId, displayName) {
 }
 
 export function registerAuthRoutes(app, { db, sql, config, limiter }) {
-  app.post("/api/auth/register", async (request, reply) => {
-    const loginResult = validateLogin(request.body?.login);
-    if (!loginResult.ok) throw new HttpError(400, "VALIDATION", loginResult.message);
-    const passwordResult = validatePassword(request.body?.password);
-    if (!passwordResult.ok) throw new HttpError(400, "VALIDATION", passwordResult.message);
-    const nameResult = validateDisplayName(request.body?.displayName);
-    if (!nameResult.ok) throw new HttpError(400, "VALIDATION", nameResult.message);
-    requireDatabase(db);
-    requireJwt(config);
-
-    const passwordHash = await hashPassword(passwordResult.password);
-    let created;
-    try {
-      [created] = await db
-        .insert(users)
-        .values({
-          id: crypto.randomUUID(),
-          login: loginResult.login,
-          passwordHash,
-          displayName: nameResult.displayName,
-          appRole: "user",
-        })
-        .returning();
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new HttpError(409, "LOGIN_TAKEN", "Этот логин уже занят");
-      }
-      throw error;
-    }
-
-    const refresh = await issueRefreshSession(db, created.id);
-    const accessToken = signAccessToken(created, config.jwtAccessSecret);
-    return sendAuth(reply, config, accessToken, created, refresh);
-  });
-
   app.post("/api/auth/login", async (request, reply) => {
     requireDatabase(db);
     requireJwt(config);
@@ -237,5 +203,10 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
     if (!name.ok) throw new HttpError(400, "VALIDATION", name.message);
     const [user] = await db.update(users).set({ displayName: name.displayName }).where(eq(users.id, current.id)).returning();
     return publicUser(user);
+  });
+
+  app.post("/api/me/password", async (request) => {
+    const current = await requireUser(request, db, config);
+    return setLoginPassword(sql, current.id, request.body);
   });
 }

@@ -305,6 +305,11 @@
   color: var(--danger);
 }
 
+.saved {
+  margin: 0;
+  color: var(--ok);
+}
+
 .tabs {
   display: flex;
   gap: 8px;
@@ -496,9 +501,13 @@
   font-weight: 600;
 }
 
-.profile {
+.profile,
+.profileForm {
   display: grid;
   gap: 32px;
+}
+
+.profile {
   max-width: 520px;
   margin-top: 16px;
 }

@@ -170,15 +170,17 @@ function ProfileSettings() {
   }
 
   return (
-    <form
-      className={styles.profile}
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (!draft || !dirty || save.isPending) return;
-        setError("");
-        save.mutate(draft);
-      }}
-    >
+    <div className={styles.profile}>
+      <form
+        id="profile-settings"
+        className={styles.profileForm}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!draft || !dirty || save.isPending) return;
+          setError("");
+          save.mutate(draft);
+        }}
+      >
       <label className={styles.field}>
         <span className={styles.fieldLabel}>Имя</span>
         <input
@@ -203,8 +205,10 @@ function ProfileSettings() {
           </dl>
         </section>
       ) : null}
+      </form>
       <div className={styles.settings}>
       <h2 className={styles.settingsTitle}>Дополнительные настройки</h2>
+      <LoginCredentials />
       {settingsQuery.isLoading ? <p className={styles.groupHint}>Загрузка</p> : null}
       {settingsQuery.isError ? <p className={styles.error}>{settingsQuery.error.message}</p> : null}
       {draft ? (
@@ -367,7 +371,7 @@ function ProfileSettings() {
       </div>
       <div className={styles.save}>
         {error ? <p className={styles.error}>{error}</p> : null}
-        <button className={styles.primary} type="submit" disabled={!dirty || save.isPending || remove.isPending}>
+        <button className={styles.primary} type="submit" form="profile-settings" disabled={!dirty || save.isPending || remove.isPending}>
           Сохранить изменения
         </button>
       </div>
@@ -412,6 +416,116 @@ function ProfileSettings() {
             document.body,
           )
         : null}
+    </div>
+  );
+}
+
+function LoginCredentials() {
+  const session = useSession();
+  const savedLogin = session.user?.login || "";
+  const hasLogin = Boolean(session.user?.hasLogin);
+  const [loginName, setLoginName] = useState(savedLogin);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    setLoginName(savedLogin);
+  }, [savedLogin]);
+  const save = useMutation({
+    mutationFn: (body) => api("/api/me/password", { method: "POST", body }),
+    onSuccess: (user) => {
+      setError("");
+      setNotice(hasLogin ? "Логин и пароль сохранены" : "Теперь можно входить по логину и паролю");
+      setPassword("");
+      setConfirm("");
+      session.setUser(user);
+    },
+    onError: (reason) => {
+      setNotice("");
+      setError(reason.message);
+    },
+  });
+  const loginChanged = loginName.trim().toLowerCase() !== savedLogin;
+  const canSave = !save.isPending && (password.length > 0 || (hasLogin && loginChanged));
+
+  function submit() {
+    setError("");
+    setNotice("");
+    if (password !== confirm) {
+      setError("Пароли не совпадают");
+      return;
+    }
+    save.mutate({ login: loginName, password });
+  }
+
+  return (
+    <form
+      className={styles.group}
+      aria-labelledby="credentials-title"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSave) submit();
+      }}
+    >
+      <div className={styles.caption}>
+        <h3 className={styles.groupTitle} id="credentials-title">Вход по логину</h3>
+        <p className={styles.groupHint}>
+          {hasLogin
+            ? "Эти логин и пароль подходят для входа. Чтобы сменить пароль, введите новый: пустые поля пароль не меняют."
+            : "Задайте логин и пароль, чтобы входить без ВКонтакте."}
+        </p>
+      </div>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>Логин</span>
+        <input
+          className={styles.input}
+          value={loginName}
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck="false"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setLoginName(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>{hasLogin ? "Новый пароль" : "Пароль"}</span>
+        <input
+          className={styles.input}
+          type="password"
+          value={password}
+          autoComplete="new-password"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setPassword(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      <label className={styles.field}>
+        <span className={styles.fieldLabel}>{hasLogin ? "Новый пароль ещё раз" : "Пароль ещё раз"}</span>
+        <input
+          className={styles.input}
+          type="password"
+          value={confirm}
+          autoComplete="new-password"
+          disabled={save.isPending}
+          onChange={(event) => {
+            setConfirm(event.target.value);
+            setNotice("");
+          }}
+        />
+      </label>
+      {error ? <p className={styles.error}>{error}</p> : null}
+      {notice ? <p className={styles.saved}>{notice}</p> : null}
+      <div className={styles.row}>
+        <button className={styles.primary} type="submit" disabled={!canSave}>
+          {hasLogin ? "Сохранить логин и пароль" : "Задать логин и пароль"}
+        </button>
+      </div>
     </form>
   );
 }

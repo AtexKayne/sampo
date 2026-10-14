@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { login, register } from "../api/client.js";
+import { login } from "../api/client.js";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./AuthPage.module.scss";
 
@@ -15,10 +15,8 @@ export function AuthPage() {
   const session = useSession();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const [mode, setMode] = useState("login");
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [error, setError] = useState(VK_MESSAGES[params.get("vk")] || "");
   const [pending, setPending] = useState(false);
 
@@ -36,9 +34,7 @@ export function AuthPage() {
     setError("");
     setPending(true);
     try {
-      const body = { login: loginName, password };
-      const user =
-        mode === "login" ? await login(body) : await register({ ...body, displayName });
+      const user = await login({ login: loginName, password });
       session.setUser(user);
       navigate("/calendar", { replace: true });
     } catch (submitError) {
@@ -57,44 +53,7 @@ export function AuthPage() {
       </section>
       <section className={styles.panel}>
         <div className={styles.card}>
-          <div className={styles.tabs} role="tablist">
-            <button
-              className={styles.tab}
-              type="button"
-              role="tab"
-              aria-selected={mode === "login"}
-              onClick={() => {
-                setMode("login");
-                setError("");
-              }}
-            >
-              Вход
-            </button>
-            <button
-              className={styles.tab}
-              type="button"
-              role="tab"
-              aria-selected={mode === "register"}
-              onClick={() => {
-                setMode("register");
-                setError("");
-              }}
-            >
-              Регистрация
-            </button>
-          </div>
           <form className={styles.form} onSubmit={onSubmit}>
-            {mode === "register" ? (
-              <label className={styles.field}>
-                <span className={styles.label}>Имя</span>
-                <input
-                  className={styles.input}
-                  value={displayName}
-                  autoComplete="name"
-                  onChange={(event) => setDisplayName(event.target.value)}
-                />
-              </label>
-            ) : null}
             <label className={styles.field}>
               <span className={styles.label}>Логин</span>
               <input
@@ -112,18 +71,19 @@ export function AuthPage() {
                 className={styles.input}
                 type="password"
                 value={password}
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete="current-password"
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
             {error ? <p className={styles.error}>{error}</p> : null}
             <button className={styles.button} type="submit" disabled={pending}>
-              {mode === "login" ? "Войти" : "Зарегистрироваться"}
+              Войти
             </button>
           </form>
           <a className={styles.secondary} href="/api/auth/vk">
             Войти через ВКонтакте
           </a>
+          <p className={styles.hint}>Новый профиль создаётся только через ВКонтакте. Логин и пароль можно задать после входа, в профиле.</p>
         </div>
       </section>
     </main>

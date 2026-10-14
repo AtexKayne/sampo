@@ -42,32 +42,8 @@
   width: min(100%, 400px);
 }
 
-.tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
-}
-
-.tab {
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.tab[aria-selected="true"] {
-  background: var(--ink);
-  color: var(--on-accent);
-}
-
 .form {
-  margin-top: 28px;
+  margin-top: 0;
 }
 
 .field {
@@ -140,6 +116,13 @@
   margin: 0 0 14px;
   color: var(--danger);
   line-height: 1.4;
+}
+
+.hint {
+  margin: 16px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 @media (min-width: 960px) {

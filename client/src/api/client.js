@@ -72,12 +72,6 @@ export async function login(body) {
   return data.user;
 }
 
-export async function register(body) {
-  const data = await api("/api/auth/register", { method: "POST", body, skipRefresh: true });
-  setAccessToken(data.accessToken);
-  return data.user;
-}
-
 export async function logout() {
   try {
     await api("/api/auth/logout", { method: "POST", skipRefresh: true });

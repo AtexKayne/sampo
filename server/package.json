@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node --watch src/index.js",
     "start": "node src/index.js",
-    "test": "node --test src/auth/password.test.js src/auth/tokens.test.js src/auth/rate-limit.test.js src/auth/vk.test.js src/slots/rules.test.js src/slots/grid.test.js src/domain/dance-levels.test.js src/domain/sampo.test.js"
+    "test": "node --test src/auth/password.test.js src/auth/tokens.test.js src/auth/rate-limit.test.js src/auth/vk.test.js src/slots/rules.test.js src/slots/grid.test.js src/domain/credentials.test.js src/domain/dance-levels.test.js src/domain/sampo.test.js"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.3",
