@@ -4,6 +4,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from "react-route
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
+import { disablePhonePush, enablePhonePush, readPhonePush } from "../notifications/push.js";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./user.module.scss";
@@ -443,6 +444,7 @@ function ProfileSettings({ userId }) {
                 onChange={() => toggleFlag("notifyHourBefore")}
               />
             </div>
+            {editing ? null : <PhonePush />}
           </section>
           <section className={styles.group} aria-labelledby="share-title">
             <h3 className={styles.groupTitle} id="share-title">Свободное время</h3>
@@ -802,6 +804,90 @@ function LevelOption({ name, label, checked, disabled, multiple, onChange }) {
       {label}
     </label>
   );
+}
+
+function PhonePush() {
+  const [state, setState] = useState("loading");
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const iosBrowser = iosNeedsInstall();
+
+  useEffect(() => {
+    let active = true;
+    readPhonePush()
+      .then((next) => {
+        if (active) setState(next);
+      })
+      .catch(() => {
+        if (active) setState("unsupported");
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function turnOn() {
+    setPending(true);
+    setError("");
+    try {
+      const next = await enablePhonePush();
+      setState(next);
+      if (next === "denied") setError("Браузер запретил уведомления. Разрешите их в настройках сайта.");
+    } catch (reason) {
+      setError(reason.message || "Не удалось включить уведомления");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function turnOff() {
+    setPending(true);
+    setError("");
+    try {
+      setState(await disablePhonePush());
+    } catch (reason) {
+      setError(reason.message || "Не удалось выключить уведомления");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  return (
+    <div className={styles.stack}>
+      <p className={styles.groupHint}>
+        {state === "subscribed"
+          ? "Уведомления на этот телефон включены."
+          : "Приглашения и ответы можно получать уведомлением на телефон."}
+      </p>
+      {iosBrowser ? (
+        <p className={styles.groupHint}>На iPhone уведомления приходят, если «Сампо» установлено на экран «Домой».</p>
+      ) : null}
+      {state === "denied" ? (
+        <p className={styles.groupHint}>Браузер запретил уведомления. Разрешите их в настройках сайта и нажмите ещё раз.</p>
+      ) : null}
+      {state === "unsupported" ? <p className={styles.groupHint}>Этот браузер не принимает уведомления на телефон.</p> : null}
+      {error ? <p className={styles.error}>{error}</p> : null}
+      {state === "loading" || state === "unsupported" ? null : state === "subscribed" ? (
+        <div className={styles.row}>
+          <button className={styles.button} type="button" disabled={pending} onClick={turnOff}>
+            Выключить на этом телефоне
+          </button>
+        </div>
+      ) : (
+        <div className={styles.row}>
+          <button className={styles.button} type="button" disabled={pending} onClick={turnOn}>
+            Включить уведомления на телефон
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function iosNeedsInstall() {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  return ios && !standalone;
 }
 
 function Check({ label, checked, disabled, onChange }) {

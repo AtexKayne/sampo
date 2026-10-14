@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client.js";
 import { useSession } from "../session/SessionProvider.jsx";
+import { askPushOnce } from "./push.js";
 import styles from "../components/Shell.module.scss";
 
 const STORAGE_KEY = "sampo-announced-notices";
@@ -40,6 +41,10 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     if (session.status === "ready" && session.user?.appRole === "admin") dismissToasts();
   }, [session.status, session.user]);
+
+  useEffect(() => {
+    if (dancer) askPushOnce();
+  }, [dancer]);
 
   useEffect(() => {
     if (!dancer) return undefined;

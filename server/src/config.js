@@ -20,4 +20,7 @@ export const config = {
   vkClientId: process.env.VK_CLIENT_ID || "",
   vkRedirectUri: process.env.VK_REDIRECT_URI || "",
   vkServiceKey: process.env.VK_SERVICE_KEY || "",
+  vapidPublicKey: (process.env.VAPID_PUBLIC_KEY || "").trim(),
+  vapidPrivateKey: (process.env.VAPID_PRIVATE_KEY || "").trim(),
+  vapidSubject: (process.env.VAPID_SUBJECT || "mailto:admin@example.com").trim(),
 };

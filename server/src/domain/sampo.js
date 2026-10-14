@@ -149,7 +149,7 @@ const INVITE_NOTICE = new Set([
 ]);
 
 async function notify(tx, userId, type, payload) {
-  const [user] = await tx`SELECT app_role, notify_invites FROM users WHERE id = ${userId}`;
+  const [user] = await tx`SELECT app_role, notify_invites, vk_user_id FROM users WHERE id = ${userId}`;
   if (user?.app_role === "admin") return;
   if (INVITE_NOTICE.has(type) && user?.notify_invites === false) return;
   const id = crypto.randomUUID();
@@ -167,12 +167,27 @@ async function notify(tx, userId, type, payload) {
     },
   });
   if (Buffer.byteLength(event) <= 7500) await tx`SELECT pg_notify('sampo_notification', ${event})`;
-  for (const channel of ["push", "vk"]) {
-    await tx`
-      INSERT INTO notification_deliveries (id, notification_id, channel, status, last_error)
-      VALUES (${crypto.randomUUID()}, ${id}, ${channel}, 'skipped', ${"Доставка push и ВК ещё не подключена"})
-    `;
-  }
+  const [subscription] = await tx`SELECT id FROM push_subscriptions WHERE user_id = ${userId} LIMIT 1`;
+  await tx`
+    INSERT INTO notification_deliveries (id, notification_id, channel, status, last_error)
+    VALUES (
+      ${crypto.randomUUID()},
+      ${id},
+      'push',
+      ${subscription ? "pending" : "skipped"},
+      ${subscription ? null : "Нет подписки на уведомления"}
+    )
+  `;
+  await tx`
+    INSERT INTO notification_deliveries (id, notification_id, channel, status, last_error)
+    VALUES (
+      ${crypto.randomUUID()},
+      ${id},
+      'vk',
+      'skipped',
+      ${user?.vk_user_id == null ? "Нет привязки ВК" : "Сообщения ВК ещё не подключены"}
+    )
+  `;
 }
 
 async function displayName(tx, userId) {

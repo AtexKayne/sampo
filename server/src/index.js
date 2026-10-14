@@ -8,10 +8,14 @@ import { registerSlotRoutes } from "./slots/routes.js";
 import { registerUserRoutes } from "./user/routes.js";
 import { expireDue, remindDue } from "./domain/sampo.js";
 import { listenForNotifications, registerNotificationStream } from "./notifications/live.js";
+import { deliverPendingPush, prepareVapid, registerPushRoutes } from "./notifications/push.js";
 import { createLoginLimiter } from "./auth/rate-limit.js";
 import { HttpError, errorBody } from "./http/errors.js";
 
+const vapid = prepareVapid(config);
 const app = Fastify({ logger: true, trustProxy: "loopback" });
+if (vapid.generated && vapid.saved) app.log.info("Ключи push записаны в .env");
+if (vapid.generated && !vapid.saved) app.log.warn("Ключи push созданы только в памяти: не удалось записать .env");
 const database = await openDatabase(config, app.log);
 const db = database?.db ?? null;
 const sql = database?.sql ?? null;
@@ -22,12 +26,14 @@ registerAuthRoutes(app, { db, sql, config, limiter: createLoginLimiter() });
 registerSlotRoutes(app, { db, sql, config });
 registerUserRoutes(app, { db, sql, config });
 registerNotificationStream(app, { db, config });
+registerPushRoutes(app, { db, sql, config });
 
 if (sql) {
   await listenForNotifications(sql, app.log);
   setInterval(() => {
     expireDue(sql).catch((error) => app.log.error(error));
     remindDue(sql).catch((error) => app.log.error(error));
+    deliverPendingPush(sql, config).catch((error) => app.log.error(error));
   }, 15000);
 }
 

@@ -1,0 +1,247 @@
+import { readFileSync, writeFileSync } from "node:fs";
+import webpush from "web-push";
+import { HttpError } from "../http/errors.js";
+import { requireDancer, requireUser } from "../auth/access.js";
+
+const BACKOFF_MS = [15_000, 60_000, 5 * 60_000, 15 * 60_000];
+
+export function vapidReady(config) {
+  return Boolean(config?.vapidPublicKey && config?.vapidPrivateKey);
+}
+
+export function prepareVapid(config) {
+  if (vapidReady(config)) return { generated: false, saved: true };
+  const keys = webpush.generateVAPIDKeys();
+  config.vapidPublicKey = keys.publicKey;
+  config.vapidPrivateKey = keys.privateKey;
+  if (!config.vapidSubject) config.vapidSubject = "mailto:admin@example.com";
+  return { generated: true, saved: persistVapid(keys) };
+}
+
+export function pushMessage(note) {
+  const payload = note?.payload && typeof note.payload === "object" ? note.payload : {};
+  const requestId = payload.requestId || null;
+  const slotId = payload.slotId || null;
+  const url = requestId ? `/requests/${requestId}` : slotId ? `/slots/${slotId}` : "/calendar";
+  const message = {
+    title: "Сампо",
+    body: payload.text || "Новое уведомление",
+    tag: note?.id,
+    data: { url, requestId },
+  };
+  if (note?.type === "request_received" && requestId) {
+    message.actions = [
+      { action: "accept", title: "Подтвердить" },
+      { action: "decline", title: "Отказать" },
+    ];
+  }
+  return message;
+}
+
+export function registerPushRoutes(app, { db, sql, config }) {
+  app.get("/api/push/public-key", async () => {
+    if (!vapidReady(config)) throw new HttpError(503, "UNAVAILABLE", "Уведомления на телефон не настроены");
+    return { publicKey: config.vapidPublicKey };
+  });
+
+  app.post("/api/me/push-subscriptions", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireDancer(user);
+    await savePushSubscription(sql, user.id, request.body);
+    return { ok: true };
+  });
+
+  app.delete("/api/me/push-subscriptions", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireDancer(user);
+    await removePushSubscription(sql, user.id, request.body?.endpoint);
+    return { ok: true };
+  });
+}
+
+export async function savePushSubscription(sql, userId, body) {
+  const endpoint = typeof body?.endpoint === "string" ? body.endpoint.trim() : "";
+  const p256dh = body?.keys?.p256dh;
+  const auth = body?.keys?.auth;
+  if (!validEndpoint(endpoint) || !validKey(p256dh) || !validKey(auth)) {
+    throw new HttpError(400, "VALIDATION", "Некорректная подписка на уведомления");
+  }
+  await sql`
+    INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth)
+    VALUES (${crypto.randomUUID()}, ${userId}, ${endpoint}, ${p256dh}, ${auth})
+    ON CONFLICT (endpoint) DO UPDATE
+    SET user_id = EXCLUDED.user_id, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth
+  `;
+}
+
+export async function removePushSubscription(sql, userId, endpoint) {
+  if (typeof endpoint !== "string" || !endpoint.trim()) {
+    throw new HttpError(400, "VALIDATION", "Укажите подписку, которую нужно удалить");
+  }
+  await sql`DELETE FROM push_subscriptions WHERE user_id = ${userId} AND endpoint = ${endpoint.trim()}`;
+}
+
+export async function deliverPendingPush(sql, config, options = {}) {
+  if (!vapidReady(config)) return { configured: false, sent: 0 };
+  const send = options.send ?? ((subscription, body) => sendWebPush(config, subscription, body));
+  const only = Array.isArray(options.notificationIds) ? options.notificationIds : null;
+  const claimed = await sql.begin(async (tx) => {
+    const scope = only?.length ? tx`AND d.notification_id IN ${tx(only)}` : tx``;
+    const picked = await tx`
+      SELECT d.id
+      FROM notification_deliveries d
+      WHERE d.channel = 'push'
+        AND d.status = 'pending'
+        AND d.next_attempt_at <= now()
+        ${scope}
+      ORDER BY d.created_at
+      LIMIT 20
+      FOR UPDATE SKIP LOCKED
+    `;
+    if (picked.length === 0) return [];
+    return tx`
+      UPDATE notification_deliveries
+      SET attempts = attempts + 1,
+          next_attempt_at = now() + interval '2 minutes'
+      WHERE id IN ${tx(picked.map((row) => row.id))}
+      RETURNING id, notification_id, attempts
+    `;
+  });
+
+  let sent = 0;
+  for (const row of claimed) {
+    if (await deliverOne(sql, row, send)) sent += 1;
+  }
+  return { configured: true, sent };
+}
+
+async function deliverOne(sql, row, send) {
+  const [note] = await sql`
+    SELECT id, user_id, type, payload
+    FROM notifications
+    WHERE id = ${row.notification_id}
+  `;
+  if (!note) {
+    await finish(sql, row.id, "skipped", "Уведомление удалено");
+    return false;
+  }
+  const subscriptions = await sql`
+    SELECT id, endpoint, p256dh, auth
+    FROM push_subscriptions
+    WHERE user_id = ${note.user_id}
+  `;
+  if (subscriptions.length === 0) {
+    await finish(sql, row.id, "skipped", "Нет подписки на уведомления");
+    return false;
+  }
+
+  const body = JSON.stringify(pushMessage(note));
+  let delivered = 0;
+  let gone = 0;
+  let lastError = "Не удалось отправить уведомление";
+  for (const subscription of subscriptions) {
+    try {
+      await send(
+        { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
+        body,
+      );
+      delivered += 1;
+    } catch (error) {
+      const status = Number(error?.statusCode);
+      if (status === 404 || status === 410) {
+        gone += 1;
+        await sql`DELETE FROM push_subscriptions WHERE id = ${subscription.id}`;
+      } else {
+        lastError = errorText(error);
+      }
+    }
+  }
+
+  if (delivered > 0) {
+    await finish(sql, row.id, "sent", null);
+    return true;
+  }
+  if (gone === subscriptions.length) {
+    await finish(sql, row.id, "skipped", "Подписка устарела");
+    return false;
+  }
+  const attempts = Number(row.attempts);
+  if (attempts >= 5) {
+    await finish(sql, row.id, "failed", lastError);
+    return false;
+  }
+  const next = new Date(Date.now() + (BACKOFF_MS[attempts - 1] ?? BACKOFF_MS[BACKOFF_MS.length - 1]));
+  await sql`
+    UPDATE notification_deliveries
+    SET status = 'pending', last_error = ${lastError}, next_attempt_at = ${next}
+    WHERE id = ${row.id}
+  `;
+  return false;
+}
+
+function sendWebPush(config, subscription, body) {
+  webpush.setVapidDetails(
+    config.vapidSubject || "mailto:admin@example.com",
+    config.vapidPublicKey,
+    config.vapidPrivateKey,
+  );
+  return webpush.sendNotification(subscription, body, { TTL: 12 * 60 * 60, urgency: "high" });
+}
+
+async function finish(sql, id, status, lastError) {
+  await sql`
+    UPDATE notification_deliveries
+    SET status = ${status}, last_error = ${lastError}
+    WHERE id = ${id}
+  `;
+}
+
+function validEndpoint(value) {
+  if (!value || value.length > 4000) return false;
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function validKey(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 200;
+}
+
+function errorText(error) {
+  const raw = error?.body ?? error?.message ?? "Не удалось отправить уведомление";
+  const text = typeof raw === "string" ? raw : String(raw);
+  return text.slice(0, 500);
+}
+
+function persistVapid(keys) {
+  let text;
+  try {
+    text = readFileSync(".env", "utf8");
+  } catch {
+    return false;
+  }
+  const next = replaceEmpty(replaceEmpty(text, "VAPID_PUBLIC_KEY", keys.publicKey), "VAPID_PRIVATE_KEY", keys.privateKey);
+  if (next === text) return false;
+  try {
+    writeFileSync(".env", next);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+function replaceEmpty(text, name, value) {
+  const lines = text.split(/\r?\n/);
+  let found = false;
+  const next = lines.map((line) => {
+    if (!line.startsWith(`${name}=`)) return line;
+    found = true;
+    const current = line.slice(name.length + 1).trim().replace(/^"|"$/g, "");
+    if (current) return line;
+    return `${name}=${value}`;
+  });
+  if (!found) next.push(`${name}=${value}`);
+  return `${next.join("\n").replace(/\n*$/, "")}\n`;
+}
