@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api/client.js";
 import { useSession } from "../session/SessionProvider.jsx";
-import { askPushOnce } from "./push.js";
+import { askPushOnce, preparePush } from "./push.js";
 import styles from "../components/Shell.module.scss";
 
 const STORAGE_KEY = "sampo-announced-notices";
@@ -43,7 +43,9 @@ export function NotificationsProvider({ children }) {
   }, [session.status, session.user]);
 
   useEffect(() => {
-    if (dancer) askPushOnce();
+    if (!dancer) return;
+    preparePush();
+    askPushOnce();
   }, [dancer]);
 
   useEffect(() => {

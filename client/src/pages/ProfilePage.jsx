@@ -4,7 +4,7 @@ import { Link, Navigate, useLocation, useNavigate, useParams } from "react-route
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
-import { disablePhonePush, enablePhonePush, readPhonePush } from "../notifications/push.js";
+import { disablePhonePush, enablePhonePush, iosNeedsHomeScreen, preparePush, readPhonePush } from "../notifications/push.js";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./user.module.scss";
@@ -810,10 +810,14 @@ function PhonePush() {
   const [state, setState] = useState("loading");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
-  const iosBrowser = iosNeedsInstall();
+  const [ready, setReady] = useState(false);
+  const iosBrowser = iosNeedsHomeScreen();
 
   useEffect(() => {
     let active = true;
+    preparePush().then((ok) => {
+      if (active) setReady(ok);
+    });
     readPhonePush()
       .then((next) => {
         if (active) setState(next);
@@ -834,6 +838,7 @@ function PhonePush() {
       setState(next);
       if (next === "denied") setError("Браузер запретил уведомления. Разрешите их в настройках сайта.");
     } catch (reason) {
+      if (reason.state) setState(reason.state);
       setError(reason.message || "Не удалось включить уведомления");
     } finally {
       setPending(false);
@@ -860,14 +865,16 @@ function PhonePush() {
           : "Приглашения и ответы можно получать уведомлением на телефон."}
       </p>
       {iosBrowser ? (
-        <p className={styles.groupHint}>На iPhone уведомления приходят, если «Сампо» установлено на экран «Домой».</p>
+        <p className={styles.groupHint}>
+          На iPhone откройте иконку «Сампо» на экране «Домой» и включите уведомления уже там. В Safari они не доходят.
+        </p>
       ) : null}
       {state === "denied" ? (
         <p className={styles.groupHint}>Браузер запретил уведомления. Разрешите их в настройках сайта и нажмите ещё раз.</p>
       ) : null}
       {state === "unsupported" ? <p className={styles.groupHint}>Этот браузер не принимает уведомления на телефон.</p> : null}
       {error ? <p className={styles.error}>{error}</p> : null}
-      {state === "loading" || state === "unsupported" ? null : state === "subscribed" ? (
+      {state === "loading" || state === "unsupported" || iosBrowser ? null : state === "subscribed" ? (
         <div className={styles.row}>
           <button className={styles.button} type="button" disabled={pending} onClick={turnOff}>
             Выключить на этом телефоне
@@ -875,19 +882,13 @@ function PhonePush() {
         </div>
       ) : (
         <div className={styles.row}>
-          <button className={styles.button} type="button" disabled={pending} onClick={turnOn}>
+          <button className={styles.button} type="button" disabled={pending || !ready} onClick={turnOn}>
             Включить уведомления на телефон
           </button>
         </div>
       )}
     </div>
   );
-}
-
-function iosNeedsInstall() {
-  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
-  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  return ios && !standalone;
 }
 
 function Check({ label, checked, disabled, onChange }) {

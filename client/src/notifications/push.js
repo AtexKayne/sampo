@@ -3,19 +3,51 @@ import { api } from "../api/client.js";
 const ASKED_KEY = "sampo-push-asked";
 let asked = false;
 let saving = null;
+let preparedKey = null;
+let preparing = null;
+let preparedRegistration = null;
 
 export function phonePushSupported() {
   return typeof window !== "undefined" && "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+export function iosNeedsHomeScreen() {
+  if (!isIos()) return false;
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  return !standalone;
+}
+
+export function preparePush() {
+  if (!phonePushSupported()) return Promise.resolve(false);
+  if (preparedKey) return Promise.resolve(true);
+  if (!preparing) {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.ready.then((registration) => {
+        preparedRegistration = registration;
+      }).catch(() => {});
+    }
+    preparing = api("/api/push/public-key")
+      .then(({ publicKey }) => {
+        preparedKey = decodeKey(publicKey);
+        return true;
+      })
+      .catch(() => false)
+      .finally(() => {
+        preparing = null;
+      });
+  }
+  return preparing;
+}
+
 export function askPushOnce() {
-  if (asked || !phonePushSupported()) return;
+  if (asked || !phonePushSupported() || iosNeedsHomeScreen()) return;
   asked = true;
+  preparePush();
   if (Notification.permission === "granted") {
     saveBrowserSubscription().catch(() => {});
     return;
   }
-  if (Notification.permission !== "default" || sessionStorage.getItem(ASKED_KEY) === "1") return;
+  if (isIos() || Notification.permission !== "default" || sessionStorage.getItem(ASKED_KEY) === "1") return;
   sessionStorage.setItem(ASKED_KEY, "1");
   Notification.requestPermission()
     .then((permission) => {
@@ -34,10 +66,19 @@ export async function readPhonePush() {
 
 export async function enablePhonePush() {
   if (!phonePushSupported()) return "unsupported";
+  if (iosNeedsHomeScreen()) {
+    const error = new Error("Откройте «Сампо» с экрана «Домой» и включите уведомления там. В Safari они не доходят.");
+    error.state = "needs-install";
+    throw error;
+  }
+  if (!preparedKey) {
+    const ready = await preparePush();
+    if (!ready) throw new Error("Не удалось подготовить уведомления. Нажмите ещё раз");
+  }
   const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
   if (permission !== "default") sessionStorage.setItem(ASKED_KEY, "1");
   if (permission !== "granted") return permission;
-  await saveBrowserSubscription();
+  await saveBrowserSubscription({ confirm: true, key: preparedKey });
   return "subscribed";
 }
 
@@ -50,21 +91,21 @@ export async function disablePhonePush() {
   return "granted";
 }
 
-function saveBrowserSubscription() {
+function saveBrowserSubscription(options = {}) {
+  if (options.confirm) return saveOnce(options);
   if (!saving) {
-    saving = saveOnce().finally(() => {
+    saving = saveOnce(options).finally(() => {
       saving = null;
     });
   }
   return saving;
 }
 
-async function saveOnce() {
-  const registration = await registrationReady();
-  const { publicKey } = await api("/api/push/public-key");
-  const applicationServerKey = decodeKey(publicKey);
+async function saveOnce({ confirm = false, key = preparedKey } = {}) {
+  const registration = preparedRegistration || (await navigator.serviceWorker.ready);
+  const applicationServerKey = key || decodeKey((await api("/api/push/public-key")).publicKey);
   let subscription = await registration.pushManager.getSubscription();
-  if (subscription && !sameKey(subscription.options?.applicationServerKey, applicationServerKey)) {
+  if (subscription?.options?.applicationServerKey && !sameKey(subscription.options.applicationServerKey, applicationServerKey)) {
     await subscription.unsubscribe();
     subscription = null;
   }
@@ -74,23 +115,19 @@ async function saveOnce() {
       applicationServerKey,
     });
   }
-  await api("/api/me/push-subscriptions", { method: "POST", body: subscription.toJSON() });
+  const saved = await api("/api/me/push-subscriptions", {
+    method: "POST",
+    body: { ...subscription.toJSON(), confirm },
+  });
+  if (confirm && saved?.delivered === false) {
+    const error = new Error(saved.error || "Телефон не принял уведомление");
+    error.state = "subscribed";
+    throw error;
+  }
 }
 
-function registrationReady() {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("Уведомления на этом устройстве недоступны")), 5000);
-    navigator.serviceWorker.ready.then(
-      (registration) => {
-        clearTimeout(timer);
-        resolve(registration);
-      },
-      (error) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
+function isIos() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 }
 
 function decodeKey(value) {

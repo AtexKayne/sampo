@@ -81,6 +81,13 @@ test("an incoming request push carries confirm and decline actions", () => {
     payload: { text: "Через час", slotId: "slot-9" },
   });
   assert.equal(reminder.data.url, "/slots/slot-9");
+
+  const apple = pushMessage(
+    { id: "note-4", type: "request_received", payload: { text: "приглашение", requestId } },
+    { apple: true },
+  );
+  assert.equal(apple.actions, undefined);
+  assert.equal(apple.data.url, `/requests/${requestId}`);
 });
 
 describe("push delivery", { concurrency: false }, () => {
@@ -145,6 +152,7 @@ describe("push delivery", { concurrency: false }, () => {
     assert.equal(sentTo.length, 1);
     assert.equal(sentTo[0].subscription.endpoint.includes("guest"), true);
     assert.equal(sentTo[0].body.data.requestId !== null, true);
+    assert.ok(sentTo[0].body.actions);
     assert.deepEqual(
       sentTo[0].body.actions.map((action) => action.title),
       ["Подтвердить", "Отказать"],

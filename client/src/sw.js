@@ -1,4 +1,4 @@
-const SHELL_CACHE = "sampo-shell-v1";
+const SHELL_CACHE = "sampo-shell-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(SHELL_CACHE).then(() => self.skipWaiting()));
@@ -26,18 +26,25 @@ self.addEventListener("push", (event) => {
     payload = {};
   }
   const title = payload.title || "Сампо";
-  event.waitUntil(
-    self.registration.showNotification(title, {
-      body: payload.body || "",
-      lang: "ru",
-      icon: "/icons/icon-192.png",
-      badge: "/icons/icon-192.png",
-      tag: payload.tag || undefined,
-      data: payload.data || {},
-      actions: Array.isArray(payload.actions) ? payload.actions : [],
-    }),
-  );
+  event.waitUntil(showNotification(title, payload));
 });
+
+async function showNotification(title, payload) {
+  const options = {
+    body: payload.body || "",
+    lang: "ru",
+    icon: "/icons/icon-192.png",
+    tag: payload.tag || undefined,
+    data: payload.data || {},
+  };
+  if (Array.isArray(payload.actions) && payload.actions.length) options.actions = payload.actions;
+  try {
+    await self.registration.showNotification(title, options);
+  } catch {
+    delete options.actions;
+    await self.registration.showNotification(title, options);
+  }
+}
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();

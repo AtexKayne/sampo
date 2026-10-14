@@ -18,18 +18,18 @@ export function prepareVapid(config) {
   return { generated: true, saved: persistVapid(keys) };
 }
 
-export function pushMessage(note) {
+export function pushMessage(note, options = {}) {
   const payload = note?.payload && typeof note.payload === "object" ? note.payload : {};
   const requestId = payload.requestId || null;
   const slotId = payload.slotId || null;
-  const url = requestId ? `/requests/${requestId}` : slotId ? `/slots/${slotId}` : "/calendar";
+  const url = payload.url || (requestId ? `/requests/${requestId}` : slotId ? `/slots/${slotId}` : "/calendar");
   const message = {
     title: "Сампо",
     body: payload.text || "Новое уведомление",
     tag: note?.id,
     data: { url, requestId },
   };
-  if (note?.type === "request_received" && requestId) {
+  if (!options.apple && note?.type === "request_received" && requestId) {
     message.actions = [
       { action: "accept", title: "Подтвердить" },
       { action: "decline", title: "Отказать" },
@@ -48,7 +48,8 @@ export function registerPushRoutes(app, { db, sql, config }) {
     const user = await requireUser(request, db, config);
     requireDancer(user);
     await savePushSubscription(sql, user.id, request.body);
-    return { ok: true };
+    if (request.body?.confirm !== true) return { ok: true, delivered: true };
+    return confirmPush(sql, config, request.body);
   });
 
   app.delete("/api/me/push-subscriptions", async (request) => {
@@ -135,11 +136,11 @@ async function deliverOne(sql, row, send) {
     return false;
   }
 
-  const body = JSON.stringify(pushMessage(note));
   let delivered = 0;
   let gone = 0;
   let lastError = "Не удалось отправить уведомление";
   for (const subscription of subscriptions) {
+    const body = JSON.stringify(pushMessage(note, { apple: subscription.endpoint.includes("web.push.apple.com") }));
     try {
       await send(
         { endpoint: subscription.endpoint, keys: { p256dh: subscription.p256dh, auth: subscription.auth } },
@@ -177,6 +178,36 @@ async function deliverOne(sql, row, send) {
     WHERE id = ${row.id}
   `;
   return false;
+}
+
+async function confirmPush(sql, config, body) {
+  const endpoint = body.endpoint.trim();
+  const subscription = { endpoint, keys: { p256dh: body.keys.p256dh, auth: body.keys.auth } };
+  const message = pushMessage(
+    {
+      id: "push-enabled",
+      type: "push_enabled",
+      payload: { text: "Уведомления на этот телефон включены", url: "/calendar" },
+    },
+    { apple: endpoint.includes("web.push.apple.com") },
+  );
+  try {
+    await sendWebPush(config, subscription, JSON.stringify(message));
+    return { ok: true, delivered: true };
+  } catch (error) {
+    const status = Number(error?.statusCode);
+    if (status === 404 || status === 410) await sql`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
+    return { ok: true, delivered: false, error: pushFailureText(error) };
+  }
+}
+
+function pushFailureText(error) {
+  const status = Number(error?.statusCode);
+  const detail = errorText(error);
+  if (detail.includes("BadJwtToken")) return "Сервер не смог подписать уведомление";
+  if (status === 404 || status === 410) return "Подписка телефона устарела. Включите уведомления ещё раз";
+  if (status) return `Телефон не принял уведомление (${status})`;
+  return "Телефон не принял уведомление";
 }
 
 function sendWebPush(config, subscription, body) {
