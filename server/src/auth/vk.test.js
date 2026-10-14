@@ -20,7 +20,7 @@ test("pkce challenge matches the RFC 7636 vector", () => {
 test("authorize url carries the challenge and not the verifier", () => {
   const url = new URL(
     vkAuthorizeUrl({
-      clientId: "54821929",
+      clientId: "12345",
       redirectUri: "http://localhost/api/auth/vk/callback",
       state: "state-value",
       codeChallenge: "challenge-value",
@@ -69,7 +69,7 @@ test("code exchange reads the profile and drops vk tokens", async () => {
   };
 
   const identity = await fetchVkIdentity({
-    clientId: "54821929",
+    clientId: "12345",
     serviceKey: "service-key",
     redirectUri: "http://localhost/api/auth/vk/callback",
     code: "auth-code",
