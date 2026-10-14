@@ -14,8 +14,45 @@ export function prepareVapid(config) {
   const keys = webpush.generateVAPIDKeys();
   config.vapidPublicKey = keys.publicKey;
   config.vapidPrivateKey = keys.privateKey;
-  if (!config.vapidSubject) config.vapidSubject = "mailto:admin@example.com";
+  config.vapidSubject = pushSubject(config);
   return { generated: true, saved: persistVapid(keys) };
+}
+
+export function pushSubject(config) {
+  const subject = (config?.vapidSubject || "").trim();
+  if (appleAcceptsSubject(subject)) return subject;
+  return publicHttpsOrigin(config?.appOrigin) || subject || "mailto:admin@example.com";
+}
+
+function appleAcceptsSubject(subject) {
+  let url;
+  try {
+    url = new URL(subject);
+  } catch {
+    return false;
+  }
+  if (url.protocol === "https:") return publicHost(url.hostname);
+  if (url.protocol !== "mailto:") return false;
+  const at = subject.lastIndexOf("@");
+  return at > "mailto:".length && publicHost(subject.slice(at + 1));
+}
+
+function publicHttpsOrigin(value) {
+  try {
+    const url = new URL(value || "");
+    if (url.protocol === "https:" && publicHost(url.hostname)) return url.origin;
+  } catch {
+    return "";
+  }
+  return "";
+}
+
+function publicHost(host) {
+  const name = String(host || "").trim().toLowerCase().replace(/\.+$/, "");
+  if (!name || name === "localhost" || name.endsWith(".localhost")) return false;
+  if (name === "example.com" || name.endsWith(".example.com")) return false;
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(name) || name.includes(":")) return false;
+  return name.includes(".");
 }
 
 export function pushMessage(note, options = {}) {
@@ -211,11 +248,7 @@ function pushFailureText(error) {
 }
 
 function sendWebPush(config, subscription, body) {
-  webpush.setVapidDetails(
-    config.vapidSubject || "mailto:admin@example.com",
-    config.vapidPublicKey,
-    config.vapidPrivateKey,
-  );
+  webpush.setVapidDetails(pushSubject(config), config.vapidPublicKey, config.vapidPrivateKey);
   return webpush.sendNotification(subscription, body, { TTL: 12 * 60 * 60, urgency: "high" });
 }
 

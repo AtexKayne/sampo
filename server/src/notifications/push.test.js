@@ -5,7 +5,7 @@ import postgres from "postgres";
 import { migrate } from "../db/migrate.js";
 import { createRequest } from "../domain/sampo.js";
 import { HttpError } from "../http/errors.js";
-import { deliverPendingPush, pushMessage, removePushSubscription, savePushSubscription } from "./push.js";
+import { deliverPendingPush, pushMessage, pushSubject, removePushSubscription, savePushSubscription } from "./push.js";
 
 dotenv.config();
 
@@ -53,6 +53,15 @@ async function delivery(userId, type = "request_received") {
   `;
   return row;
 }
+
+test("an IP address in the push subject is replaced by the site address", () => {
+  assert.equal(
+    pushSubject({ vapidSubject: "mailto:admin@194.226.122.229", appOrigin: "https://vparaplane.ru" }),
+    "https://vparaplane.ru",
+  );
+  assert.equal(pushSubject({ vapidSubject: "mailto:admin@localhost", appOrigin: "http://localhost:8080" }), "mailto:admin@localhost");
+  assert.equal(pushSubject({ vapidSubject: "mailto:admin@vparaplane.ru", appOrigin: "https://vparaplane.ru" }), "mailto:admin@vparaplane.ru");
+});
 
 test("an incoming request push carries confirm and decline actions", () => {
   const requestId = crypto.randomUUID();

@@ -284,7 +284,11 @@ if [[ ! -f "$ENV_FILE" ]]; then
   JWT="$(openssl rand -base64 48 | tr -d '\n')"
   COOKIE_SECURE=0
   [[ "$SCHEME" == "https" ]] && COOKIE_SECURE=1
-  VAPID_SUBJECT="mailto:${CERTBOT_EMAIL:-admin@${DOMAIN}}"
+  if [[ "$IS_IP" -eq 0 ]]; then
+    VAPID_SUBJECT="https://${DOMAIN}"
+  else
+    VAPID_SUBJECT="mailto:${CERTBOT_EMAIL:-admin@${DOMAIN}}"
+  fi
   (
     umask 077
     {
