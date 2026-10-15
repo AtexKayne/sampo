@@ -14,6 +14,7 @@ import {
   formatDayNumber,
   formatDayTitle,
   formatRange,
+  formatSlotTime,
   formatWeekday,
   slotClock,
   studioDayKey,
@@ -21,6 +22,24 @@ import {
   studioWeekday,
 } from "../time/zone.js";
 import styles from "./CalendarPage.module.scss";
+
+const CALENDAR_VIEW_KEY = "sampo.calendar-view";
+
+function readCalendarView() {
+  try {
+    return localStorage.getItem(CALENDAR_VIEW_KEY) === "list";
+  } catch {
+    return false;
+  }
+}
+
+function rememberCalendarView(list) {
+  try {
+    localStorage.setItem(CALENDAR_VIEW_KEY, list ? "list" : "grid");
+  } catch {
+    // Текущий заход всё равно держит выбранный вид.
+  }
+}
 
 function useWide() {
   const query = "(min-width: 800px)";
@@ -60,6 +79,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const [windowDelete, setWindowDelete] = useState(false);
   const [windowError, setWindowError] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [agenda, setAgenda] = useState(readCalendarView);
   const [repeat, setRepeat] = useState("once");
   const [intervalDays, setIntervalDays] = useState("2");
   const anchor = calendarAnchor(weekOffset);
@@ -231,6 +251,11 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     }
   }
 
+  function chooseView(list) {
+    setAgenda(list);
+    rememberCalendarView(list);
+  }
+
   function changeWeek(next) {
     if (next < 0) return;
     setWeekOffset(next);
@@ -308,6 +333,11 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const todayKey = studioDayKey(now);
   const selectedDay = days.find((day) => studioDayKey(day) === selection?.dayKey);
   const slots = slotsQuery.data?.slots ?? [];
+  const slotDays = new Set(slots.map((slot) => dayKeyOfSlot(slot)));
+  const upcomingSlots = slots
+    .filter((slot) => new Date(slot.endsAt).getTime() > now.getTime())
+    .sort((left, right) => new Date(left.startsAt) - new Date(right.startsAt));
+  const showAgenda = !wide && agenda;
   const dancer = session.user.appRole !== "admin";
   const markingAvailability = dancer && !adminOnly && (availabilityOnly || !canCreate || purpose !== "slot");
   const selectionBusy = Boolean(selection?.insideFree);
@@ -364,34 +394,66 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             <span className={styles.legendFree}>Свободен</span>
           </div>
         ) : null}
-        <div className={styles.pager}>
-          <button
-            className={styles.navButton}
-            type="button"
-            aria-label="Предыдущая неделя"
-            disabled={weekOffset <= 0}
-            onClick={() => changeWeek(weekOffset - 1)}
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          <p className={styles.range}>{formatRange(anchor, rangeEnd)}</p>
-          <button className={styles.navButton} type="button" aria-label="Следующая неделя" onClick={() => changeWeek(weekOffset + 1)}>
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M9.5 6.5 15 12l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
+        <div className={styles.barMain}>
+          <div className={styles.pager}>
+            <button
+              className={styles.navButton}
+              type="button"
+              aria-label="Предыдущая неделя"
+              disabled={weekOffset <= 0}
+              onClick={() => changeWeek(weekOffset - 1)}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M14.5 6.5 9 12l5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+            <p className={styles.range}>{formatRange(anchor, rangeEnd)}</p>
+            <button className={styles.navButton} type="button" aria-label="Следующая неделя" onClick={() => changeWeek(weekOffset + 1)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M9.5 6.5 15 12l-5.5 5.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </button>
+          </div>
+          {wide ? null : (
+            <div className={styles.viewSwitch} role="group" aria-label="Вид календаря">
+              <button
+                className={[styles.navButton, agenda ? "" : styles.navOn].filter(Boolean).join(" ")}
+                type="button"
+                aria-label="Сетка"
+                aria-pressed={!agenda}
+                onClick={() => chooseView(false)}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <path d="M4.5 4.5h6v6h-6zM13.5 4.5h6v6h-6zM4.5 13.5h6v6h-6zM13.5 13.5h6v6h-6z" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                </svg>
+              </button>
+              <button
+                className={[styles.navButton, agenda ? styles.navOn : ""].filter(Boolean).join(" ")}
+                type="button"
+                aria-label="Список"
+                aria-pressed={agenda}
+                onClick={() => chooseView(true)}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                  <circle cx="5" cy="7" r="1.15" fill="currentColor" />
+                  <circle cx="5" cy="12" r="1.15" fill="currentColor" />
+                  <circle cx="5" cy="17" r="1.15" fill="currentColor" />
+                  <path d="M9 7h11M9 12h11M9 17h11" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              </button>
+            </div>
+          )}
         </div>
       </div>
-      {wide ? null : (
+      {!wide && !agenda ? (
         <div className={styles.strip}>
           {days.map((day, index) => {
             const key = studioDayKey(day);
             const past = key < todayKey;
+            const hasSlots = slotDays.has(key);
             return (
               <button
-                className={index === pickedDay && !past ? styles.stripOn : styles.stripDay}
+                className={[index === pickedDay && !past ? styles.stripOn : styles.stripDay, hasSlots ? styles.stripHas : ""].filter(Boolean).join(" ")}
                 key={key}
                 type="button"
                 disabled={past}
@@ -399,11 +461,12 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
               >
                 <span>{formatWeekday(day)}</span>
                 <span>{formatDayNumber(day)}</span>
+                {hasSlots ? <span className={styles.stripNote}>есть слоты</span> : null}
               </button>
             );
           })}
         </div>
-      )}
+      ) : null}
       {slotsQuery.isLoading ? <p className={styles.status}>Загрузка</p> : null}
       {slotsQuery.isError ? (
         <div className={styles.fallback}>
@@ -413,7 +476,10 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           </button>
         </div>
       ) : null}
-      {slotsQuery.isSuccess ? (
+      {slotsQuery.isSuccess && showAgenda ? (
+        <SlotAgenda slots={upcomingSlots} markingAvailability={markingAvailability} freeBlocks={freeBlocks} onOpen={openEdit} />
+      ) : null}
+      {slotsQuery.isSuccess && !showAgenda ? (
         <>
           <TimeGrid
             days={visibleDays}
@@ -675,6 +741,72 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       ) : null}
       {helpOpen ? <HelpDialog onClose={() => setHelpOpen(false)} /> : null}
     </Shell>
+  );
+}
+
+function dayKeyOfSlot(slot) {
+  return slotClock(slot.startsAt, slot.endsAt)?.dayKey ?? studioDayKey(new Date(slot.startsAt));
+}
+
+function slotNotes(slot) {
+  const notes = [];
+  if (slot.status === "cancelled") notes.push("Отменён");
+  if (slot.myAttendance) notes.push("Я иду");
+  if (slot.unavailable) notes.push("Недоступен");
+  else if (slot.free) notes.push("Свободен");
+  if (slot.myPendingOutgoing) notes.push("Ждём ответ");
+  if (slot.myPendingIncomingCount > 0) notes.push("Вас пригласили");
+  if (slot.myPair?.partnerName) notes.push(`Пара с ${slot.myPair.partnerName}`);
+  return notes;
+}
+
+function slotOverlapsFree(slot, freeBlocks) {
+  const clock = slotClock(slot.startsAt, slot.endsAt);
+  if (!clock) return false;
+  return freeBlocks.some((block) => block.dayKey === clock.dayKey && block.startMin < clock.endMin && clock.startMin < block.endMin);
+}
+
+function agendaGroups(slots) {
+  const groups = [];
+  for (const slot of slots) {
+    const dayKey = dayKeyOfSlot(slot);
+    const last = groups.at(-1);
+    if (last?.dayKey === dayKey) last.slots.push(slot);
+    else groups.push({ dayKey, slots: [slot] });
+  }
+  return groups;
+}
+
+function SlotAgenda({ slots, markingAvailability, freeBlocks, onOpen }) {
+  const groups = agendaGroups(slots);
+  if (groups.length === 0) return <p className={styles.status}>Ближайших слотов нет</p>;
+  return (
+    <div className={styles.agenda}>
+      {groups.map((group) => (
+        <section key={group.dayKey}>
+          <h2 className={styles.agendaDay}>{formatDayTitle(new Date(group.slots[0].startsAt))}</h2>
+          <ul className={styles.agendaList}>
+            {group.slots.map((slot) => {
+              const notes = slotNotes(slot);
+              const inFree = markingAvailability && slotOverlapsFree(slot, freeBlocks);
+              const tone =
+                slot.status === "cancelled" ? styles.slotRowMuted : markingAvailability ? (inFree ? styles.slotRowFree : styles.slotRowBusy) : "";
+              return (
+                <li key={slot.id}>
+                  <button className={[styles.slotRow, tone].filter(Boolean).join(" ")} type="button" onClick={() => onOpen(slot)}>
+                    <span className={styles.slotRowMain}>
+                      <span className={styles.slotRowTime}>{formatSlotTime(slot.startsAt, slot.endsAt)}</span>
+                      <span>{slot.place}</span>
+                    </span>
+                    {notes.length > 0 ? <span className={styles.slotRowMeta}>{notes.join(" · ")}</span> : null}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 
