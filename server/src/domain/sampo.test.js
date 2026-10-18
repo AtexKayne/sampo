@@ -396,7 +396,7 @@ test("a gap inside a free day is the time that was not kept", async () => {
   const inside = await makeSlot(4, "2026-10-20T14:00:00.000Z", "2026-10-20T15:00:00.000Z");
   const beside = await makeSlot(4, "2026-10-20T15:30:00.000Z", "2026-10-20T16:30:00.000Z");
   const otherDay = await makeSlot(4, "2026-10-21T14:00:00.000Z", "2026-10-21T16:00:00.000Z");
-  await createWindow(sql, guest, { kind: "once", startsAtLocal: "2026-10-20T09:00", endsAtLocal: "2026-10-21T00:00" });
+  await createWindow(sql, guest, { kind: "once", startsAtLocal: "2026-10-20T09:00", endsAtLocal: "2026-10-20T23:30" });
   const carved = await createWindow(sql, guest, {
     kind: "once",
     blocked: true,
@@ -408,7 +408,9 @@ test("a gap inside a free day is the time that was not kept", async () => {
   assert.deepEqual((await freePeople(sql, beside, host, "Варя")).map((person) => person.id), [guest]);
   assert.deepEqual(await freePeople(sql, otherDay, host, "Варя"), []);
   const [{ blocked }] = await sql`SELECT count(*)::int AS blocked FROM availability_windows WHERE user_id = ${guest} AND blocked = true`;
-  assert.equal(blocked, 0);
+  const [{ free }] = await sql`SELECT count(*)::int AS free FROM availability_windows WHERE user_id = ${guest} AND blocked = false`;
+  assert.equal(blocked, 1);
+  assert.equal(free, 1);
 });
 
 test("overlapping free ranges become one window", async () => {
@@ -473,7 +475,9 @@ test("a shorter free mark fills only part of a gap", async () => {
   assert.deepEqual((await freePeople(sql, opened, host, "Рая")).map((person) => person.id), [guest]);
   assert.deepEqual(await freePeople(sql, stillClosed, host, "Рая"), []);
   const [{ blocked }] = await sql`SELECT count(*)::int AS blocked FROM availability_windows WHERE user_id = ${guest} AND blocked = true`;
-  assert.equal(blocked, 0);
+  const [{ free }] = await sql`SELECT count(*)::int AS free FROM availability_windows WHERE user_id = ${guest} AND blocked = false`;
+  assert.equal(blocked, 1);
+  assert.equal(free, 2);
 });
 
 test("a repeat includes the day it was chosen", async () => {
@@ -497,18 +501,18 @@ test("a repeat includes the day it was chosen", async () => {
 test("marking a hole free again restores that day of the repeat", async () => {
   const host = await makeUser("Тема");
   const guest = await makeUser("Нюра");
-  const hole = await makeSlot(4, "2026-10-14T16:00:00.000Z", "2026-10-14T17:00:00.000Z");
-  const edge = await makeSlot(4, "2026-10-14T17:30:00.000Z", "2026-10-14T18:00:00.000Z");
-  const nextDay = await makeSlot(4, "2026-10-15T16:00:00.000Z", "2026-10-15T17:00:00.000Z");
+  const hole = await makeSlot(4, "2026-11-14T16:00:00.000Z", "2026-11-14T17:00:00.000Z");
+  const edge = await makeSlot(4, "2026-11-14T17:30:00.000Z", "2026-11-14T18:00:00.000Z");
+  const nextDay = await makeSlot(4, "2026-11-15T16:00:00.000Z", "2026-11-15T17:00:00.000Z");
   await createWindow(sql, guest, { kind: "daily", localStart: "20:30", localEnd: "23:30" });
   await createWindow(sql, guest, {
     kind: "once",
     blocked: true,
-    startsAtLocal: "2026-10-14T20:30",
-    endsAtLocal: "2026-10-14T22:30",
+    startsAtLocal: "2026-11-14T20:30",
+    endsAtLocal: "2026-11-14T22:30",
   });
   assert.deepEqual(await freePeople(sql, hole, host, "Нюра"), []);
-  await createWindow(sql, guest, { kind: "once", startsAtLocal: "2026-10-14T20:30", endsAtLocal: "2026-10-14T22:30" });
+  await createWindow(sql, guest, { kind: "once", startsAtLocal: "2026-11-14T20:30", endsAtLocal: "2026-11-14T22:30" });
   assert.equal((await freePeople(sql, hole, host, "Нюра")).some((person) => person.id === guest), true);
   assert.equal((await freePeople(sql, edge, host, "Нюра")).some((person) => person.id === guest), true);
   assert.equal((await freePeople(sql, nextDay, host, "Нюра")).some((person) => person.id === guest), true);
@@ -584,6 +588,14 @@ test("a repeat takes a one-day mark that falls on the same hours", async () => {
   assert.equal(new Date(rows[0].ends_at).toISOString(), "2026-12-08T15:00:00.000Z");
   assert.equal(new Date(rows[1].starts_at).toISOString(), "2026-12-08T16:00:00.000Z");
   assert.equal(new Date(rows[1].ends_at).toISOString(), "2026-12-08T17:00:00.000Z");
+});
+
+test("a repeat can cover the whole studio day", async () => {
+  const guest = await makeUser("Зоя");
+  const created = await createWindow(sql, guest, { kind: "daily", localStart: "09:00", localEnd: "23:30" });
+  assert.equal(created.kind, "daily");
+  assert.equal(created.localStart, "09:00");
+  assert.equal(created.localEnd, "23:30");
 });
 
 test("a wider free repeat replaces a narrower one it contains", async () => {
@@ -980,7 +992,13 @@ test("a dancer profile shares the three nearest free slots only when the viewer 
   await sql`UPDATE users SET dance_level = 'BG' WHERE id = ${viewer}`;
   await sql`INSERT INTO invitation_blocks (user_id, level) VALUES (${dancer}, 'BG')`;
   assert.equal((await dancerProfile(sql, viewer, dancer)).slots.length, 3);
+  const [{ login }] = await sql`SELECT login FROM users WHERE id = ${dancer}`;
+  const byLogin = await dancerProfile(sql, viewer, login.toUpperCase());
+  assert.equal(byLogin.id, dancer);
+  assert.equal(byLogin.login, login);
+  await assert.rejects(dancerProfile(sql, viewer, "no-such"), (error) => error instanceof HttpError && error.code === "NOT_FOUND");
   await assert.rejects(dancerProfile(sql, dancer, dancer), (error) => error instanceof HttpError && error.code === "VALIDATION");
+  await assert.rejects(dancerProfile(sql, dancer, login), (error) => error instanceof HttpError && error.code === "VALIDATION");
 });
 
 test("deleting a profile removes that dancer and keeps the partner's visit", async () => {

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
 import { Shell } from "../components/Shell.jsx";
@@ -7,16 +7,24 @@ import { useSession } from "../session/SessionProvider.jsx";
 import { formatDayTitle, formatSlotTime } from "../time/zone.js";
 import styles from "./user.module.scss";
 
+function isOwnProfile(user, key) {
+  if (!user || !key) return false;
+  if (user.id === key) return true;
+  return Boolean(user.login) && user.login === key.trim().toLowerCase();
+}
+
 export function DancerPage() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const session = useSession();
   const queryClient = useQueryClient();
   const [pendingLogout, setPendingLogout] = useState(false);
   const [error, setError] = useState("");
+  const own = isOwnProfile(session.user, id);
   const profileQuery = useQuery({
     queryKey: ["dancer", id],
-    queryFn: () => api(`/api/dancers/${id}`),
-    enabled: session.status === "ready" && Boolean(session.user) && session.user.id !== id,
+    queryFn: () => api(`/api/dancers/${encodeURIComponent(id)}`),
+    enabled: session.status === "ready" && Boolean(session.user) && !own,
   });
   const run = useMutation({
     mutationFn: ({ path, method, body }) => api(path, { method, body }),
@@ -28,9 +36,18 @@ export function DancerPage() {
     onError: (reason) => setError(reason.message),
   });
 
+  const profile = profileQuery.data;
+
+  useEffect(() => {
+    const login = profile?.login;
+    if (!login || id === login) return;
+    queryClient.setQueryData(["dancer", login], profile);
+    navigate(`/dancers/${login}`, { replace: true });
+  }, [id, navigate, profile, queryClient]);
+
   if (session.status === "loading") return <p className={styles.status}>Загрузка</p>;
   if (!session.user) return <Navigate to="/login" replace />;
-  if (session.user.id === id) return <Navigate to="/me" replace />;
+  if (own) return <Navigate to="/me" replace />;
 
   async function onLogout() {
     setPendingLogout(true);
@@ -42,12 +59,11 @@ export function DancerPage() {
     }
   }
 
-  const profile = profileQuery.data;
-
   function toggleList(kind) {
     const listed = kind === "white" ? profile.whitelisted : profile.blacklisted;
     const base = kind === "white" ? "/api/me/whitelist" : "/api/me/blacklist";
-    run.mutate(listed ? { path: `${base}/${id}`, method: "DELETE" } : { path: base, method: "POST", body: { userId: id } });
+    const userId = profile.id;
+    run.mutate(listed ? { path: `${base}/${userId}`, method: "DELETE" } : { path: base, method: "POST", body: { userId } });
   }
 
   return (

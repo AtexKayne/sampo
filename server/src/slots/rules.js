@@ -1,3 +1,4 @@
+import { GRID_END_MINUTES } from "../../../shared/calendar-grid.js";
 import { TIME_ZONE_OFFSET_MS } from "../../../shared/timezone.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -101,6 +102,11 @@ export function validateInterval(startsAt, endsAt, now = new Date()) {
       statusCode: 400,
       message: "Слот должен начаться и закончиться в один день по времени Тюмени",
     };
+  }
+  const endParts = studioParts(endsAt);
+  const endMinutes = studioDayKey(startsAt) === studioDayKey(endsAt) ? endParts.hour * 60 + endParts.minute : 24 * 60;
+  if (endMinutes > GRID_END_MINUTES) {
+    return { ok: false, code: "VALIDATION", statusCode: 400, message: "Слот можно поставить до 23:30" };
   }
   if (startsAt.getTime() <= now.getTime()) {
     return { ok: false, code: "SLOT_STARTED", statusCode: 409, message: "Нельзя создать слот в прошлом" };

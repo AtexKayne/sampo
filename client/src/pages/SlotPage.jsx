@@ -9,8 +9,6 @@ import { useSession } from "../session/SessionProvider.jsx";
 import { formatDayTitle, formatSlotTime } from "../time/zone.js";
 import styles from "./user.module.scss";
 
-const soloAttendanceEnabled = false;
-
 function invalidate(queryClient, id) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: ["slot", id] }),
@@ -45,7 +43,7 @@ export function SlotPanel({ id, onClose }) {
     onError: (reason) => setError(reason.message),
   });
 
-  const [choice, setChoice] = useState(null);
+  const [confirming, setConfirming] = useState(false);
   const dancer = session.user?.appRole !== "admin";
   const slot = slotQuery.data;
   const requests = visibleRequests(slot?.requests);
@@ -53,22 +51,22 @@ export function SlotPanel({ id, onClose }) {
   const open = slot?.status === "open" && !started;
 
   useEffect(() => {
-    if (choice === null) return undefined;
+    if (!confirming) return undefined;
     function onKeyDown(event) {
-      if (event.key === "Escape" && !run.isPending) setChoice(null);
+      if (event.key === "Escape" && !run.isPending) setConfirming(false);
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [choice, run.isPending]);
+  }, [confirming, run.isPending]);
 
   async function confirmChoice() {
     try {
       await run.mutateAsync({
         path: `/api/slots/${id}/attendance`,
         method: "POST",
-        body: { withPartner: choice },
+        body: { withPartner: false },
       });
-      setChoice(null);
+      setConfirming(false);
     } catch {
       // The request error stays in the confirmation dialog.
     }
@@ -156,34 +154,21 @@ export function SlotPanel({ id, onClose }) {
                 </div>
               ) : null}
               <div className={styles.row}>
-            {soloAttendanceEnabled && open && !slot.myAttendance ? (
-              <>
-                <button
-                  className={styles.button}
-                  type="button"
-                  disabled={run.isPending}
-                  onClick={() => {
-                    setError("");
-                    setChoice(false);
-                  }}
-                >
-                  Приду один
-                </button>
-                <button
-                  className={styles.button}
-                  type="button"
-                  disabled={run.isPending}
-                  onClick={() => {
-                    setError("");
-                    setChoice(true);
-                  }}
-                >
-                  Приду с партнёром
-                </button>
-              </>
+            {open && !slot.myAttendance ? (
+              <button
+                className={`${styles.button} ${styles.wide}`}
+                type="button"
+                disabled={run.isPending}
+                onClick={() => {
+                  setError("");
+                  setConfirming(true);
+                }}
+              >
+                Приду один
+              </button>
             ) : null}
             {slot.myAttendance && !slot.myPair && !started ? (
-              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/slots/${id}/attendance`, method: "DELETE" })}>
+              <button className={`${styles.button} ${styles.wide}`} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/slots/${id}/attendance`, method: "DELETE" })}>
                 Отменить выбор
               </button>
             ) : null}
@@ -258,10 +243,9 @@ export function SlotPanel({ id, onClose }) {
           ) : null}
         </article>
       ) : null}
-      {choice === null
-        ? null
-        : createPortal(
-            <div className={styles.backdrop} onClick={() => !run.isPending && setChoice(null)}>
+      {confirming
+        ? createPortal(
+            <div className={styles.backdrop} onClick={() => !run.isPending && setConfirming(false)}>
               <div
                 className={styles.dialog}
                 role="dialog"
@@ -271,30 +255,29 @@ export function SlotPanel({ id, onClose }) {
               >
                 <div className={styles.dialogHead}>
                   <h2 className={styles.dialogTitle} id="attend-confirm-title">
-                    {choice ? "Приду с партнёром" : "Приду один"}
+                    Приду один
                   </h2>
-                  <button className={styles.close} type="button" aria-label="Закрыть" disabled={run.isPending} onClick={() => setChoice(null)}>
+                  <button className={styles.close} type="button" aria-label="Закрыть" disabled={run.isPending} onClick={() => setConfirming(false)}>
                     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
                       <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
                     </svg>
                   </button>
                 </div>
-                <p className={styles.dialogText}>
-                  {choice ? "Займу два места." : "Займу одно место."} Отправленные запросы на это время будут отозваны.
-                </p>
+                <p className={styles.dialogText}>Займу одно место. Отправленные запросы на это время будут отозваны.</p>
                 {error ? <p className={styles.error}>{error}</p> : null}
                 <div className={styles.row}>
                   <button className={styles.primary} type="button" disabled={run.isPending} onClick={confirmChoice}>
                     Подтвердить
                   </button>
-                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => setChoice(null)}>
+                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => setConfirming(false)}>
                     Отмена
                   </button>
                 </div>
               </div>
             </div>,
             document.body,
-          )}
+          )
+        : null}
     </div>
   );
 }

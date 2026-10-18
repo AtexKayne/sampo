@@ -212,7 +212,7 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
           </NavLink>
           {accountSwitch ? (
             <button className={styles.item} type="button" disabled={pending || switching} onClick={onSwitch}>
-              {accountSwitch.to === "admin" ? "Админ" : "Пользователь"}
+              {accountSwitch.to === "admin" ? "Админ" : "Юзер"}
             </button>
           ) : null}
           {switchError ? <p className={styles.switchError}>{switchError}</p> : null}

@@ -348,13 +348,13 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   };
   const freeSpan = selection ? selection.endMin - selection.startMin : 0;
   const onceOk = Boolean(selection?.ok) && freeSpan <= 15 * 60;
-  const repeatSpanOk = freeSpan <= 12 * 60;
-  const repeatEndOk = !selection || selection.endMin < 24 * 60;
+  const repeatSpanOk = freeSpan >= GRID_STEP_MINUTES;
+  const repeatEndOk = !selection || selection.endMin <= GRID_END_MINUTES;
   const weeklyOk = Boolean(selection?.ok) && repeatSpanOk && repeatEndOk;
   const windows = windowsQuery.data?.windows ?? [];
   const editedWindow = windowEdit ? windows.find((item) => item.id === windowEdit.id && !item.blocked) : null;
   const editedDay = windowEdit ? days.find((day) => studioDayKey(day) === windowEdit.dayKey) : null;
-  const freeBlocks = days.flatMap((day) => blocksOnDay(windows.filter((item) => !item.blocked), day));
+  const freeBlocks = days.flatMap((day) => blocksOnDay(windows, day));
   const fillGap = Boolean(
     selection &&
       !selection.insideFree &&
@@ -946,8 +946,8 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
   const intervalOk = Number.isInteger(intervalCount) && intervalCount >= 2 && intervalCount <= 30;
   const span = endMin - startMin;
   const onceOk = span >= GRID_STEP_MINUTES && span <= 15 * 60;
-  const repeatSpanOk = span >= GRID_STEP_MINUTES && span <= 12 * 60;
-  const repeatEndOk = endMin < GRID_END_MINUTES;
+  const repeatSpanOk = span >= GRID_STEP_MINUTES;
+  const repeatEndOk = endMin <= GRID_END_MINUTES;
   const ready = repeat === "once" ? onceOk : repeat === "interval" ? repeatSpanOk && repeatEndOk && intervalOk : repeatSpanOk && repeatEndOk;
   const options = [
     { id: "once", label: "Один раз" },
@@ -1087,8 +1087,7 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
         </fieldset>
         {error ? <p className={styles.error}>{error}</p> : null}
         {repeat === "once" && !onceOk ? <p className={styles.error}>Разовое окно — не дольше 15 часов</p> : null}
-        {repeat !== "once" && !repeatSpanOk ? <p className={styles.error}>Повтор — не дольше 12 часов</p> : null}
-        {repeat !== "once" && repeatSpanOk && !repeatEndOk ? <p className={styles.error}>Повтор можно отметить до 23:30</p> : null}
+        {repeat !== "once" && !repeatEndOk ? <p className={styles.error}>Повтор можно отметить до 23:30</p> : null}
         {repeat === "interval" && !intervalOk ? <p className={styles.error}>Интервал — от 2 до 30 дней</p> : null}
         <div className={styles.actions}>
           <button className={styles.primary} type="button" disabled={!ready || pending} onClick={save}>
@@ -1159,33 +1158,55 @@ function skipKeys(window) {
   return list.map((item) => String(item).slice(0, 10)).filter((item) => /^\d{4}-\d{2}-\d{2}$/.test(item));
 }
 
+function layerOnDay(window, dayKey, weekday) {
+  if (skipKeys(window).includes(dayKey)) return null;
+  if (window.kind === "once") {
+    const clock = window.startsAt && window.endsAt ? slotClock(window.startsAt, window.endsAt) : null;
+    if (!clock || clock.dayKey !== dayKey) return null;
+    return { ...window, startMin: clock.startMin, endMin: clock.endMin };
+  }
+  if (!window.localStart || !window.localEnd || !repeatsOn(window, dayKey, weekday)) return null;
+  const startMin = minutesOf(window.localStart);
+  const endMin = minutesOf(window.localEnd);
+  if (endMin <= startMin) return null;
+  return { ...window, startMin, endMin };
+}
+
+function newerLayer(left, right) {
+  const leftAt = left.createdAt ?? "";
+  const rightAt = right.createdAt ?? "";
+  if (leftAt !== rightAt) return leftAt > rightAt;
+  return String(left.id) > String(right.id);
+}
+
 function blocksOnDay(windows, day) {
   const dayKey = studioDayKey(day);
-  const weekday = studioWeekday(day);
-  const pieces = windows.flatMap((window) => {
-    if (skipKeys(window).includes(dayKey)) return [];
-    if (window.kind === "once") {
-      const clock = window.startsAt && window.endsAt ? slotClock(window.startsAt, window.endsAt) : null;
-      if (!clock || clock.dayKey !== dayKey) return [];
-      return [{ id: window.id, dayKey, startMin: clock.startMin, endMin: clock.endMin, label: window.label, once: true }];
+  const layers = windows.map((window) => layerOnDay(window, dayKey, studioWeekday(day))).filter(Boolean);
+  const pieces = [];
+  for (let startMin = GRID_START_MINUTES; startMin < GRID_END_MINUTES; startMin += GRID_STEP_MINUTES) {
+    const endMin = startMin + GRID_STEP_MINUTES;
+    let winner = null;
+    for (const layer of layers) {
+      if (layer.startMin > startMin || layer.endMin < endMin) continue;
+      if (!winner || newerLayer(layer, winner)) winner = layer;
     }
-    if (!window.localStart || !window.localEnd || !repeatsOn(window, dayKey, weekday)) return [];
-    const endMin = minutesOf(window.localEnd);
-    const startMin = minutesOf(window.localStart);
-    if (endMin <= startMin) return [];
-    return [{ id: `${window.id}-${dayKey}`, windowId: window.id, dayKey, startMin, endMin, label: window.label, once: false }];
-  });
-  return pieces.filter((piece) => {
-    if (piece.once) return true;
-    const remainder = pieces.some(
-      (other) =>
-        other.once &&
-        piece.startMin <= other.startMin &&
-        other.endMin <= piece.endMin &&
-        (other.startMin > piece.startMin || other.endMin < piece.endMin),
-    );
-    return !remainder;
-  });
+    if (!winner || winner.blocked) continue;
+    const last = pieces[pieces.length - 1];
+    if (last && last.windowId === winner.id && last.endMin === startMin) {
+      last.endMin = endMin;
+      continue;
+    }
+    pieces.push({
+      id: `${winner.id}-${startMin}`,
+      windowId: winner.id,
+      dayKey,
+      startMin,
+      endMin,
+      label: winner.label,
+      once: winner.kind === "once",
+    });
+  }
+  return pieces;
 }
 
 function FreeTimeDialog({
@@ -1292,8 +1313,7 @@ function FreeTimeDialog({
         )}
         {formError ? <p className={styles.error}>{formError}</p> : null}
         {chosen === "once" && selection.ok && !onceOk ? <p className={styles.error}>Разовое окно — не дольше 15 часов</p> : null}
-        {chosen !== "once" && selection.ok && !repeatSpanOk ? <p className={styles.error}>Повтор — не дольше 12 часов</p> : null}
-        {chosen !== "once" && selection.ok && repeatSpanOk && !repeatEndOk ? <p className={styles.error}>Повтор можно отметить до 23:30</p> : null}
+        {chosen !== "once" && selection.ok && !repeatEndOk ? <p className={styles.error}>Повтор можно отметить до 23:30</p> : null}
         {chosen === "interval" && !intervalOk ? <p className={styles.error}>Интервал — от 2 до 30 дней</p> : null}
         <div className={styles.actions}>
           <button className={styles.primary} type="button" disabled={!ready || pending} onClick={save}>

@@ -70,7 +70,7 @@ function isUniqueViolation(error) {
 
 async function findOrCreateVkUser(db, vkUserId, displayName) {
   const [existing] = await db.select().from(users).where(eq(users.vkUserId, vkUserId));
-  if (existing) return existing;
+  if (existing) return { user: existing, created: false };
   try {
     const [created] = await db
       .insert(users)
@@ -81,11 +81,11 @@ async function findOrCreateVkUser(db, vkUserId, displayName) {
         appRole: "user",
       })
       .returning();
-    return created;
+    return { user: created, created: true };
   } catch (error) {
     if (!isUniqueViolation(error)) throw error;
     const [again] = await db.select().from(users).where(eq(users.vkUserId, vkUserId));
-    if (again) return again;
+    if (again) return { user: again, created: false };
     throw error;
   }
 }
@@ -206,10 +206,10 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
       return fail("failed");
     }
 
-    const user = await findOrCreateVkUser(db, identity.userId, identity.displayName);
+    const { user, created } = await findOrCreateVkUser(db, identity.userId, identity.displayName);
     const refresh = await issueRefreshSession(db, user.id);
     reply.setCookie(COOKIE, refresh.token, cookieOptions(config, refresh.expiresAt));
-    return reply.redirect("/calendar");
+    return reply.redirect(created ? "/me" : "/calendar");
   });
 
   app.get("/api/me", async (request) => {

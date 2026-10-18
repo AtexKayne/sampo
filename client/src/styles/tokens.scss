@@ -11,6 +11,14 @@
   --danger: #8c3a32;
   --unavailable: #efece6;
   --ok: #1e5c40;
+  /* Календарь: сине-зелёный и тёплый беж различаются по светлоте, не только по оттенку. */
+  --cal-free: #0c6e62;
+  --cal-free-fill: #8fd4c2;
+  --cal-free-slot: #5fbfa6;
+  --cal-free-hover: #6ec4ae;
+  --cal-busy: #8a5a12;
+  --cal-busy-fill: #e7d7c0;
+  --cal-busy-hover: #dcc6a4;
   --warn: #8a5a12;
   --radius: 10px;
   --shadow: 0 24px 60px rgba(18, 18, 18, 0.08);

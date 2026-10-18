@@ -1,6 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import {
+  GRID_END_MINUTES,
   GRID_ROW_COUNT,
   GRID_START_MINUTES,
   GRID_STEP_MINUTES,
@@ -10,7 +12,7 @@ import {
   resolveSelection,
   visibleSpan,
 } from "../../../shared/calendar-grid.js";
-import { formatDayNumber, formatWeekday, slotClock, studioDayKey, studioMinutes } from "../time/zone.js";
+import { formatDayNumber, formatDayTitle, formatWeekday, slotClock, studioDayKey, studioMinutes } from "../time/zone.js";
 import styles from "./TimeGrid.module.scss";
 
 function slotNotes(slot) {
@@ -104,6 +106,43 @@ function selectionInsideFree(day, anchor, current, freeBlocks, busyBlocks) {
 }
 
 const HOLD_MS = 500;
+const POPOVER_DELAY_MS = 180;
+const POPOVER_GAP = 8;
+
+function popoverPosition(anchor, element) {
+  const margin = 8;
+  const width = element.offsetWidth;
+  const height = element.offsetHeight;
+  let left = anchor.left;
+  if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
+  if (left < margin) left = margin;
+  let top = anchor.bottom + POPOVER_GAP;
+  const above = anchor.top - POPOVER_GAP - height;
+  if (top + height > window.innerHeight - margin && above >= margin) top = above;
+  return { left, top };
+}
+
+function SlotPopover({ tip, tipRef, place }) {
+  const { slot, time, notes, pairName } = tip;
+  return createPortal(
+    <div
+      className={styles.popover}
+      ref={tipRef}
+      role="tooltip"
+      style={{ left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? "visible" : "hidden" }}
+    >
+      <p className={styles.popoverTitle}>{formatDayTitle(new Date(slot.startsAt))}</p>
+      <p className={styles.popoverLine}>
+        {time}, {slot.place}
+      </p>
+      {notes.length > 0 ? <p className={styles.popoverMeta}>{notes.join(" · ")}</p> : null}
+      {pairName ? <p className={styles.popoverMeta}>Пара с {pairName}</p> : null}
+      {slot.responsible ? <p className={styles.popoverMeta}>Ответственный: {slot.responsible.displayName}</p> : null}
+      {slot.description ? <p className={styles.popoverNote}>{slot.description}</p> : null}
+    </div>,
+    document.body,
+  );
+}
 
 function clearAccidentalSelection() {
   const selection = window.getSelection?.();
@@ -118,9 +157,59 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   const gridRef = useRef(null);
   const dragRef = useRef(null);
   const holdRef = useRef(null);
+  const tipTimer = useRef(null);
+  const tipRef = useRef(null);
   const [hover, setHover] = useState(null);
+  const [tip, setTip] = useState(null);
+  const [tipPlace, setTipPlace] = useState(null);
   const todayKey = studioDayKey(now);
   const nowMinutes = studioMinutes(now);
+
+  useEffect(() => () => {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!tip || !tipRef.current) {
+      setTipPlace(null);
+      return;
+    }
+    setTipPlace(popoverPosition(tip.anchor, tipRef.current));
+  }, [tip]);
+
+  useEffect(() => {
+    if (!tip) return undefined;
+    const hide = () => setTip(null);
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => {
+      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("resize", hide);
+    };
+  }, [tip]);
+
+  function clearTipTimer() {
+    if (!tipTimer.current) return;
+    clearTimeout(tipTimer.current);
+    tipTimer.current = null;
+  }
+
+  function onSlotEnter(event, next) {
+    if (event.pointerType !== "mouse") return;
+    clearTipTimer();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const anchor = { left: rect.left, top: rect.top, bottom: rect.bottom };
+    tipTimer.current = setTimeout(() => {
+      tipTimer.current = null;
+      setTip({ ...next, anchor });
+    }, POPOVER_DELAY_MS);
+  }
+
+  function onSlotLeave(event) {
+    if (event.pointerType !== "mouse") return;
+    clearTipTimer();
+    setTip(null);
+  }
 
   useEffect(() => {
     const root = gridRef.current;
@@ -278,13 +367,13 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   }
 
   const hours = [];
-  for (let minutes = GRID_START_MINUTES + 60; minutes < 24 * 60; minutes += 60) hours.push(minutes);
+  for (let minutes = GRID_START_MINUTES + 60; minutes < GRID_END_MINUTES; minutes += 60) hours.push(minutes);
 
   return (
     <div
       className={styles.grid}
       ref={gridRef}
-      style={{ gridTemplateColumns: `64px repeat(${days.length}, minmax(0, 1fr))` }}
+      style={{ "--rows": GRID_ROW_COUNT, gridTemplateColumns: `64px repeat(${days.length}, minmax(0, 1fr))` }}
     >
       <div className={styles.corner} />
       {days.map((day) => {
@@ -375,16 +464,21 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
               const label = [`${time}, ${slot.place}`, ...notes, pairName ? `Пара с ${pairName}` : ""].filter(Boolean).join(", ");
               const passed = slotPassed(slot, now);
               const inFree = rangeInsideFree(key, clock.startMin, clock.endMin, freeBlocks, busyBlocks);
+              const stacked = clock.endMin - clock.startMin > GRID_STEP_MINUTES && span.rows > 1;
               const boxStyle = {
                 top: `calc(var(--row) * ${span.startRow})`,
                 height: `calc(var(--row) * ${span.rows})`,
                 left: `calc(${lane} * 100% / ${laneCount} + 1px)`,
                 width: `calc(100% / ${laneCount} - 2px)`,
               };
-              const body = (
+              const when = (
                 <>
                   <span>{time}</span>
                   <span>{slot.place}</span>
+                </>
+              );
+              const about = (
+                <>
                   {notes.map((note) => (
                     <span key={note}>{note}</span>
                   ))}
@@ -402,11 +496,27 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                   ) : null}
                 </>
               );
+              const hasAbout = notes.length > 0 || Boolean(pairName);
+              const body = stacked ? (
+                <>
+                  <span className={styles.slotLine}>{when}</span>
+                  {hasAbout ? <span className={styles.slotLine}>{about}</span> : null}
+                </>
+              ) : (
+                <>
+                  {when}
+                  {about}
+                </>
+              );
               const tone = slot.status === "cancelled" ? styles.slotCancelled : !showAvailability ? "" : inFree ? styles.slotFree : styles.slotBusy;
-              const className = [styles.slot, tone, passed ? styles.slotPast : ""].filter(Boolean).join(" ");
+              const className = [styles.slot, tone, stacked ? styles.slotStack : "", passed ? styles.slotPast : ""].filter(Boolean).join(" ");
+              const hoverProps = {
+                onPointerEnter: (event) => onSlotEnter(event, { slot, time, notes, pairName }),
+                onPointerLeave: onSlotLeave,
+              };
               if (passed) {
                 return (
-                  <div className={className} data-slot="true" key={slot.id} title={label} style={boxStyle}>
+                  <div className={className} data-slot="true" key={slot.id} aria-label={label} style={boxStyle} {...hoverProps}>
                     {body}
                   </div>
                 );
@@ -418,10 +528,13 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                   key={slot.id}
                   role="button"
                   tabIndex={0}
-                  title={label}
+                  aria-label={label}
                   style={boxStyle}
+                  {...hoverProps}
                   onClick={(event) => {
                     if (event.target.closest("a")) return;
+                    clearTipTimer();
+                    setTip(null);
                     onOpenSlot(slot);
                   }}
                   onKeyDown={(event) => {
@@ -438,6 +551,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
           </div>
         );
       })}
+      {tip ? <SlotPopover tip={tip} tipRef={tipRef} place={tipPlace} /> : null}
     </div>
   );
 }

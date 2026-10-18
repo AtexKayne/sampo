@@ -1,3 +1,4 @@
+import { GRID_END_MINUTES } from "../../../shared/calendar-grid.js";
 import { HttpError } from "../http/errors.js";
 import { blockedTargets, invitationDenied, inviteListHides, listMembership, visitCounts } from "./profile.js";
 import { endsOnSameStudioDay, parseStudioLocal, studioDayKey, studioParts, studioWeekday } from "../slots/rules.js";
@@ -43,6 +44,12 @@ function slotStartMinutes(slot) {
 function slotEndMinutes(slot) {
   const end = studioParts(slot.endsAt);
   if (studioDayKey(slot.startsAt) !== studioDayKey(slot.endsAt) && end.hour === 0 && end.minute === 0) return 24 * 60;
+  return end.hour * 60 + end.minute;
+}
+
+function rangeEndMinutes(startsAt, endsAt) {
+  const end = studioParts(endsAt);
+  if (studioDayKey(startsAt) !== studioDayKey(endsAt) && end.hour === 0 && end.minute === 0) return 24 * 60;
   return end.hour * 60 + end.minute;
 }
 
@@ -102,19 +109,6 @@ function windowMatches(row, slot) {
     return span >= 0 && span % step === 0;
   }
   return false;
-}
-
-function slotInsideFree(row, slot) {
-  if (row.blocked) return false;
-  if (skipDatesOf(row).includes(studioDayKey(slot.startsAt))) return false;
-  if (row.kind === "once") {
-    return new Date(row.starts_at) <= slot.startsAt && slot.endsAt <= new Date(row.ends_at);
-  }
-  if (!row.local_start || !row.local_end) return false;
-  const start = clockMinutes(row.local_start);
-  const end = clockMinutes(row.local_end);
-  if (slotStartMinutes(slot) < start || slotEndMinutes(slot) > end) return false;
-  return windowMatches(row, slot);
 }
 
 function daysWord(count) {
@@ -267,7 +261,7 @@ async function conflicting(tx, userId, slot) {
 
 function availabilityState(windows, explicit, blockedByException, slot) {
   if (explicit) return { open: true, source: "explicit", label: null, unavailable: false };
-  const match = windows.find((row) => !row.blocked && windowMatches(row, slot));
+  const match = resolvedOpen(windows, slot.startsAt, slot.endsAt);
   if (blockedByException) return { open: false, source: null, label: match ? windowLabel(match) : null, unavailable: false };
   if (!match) return { open: false, source: null, label: null, unavailable: false };
   return { open: true, source: "window", label: windowLabel(match), unavailable: false };
@@ -512,8 +506,8 @@ async function releaseCoveredOnce(tx, userId, next, ignoreId = null) {
       const [{ count }] = await tx`SELECT count(*)::int AS count FROM availability_windows WHERE user_id = ${userId}`;
       if (count >= 30) fail(400, "VALIDATION", "Не больше 30 окон");
       await tx`
-        INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked)
-        VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${startsAt}, ${endsAt}, false)
+        INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked, created_at)
+        VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${startsAt}, ${endsAt}, false, ${row.created_at})
       `;
     }
   }
@@ -639,18 +633,163 @@ async function mergeSamePattern(tx, userId, pattern, ignoreId = null) {
   return { ...pattern, localStart: clockLabel(startMin), localEnd: clockLabel(endMin), anchorDate };
 }
 
-function coveredByFree(windows, start, end) {
-  const slot = { startsAt: start, endsAt: end };
-  return windows.some((row) => !row.blocked && windowMatches(row, slot));
+function layerStamp(row) {
+  const time = new Date(row.created_at).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }
 
-async function releaseBlockedOnce(tx, userId) {
-  const rows = await tx`
-    DELETE FROM availability_windows
+function newerLayer(left, right) {
+  const delta = layerStamp(left) - layerStamp(right);
+  if (delta !== 0) return delta > 0;
+  return String(left.id) > String(right.id);
+}
+
+function patternOnDay(row, dayKey) {
+  if (skipDatesOf(row).includes(dayKey)) return false;
+  if (row.kind === "once") return studioDayKey(new Date(row.starts_at)) === dayKey;
+  if (row.kind === "weekly") return weekdayOfKey(dayKey) === row.weekday;
+  if (row.kind === "daily") return true;
+  if (row.kind === "weekdays") {
+    const weekday = weekdayOfKey(dayKey);
+    return weekday >= 1 && weekday <= 5;
+  }
+  if (row.kind === "weekends") {
+    const weekday = weekdayOfKey(dayKey);
+    return weekday === 6 || weekday === 7;
+  }
+  if (row.kind === "interval") {
+    return patternHitsDay(
+      { kind: "interval", intervalDays: row.interval_days, anchorDate: row.anchor_date },
+      dayKey,
+      weekdayOfKey(dayKey),
+    );
+  }
+  return false;
+}
+
+function coversInstant(row, instant) {
+  if (row.kind === "once") {
+    const time = instant.getTime();
+    return new Date(row.starts_at).getTime() <= time && time < new Date(row.ends_at).getTime();
+  }
+  const dayKey = studioDayKey(instant);
+  if (!patternOnDay(row, dayKey) || !row.local_start || !row.local_end) return false;
+  const minutes = studioParts(instant).hour * 60 + studioParts(instant).minute;
+  return minutes >= clockMinutes(row.local_start) && minutes < clockMinutes(row.local_end);
+}
+
+function pushEdge(edges, startMs, endMs, edge) {
+  if (edge > startMs && edge < endMs) edges.push(edge);
+}
+
+function edgesInRange(row, startMs, endMs) {
+  const edges = [];
+  if (row.kind === "once") {
+    pushEdge(edges, startMs, endMs, new Date(row.starts_at).getTime());
+    pushEdge(edges, startMs, endMs, new Date(row.ends_at).getTime());
+    return edges;
+  }
+  if (!row.local_start || !row.local_end) return edges;
+  let day = studioDayKey(new Date(startMs));
+  const last = studioDayKey(new Date(endMs - 1));
+  while (day <= last) {
+    if (patternOnDay(row, day)) {
+      const from = studioStamp(day, clockMinutes(row.local_start));
+      const to = studioStamp(day, clockMinutes(row.local_end));
+      if (from) pushEdge(edges, startMs, endMs, from.getTime());
+      if (to) pushEdge(edges, startMs, endMs, to.getTime());
+    }
+    day = addDays(day, 1);
+  }
+  return edges;
+}
+
+function rangePoints(windows, startMs, endMs) {
+  const points = [startMs, endMs];
+  for (const row of windows) points.push(...edgesInRange(row, startMs, endMs));
+  points.sort((left, right) => left - right);
+  return points;
+}
+
+function newestCovering(windows, instant) {
+  let best = null;
+  for (const row of windows) {
+    if (!coversInstant(row, instant)) continue;
+    if (!best || newerLayer(row, best)) best = row;
+  }
+  return best;
+}
+
+function resolvedOpen(windows, rangeStart, rangeEnd) {
+  const startMs = rangeStart.getTime();
+  const endMs = rangeEnd.getTime();
+  if (!(endMs > startMs)) return null;
+  let previous = null;
+  for (const point of rangePoints(windows, startMs, endMs)) {
+    if (previous != null && point > previous) {
+      const winner = newestCovering(windows, new Date(previous + (point - previous) / 2));
+      if (winner && !winner.blocked) return winner;
+    }
+    previous = point;
+  }
+  return null;
+}
+
+function fullyResolvedFree(windows, rangeStart, rangeEnd) {
+  const startMs = rangeStart.getTime();
+  const endMs = rangeEnd.getTime();
+  if (!(endMs > startMs)) return false;
+  let previous = null;
+  let saw = false;
+  for (const point of rangePoints(windows, startMs, endMs)) {
+    if (previous != null && point > previous) {
+      saw = true;
+      const winner = newestCovering(windows, new Date(previous + (point - previous) / 2));
+      if (!winner || winner.blocked) return false;
+    }
+    previous = point;
+  }
+  return saw;
+}
+
+function coveredByFree(windows, start, end) {
+  return fullyResolvedFree(windows, start, end);
+}
+
+function blockHits(blocks, startMs, endMs) {
+  return blocks.some((row) => new Date(row.starts_at).getTime() < endMs && startMs < new Date(row.ends_at).getTime());
+}
+
+async function deleteContainedBlocks(tx, userId, startsAt, endsAt, keepId = null) {
+  const blocks = await tx`
+    SELECT id, starts_at, ends_at FROM availability_windows
     WHERE user_id = ${userId} AND blocked = true
-    RETURNING id
   `;
-  return rows.length > 0;
+  for (const block of blocks) {
+    if (block.id === keepId) continue;
+    const from = new Date(block.starts_at).getTime();
+    const to = new Date(block.ends_at).getTime();
+    if (startsAt.getTime() <= from && to <= endsAt.getTime()) await tx`DELETE FROM availability_windows WHERE id = ${block.id}`;
+  }
+}
+
+async function deleteBlocksUnder(tx, userId, row) {
+  const blocks = await tx`SELECT * FROM availability_windows WHERE user_id = ${userId} AND blocked = true`;
+  for (const block of blocks) {
+    if (!newerLayer(row, block)) continue;
+    if (!fullyResolvedFree([row], new Date(block.starts_at), new Date(block.ends_at))) continue;
+    await tx`DELETE FROM availability_windows WHERE id = ${block.id}`;
+  }
+}
+
+async function pruneBlocks(tx, userId) {
+  const windows = await loadWindows(tx, userId);
+  for (const block of windows) {
+    if (!block.blocked) continue;
+    const older = windows.filter((row) => row.id !== block.id && !row.blocked && newerLayer(block, row));
+    if (resolvedOpen(older, new Date(block.starts_at), new Date(block.ends_at))) continue;
+    await tx`DELETE FROM availability_windows WHERE id = ${block.id}`;
+  }
 }
 
 function openSteps(windows, startsAt, endsAt) {
@@ -669,42 +808,75 @@ function openSteps(windows, startsAt, endsAt) {
   return spans;
 }
 
-function absorbOnce(windows, startMs, endMs, dayKey, removed) {
-  let start = startMs;
-  let end = endMs;
-  const taken = [];
-  let grew = true;
-  while (grew) {
-    grew = false;
-    for (const row of windows) {
-      if (row.blocked || row.kind !== "once" || removed.has(row.id) || taken.includes(row.id)) continue;
-      if (studioDayKey(new Date(row.starts_at)) !== dayKey) continue;
-      const from = new Date(row.starts_at).getTime();
-      const to = new Date(row.ends_at).getTime();
-      if (from <= end && start <= to) {
-        if (from < start || to > end) grew = true;
-        start = Math.min(start, from);
-        end = Math.max(end, to);
-        taken.push(row.id);
-      }
-    }
-  }
-  return { start, end, taken };
-}
-
-async function insertFreeOnce(tx, userId, startMs, endMs) {
+async function insertFreeOnce(tx, userId, startMs, endMs, createdAt = null) {
   const duration = endMs - startMs;
   if (duration < STEP_MS || duration > 15 * 60 * 60 * 1000) {
     fail(400, "VALIDATION", "Длительность окна от 30 минут до 15 часов");
   }
   const [{ count }] = await tx`SELECT count(*)::int AS count FROM availability_windows WHERE user_id = ${userId}`;
   if (count >= 30) fail(400, "VALIDATION", "Не больше 30 окон");
-  const [row] = await tx`
-    INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked)
-    VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${new Date(startMs)}, ${new Date(endMs)}, false)
-    RETURNING *
-  `;
+  const [row] = createdAt
+    ? await tx`
+        INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked, created_at)
+        VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${new Date(startMs)}, ${new Date(endMs)}, false, ${createdAt})
+        RETURNING *
+      `
+    : await tx`
+        INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked, created_at)
+        VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${new Date(startMs)}, ${new Date(endMs)}, false, clock_timestamp())
+        RETURNING *
+      `;
   return row;
+}
+
+function onceSpan(row) {
+  return { start: new Date(row.starts_at).getTime(), end: new Date(row.ends_at).getTime() };
+}
+
+async function joinClearOnces(tx, userId, startsAt, endsAt) {
+  const windows = await loadWindows(tx, userId);
+  const dayKey = studioDayKey(startsAt);
+  const blocks = windows.filter((row) => row.blocked);
+  const onces = windows.filter((row) => !row.blocked && row.kind === "once" && studioDayKey(new Date(row.starts_at)) === dayKey);
+  let start = startsAt.getTime();
+  let end = endsAt.getTime();
+  const taken = [];
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const row of onces) {
+      if (taken.includes(row.id)) continue;
+      const span = onceSpan(row);
+      if (!(span.start <= end && start <= span.end)) continue;
+      const nextStart = Math.min(start, span.start);
+      const nextEnd = Math.max(end, span.end);
+      if (blockHits(blocks, nextStart, nextEnd)) continue;
+      if (span.start < start || span.end > end) grew = true;
+      start = nextStart;
+      end = nextEnd;
+      taken.push(row.id);
+    }
+  }
+  if (taken.length === 1) {
+    const row = onces.find((item) => item.id === taken[0]);
+    const span = onceSpan(row);
+    if (span.start === start && span.end === end) return publicWindow(row);
+    const [updated] = await tx`
+      UPDATE availability_windows
+      SET starts_at = ${new Date(start)}, ends_at = ${new Date(end)}
+      WHERE id = ${row.id}
+      RETURNING *
+    `;
+    return publicWindow(updated);
+  }
+  if (taken.length > 1) {
+    const rows = onces.filter((row) => taken.includes(row.id));
+    const earliest = rows.reduce((best, row) => (!best || layerStamp(row) < layerStamp(best) ? row : best), null);
+    for (const id of taken) await tx`DELETE FROM availability_windows WHERE id = ${id}`;
+    return publicWindow(await insertFreeOnce(tx, userId, start, end, earliest.created_at));
+  }
+  const cover = resolvedOpen(windows, startsAt, endsAt);
+  return cover ? publicWindow(cover) : null;
 }
 
 async function restoreCoveredSkips(tx, userId, dayKey) {
@@ -729,100 +901,44 @@ async function restoreCoveredSkips(tx, userId, dayKey) {
 }
 
 async function placeFreeOnceIn(tx, userId, startsAt, endsAt) {
-  await releaseBlockedOnce(tx, userId);
-  const windows = await loadWindows(tx, userId);
-  const spans = openSteps(windows, startsAt, endsAt);
   const dayKey = studioDayKey(startsAt);
-  if (!spans.length) {
-    const absorbed = absorbOnce(windows, startsAt.getTime(), endsAt.getTime(), dayKey, new Set());
-    if (absorbed.taken.length > 1) {
-      for (const id of absorbed.taken) await tx`DELETE FROM availability_windows WHERE id = ${id}`;
-      const created = await insertFreeOnce(tx, userId, absorbed.start, absorbed.end);
-      await restoreCoveredSkips(tx, userId, dayKey);
-      return publicWindow(created);
-    }
-    if (absorbed.taken.length === 1) {
-      const row = windows.find((item) => item.id === absorbed.taken[0]);
-      if (row) {
-        await restoreCoveredSkips(tx, userId, dayKey);
-        return publicWindow(row);
-      }
-    }
-    const probe = { startsAt, endsAt: new Date(startsAt.getTime() + STEP_MS) };
-    const cover = windows.find((row) => !row.blocked && windowMatches(row, probe));
-    if (cover) {
-      await restoreCoveredSkips(tx, userId, dayKey);
-      return publicWindow(cover);
-    }
-    const created = await insertFreeOnce(tx, userId, startsAt.getTime(), endsAt.getTime());
+  const windows = await loadWindows(tx, userId);
+  if (fullyResolvedFree(windows, startsAt, endsAt)) {
+    const joined = await joinClearOnces(tx, userId, startsAt, endsAt);
     await restoreCoveredSkips(tx, userId, dayKey);
-    return publicWindow(created);
+    return joined;
   }
-  const removed = new Set();
-  let created = null;
-  for (const span of spans) {
-    const absorbed = absorbOnce(windows, span.start.getTime(), span.end.getTime(), dayKey, removed);
-    for (const id of absorbed.taken) {
-      await tx`DELETE FROM availability_windows WHERE id = ${id}`;
-      removed.add(id);
-    }
-    created = await insertFreeOnce(tx, userId, absorbed.start, absorbed.end);
+  const created = await insertFreeOnce(tx, userId, startsAt.getTime(), endsAt.getTime());
+  await deleteContainedBlocks(tx, userId, startsAt, endsAt);
+  const others = (await loadWindows(tx, userId)).filter((row) => row.id !== created.id);
+  if (fullyResolvedFree(others, startsAt, endsAt)) {
+    await tx`DELETE FROM availability_windows WHERE id = ${created.id}`;
+    const cover = await joinClearOnces(tx, userId, startsAt, endsAt);
+    await pruneBlocks(tx, userId);
+    await restoreCoveredSkips(tx, userId, dayKey);
+    return cover;
   }
+  const merged = await joinClearOnces(tx, userId, startsAt, endsAt);
+  await pruneBlocks(tx, userId);
   await restoreCoveredSkips(tx, userId, dayKey);
-  return publicWindow(created);
+  return merged ?? publicWindow(created);
 }
 
 async function placeFreeOnce(sql, userId, startsAt, endsAt) {
   return sql.begin((tx) => placeFreeOnceIn(tx, userId, startsAt, endsAt));
 }
 
-async function insertOncePiece(tx, userId, startsAt, endsAt) {
+async function carveFreeIn(tx, userId, startsAt, endsAt) {
+  const windows = await tx`SELECT * FROM availability_windows WHERE user_id = ${userId} FOR UPDATE`;
+  if (!resolvedOpen(windows, startsAt, endsAt)) return { ok: true };
   const [{ count }] = await tx`SELECT count(*)::int AS count FROM availability_windows WHERE user_id = ${userId}`;
   if (count >= 30) fail(400, "VALIDATION", "Не больше 30 окон");
-  await tx`
-    INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked)
-    VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${startsAt}, ${endsAt}, false)
+  const [created] = await tx`
+    INSERT INTO availability_windows (id, user_id, kind, starts_at, ends_at, blocked, created_at)
+    VALUES (${crypto.randomUUID()}, ${userId}, 'once', ${startsAt}, ${endsAt}, true, clock_timestamp())
+    RETURNING *
   `;
-}
-
-async function carveFreeIn(tx, userId, startsAt, endsAt) {
-  const dayKey = studioDayKey(startsAt);
-  const carve = { startsAt, endsAt };
-  const carveStart = slotStartMinutes(carve);
-  const carveEnd = slotEndMinutes(carve);
-  const windows = await tx`SELECT * FROM availability_windows WHERE user_id = ${userId} FOR UPDATE`;
-  for (const row of windows) {
-    if (row.blocked) {
-      await tx`DELETE FROM availability_windows WHERE id = ${row.id}`;
-      continue;
-    }
-    if (row.kind === "once") {
-      const from = new Date(row.starts_at).getTime();
-      const to = new Date(row.ends_at).getTime();
-      const cutFrom = startsAt.getTime();
-      const cutTo = endsAt.getTime();
-      if (!(from < cutTo && cutFrom < to)) continue;
-      await tx`DELETE FROM availability_windows WHERE id = ${row.id}`;
-      if (from < cutFrom && cutFrom - from >= STEP_MS) await insertOncePiece(tx, userId, new Date(from), new Date(cutFrom));
-      if (cutTo < to && to - cutTo >= STEP_MS) await insertOncePiece(tx, userId, new Date(cutTo), new Date(to));
-      continue;
-    }
-    const skips = await tx`SELECT studio_date FROM availability_window_skips WHERE window_id = ${row.id}`;
-    if (!windowMatches({ ...row, skip_dates: skips.map((item) => item.studio_date) }, carve)) continue;
-    await tx`
-      INSERT INTO availability_window_skips (window_id, studio_date)
-      VALUES (${row.id}, ${dayKey})
-      ON CONFLICT DO NOTHING
-    `;
-    const localStart = clockMinutes(row.local_start);
-    const localEnd = clockMinutes(row.local_end);
-    if (localStart < carveStart && carveStart - localStart >= 30) {
-      await insertOncePiece(tx, userId, studioStamp(dayKey, localStart), studioStamp(dayKey, carveStart));
-    }
-    if (carveEnd < localEnd && localEnd - carveEnd >= 30) {
-      await insertOncePiece(tx, userId, studioStamp(dayKey, carveEnd), studioStamp(dayKey, localEnd));
-    }
-  }
+  await deleteContainedBlocks(tx, userId, startsAt, endsAt, created.id);
   return { ok: true };
 }
 
@@ -848,12 +964,14 @@ export async function createWindow(sql, userId, body) {
     if (!endsOnSameStudioDay(startsAt, endsAt)) {
       fail(400, "VALIDATION", "Окно должно начаться и закончиться в один день по времени Тюмени");
     }
+    if (rangeEndMinutes(startsAt, endsAt) > GRID_END_MINUTES) fail(400, "VALIDATION", "Окно можно отметить до 23:30");
     if (!blocked) return placeFreeOnce(sql, userId, startsAt, endsAt);
     return carveFree(sql, userId, startsAt, endsAt);
   }
   const duration = localSpan(body);
   if (duration == null) fail(400, "VALIDATION", "Укажите время окна");
-  if (duration < 30 || duration > 12 * 60) fail(400, "VALIDATION", "Повторяющееся окно — от 30 минут до 12 часов");
+  if (duration < 30) fail(400, "VALIDATION", "Повторяющееся окно — не короче 30 минут");
+  if (clockMinutes(body.localEnd) > GRID_END_MINUTES) fail(400, "VALIDATION", "Повтор можно отметить до 23:30");
   const weekday = Number(body.weekday);
   if (kind === "weekly" && (!Number.isInteger(weekday) || weekday < 1 || weekday > 7)) {
     fail(400, "VALIDATION", "Укажите день недели и время окна");
@@ -878,27 +996,27 @@ export async function createWindow(sql, userId, body) {
     await releaseCoveredOnce(tx, userId, pattern);
     await absorbContainedWindows(tx, userId, pattern);
     const merged = await mergeSamePattern(tx, userId, pattern);
+    let row;
     if (kind === "weekly") {
-      const [row] = await tx`
+      [row] = await tx`
         INSERT INTO availability_windows (id, user_id, kind, weekday, local_start, local_end, blocked)
         VALUES (${crypto.randomUUID()}, ${userId}, 'weekly', ${weekday}, ${merged.localStart}, ${merged.localEnd}, false)
         RETURNING *
       `;
-      return publicWindow(row);
-    }
-    if (kind === "interval") {
-      const [row] = await tx`
+    } else if (kind === "interval") {
+      [row] = await tx`
         INSERT INTO availability_windows (id, user_id, kind, local_start, local_end, interval_days, anchor_date, blocked)
         VALUES (${crypto.randomUUID()}, ${userId}, 'interval', ${merged.localStart}, ${merged.localEnd}, ${intervalDays}, ${merged.anchorDate}, false)
         RETURNING *
       `;
-      return publicWindow(row);
+    } else {
+      [row] = await tx`
+        INSERT INTO availability_windows (id, user_id, kind, local_start, local_end, blocked)
+        VALUES (${crypto.randomUUID()}, ${userId}, ${kind}, ${merged.localStart}, ${merged.localEnd}, false)
+        RETURNING *
+      `;
     }
-    const [row] = await tx`
-      INSERT INTO availability_windows (id, user_id, kind, local_start, local_end, blocked)
-      VALUES (${crypto.randomUUID()}, ${userId}, ${kind}, ${merged.localStart}, ${merged.localEnd}, false)
-      RETURNING *
-    `;
+    await deleteBlocksUnder(tx, userId, row);
     return publicWindow(row);
   });
 }
@@ -915,6 +1033,7 @@ function publicWindow(row) {
     intervalDays: row.interval_days ?? null,
     anchorDate: anchorKey(row.anchor_date),
     blocked: Boolean(row.blocked),
+    createdAt: row.created_at ? new Date(row.created_at).toISOString() : null,
     skipDates: skipDatesOf(row),
     label: windowLabel(row),
   };
@@ -922,7 +1041,7 @@ function publicWindow(row) {
 
 export async function listWindows(sql, userId) {
   const rows = await loadWindows(sql, userId);
-  return rows.filter((row) => !row.blocked).map(publicWindow);
+  return rows.map(publicWindow);
 }
 
 function clockLabel(minutes) {
@@ -962,12 +1081,14 @@ export async function updateWindow(sql, userId, windowId, body) {
       if (!endsOnSameStudioDay(startsAt, endsAt)) {
         fail(400, "VALIDATION", "Окно должно начаться и закончиться в один день по времени Тюмени");
       }
+      if (rangeEndMinutes(startsAt, endsAt) > GRID_END_MINUTES) fail(400, "VALIDATION", "Окно можно отметить до 23:30");
       await tx`DELETE FROM availability_windows WHERE id = ${windowId}`;
       return placeFreeOnceIn(tx, userId, startsAt, endsAt);
     }
     const duration = localSpan(body);
     if (duration == null) fail(400, "VALIDATION", "Укажите время окна");
-    if (duration < 30 || duration > 12 * 60) fail(400, "VALIDATION", "Повторяющееся окно — от 30 минут до 12 часов");
+    if (duration < 30) fail(400, "VALIDATION", "Повторяющееся окно — не короче 30 минут");
+    if (clockMinutes(body.localEnd) > GRID_END_MINUTES) fail(400, "VALIDATION", "Повтор можно отметить до 23:30");
     const weekday = Number(body.weekday);
     if (kind === "weekly" && (!Number.isInteger(weekday) || weekday < 1 || weekday > 7)) {
       fail(400, "VALIDATION", "Укажите день недели и время окна");
@@ -1004,6 +1125,7 @@ export async function updateWindow(sql, userId, windowId, body) {
       WHERE id = ${windowId}
       RETURNING *
     `;
+    await pruneBlocks(tx, userId);
     return publicWindow(row);
   });
 }
@@ -1012,7 +1134,10 @@ export async function deleteWindow(sql, userId, windowId, scope = "series", dayK
   const [row] = await sql`SELECT * FROM availability_windows WHERE id = ${windowId} AND user_id = ${userId}`;
   if (!row) fail(404, "NOT_FOUND", "Окно не найдено");
   if (scope !== "one" || row.kind === "once" || row.blocked) {
-    await sql`DELETE FROM availability_windows WHERE id = ${windowId} AND user_id = ${userId}`;
+    await sql.begin(async (tx) => {
+      await tx`DELETE FROM availability_windows WHERE id = ${windowId} AND user_id = ${userId}`;
+      await pruneBlocks(tx, userId);
+    });
     return { ok: true };
   }
   const day = parseAnchorDate(dayKey);
@@ -1329,7 +1454,7 @@ export async function announceNewSlots(sql, rows, now = new Date()) {
     for (const listener of listeners) {
       const windows = listener.notify_new_slots_scope === "all" ? null : await loadWindows(tx, listener.id);
       for (const slot of fresh) {
-        if (windows && !windows.some((row) => slotInsideFree(row, slot))) continue;
+        if (windows && !fullyResolvedFree(windows, slot.startsAt, slot.endsAt)) continue;
         await notify(tx, listener.id, "slot_opened", {
           text: "Появился новый слот сампо",
           slotId: slot.id,
@@ -1617,26 +1742,36 @@ async function nearestFreeSlots(sql, userId, limit = 3) {
   return free;
 }
 
-export async function dancerProfile(sql, viewerId, subjectId) {
-  if (typeof subjectId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(subjectId)) {
-    fail(404, "NOT_FOUND", "Танцор не найден");
-  }
-  if (viewerId === subjectId) fail(400, "VALIDATION", "Это ваш профиль");
-  const [user] = await sql`
-    SELECT id, display_name, dance_level, share_availability, app_role
-    FROM users WHERE id = ${subjectId}
-  `;
+const USER_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const LOGIN_KEY = /^[a-z0-9_]{3,32}$/;
+
+export async function dancerProfile(sql, viewerId, subjectKey) {
+  const raw = typeof subjectKey === "string" ? subjectKey.trim() : "";
+  const byId = USER_ID.test(raw);
+  const loginKey = raw.toLowerCase();
+  if (!byId && !LOGIN_KEY.test(loginKey)) fail(404, "NOT_FOUND", "Танцор не найден");
+  const [user] = byId
+    ? await sql`
+        SELECT id, login, display_name, dance_level, share_availability, app_role
+        FROM users WHERE id = ${raw}
+      `
+    : await sql`
+        SELECT id, login, display_name, dance_level, share_availability, app_role
+        FROM users WHERE login = ${loginKey}
+      `;
   if (!user || user.app_role === "admin") fail(404, "NOT_FOUND", "Танцор не найден");
-  const lists = await listMembership(sql, viewerId, subjectId);
-  const hidden = await inviteListHides(sql, subjectId, viewerId);
+  if (viewerId === user.id) fail(400, "VALIDATION", "Это ваш профиль");
+  const lists = await listMembership(sql, viewerId, user.id);
+  const hidden = await inviteListHides(sql, user.id, viewerId);
   return {
     id: user.id,
+    login: user.login,
     displayName: user.display_name,
     danceLevel: user.dance_level,
-    visits: await visitCounts(sql, subjectId),
+    visits: await visitCounts(sql, user.id),
     blacklisted: lists.blacklisted,
     whitelisted: lists.whitelisted,
-    slots: user.share_availability && !hidden ? await nearestFreeSlots(sql, subjectId) : null,
+    slots: user.share_availability && !hidden ? await nearestFreeSlots(sql, user.id) : null,
   };
 }
 

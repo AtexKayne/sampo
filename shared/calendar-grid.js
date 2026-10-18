@@ -1,11 +1,11 @@
 export const GRID_START_MINUTES = 9 * 60;
-export const GRID_END_MINUTES = 24 * 60;
+export const GRID_END_MINUTES = 23 * 60 + 30;
 export const GRID_STEP_MINUTES = 30;
 export const GRID_ROW_COUNT = (GRID_END_MINUTES - GRID_START_MINUTES) / GRID_STEP_MINUTES;
 export const MAX_SLOT_MINUTES = 6 * 60;
 
 export function formatMinutes(minutes) {
-  const clock = minutes === GRID_END_MINUTES ? 0 : minutes;
+  const clock = minutes >= 24 * 60 ? minutes % (24 * 60) : minutes;
   const hour = String(Math.floor(clock / 60)).padStart(2, "0");
   const minute = String(clock % 60).padStart(2, "0");
   return `${hour}:${minute}`;

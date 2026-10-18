@@ -21,9 +21,9 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <DocumentMeta />
         <SessionProvider>
           <NotificationsProvider>
+            <DocumentMeta />
             <Routes>
               <Route path="/login" element={<AuthPage />} />
               <Route path="/faq" element={<FaqPage />} />

@@ -22,10 +22,12 @@ test("rejects a past slot, a short slot, and a slot across midnight", () => {
   assert.equal(parseStudioLocal("2026-02-31T19:00"), null);
 });
 
-test("a slot may end at the next local midnight", () => {
+test("a slot may end at 23:30 and not at midnight", () => {
   const startsAt = parseStudioLocal("2026-10-14T23:00");
-  const endsAt = parseStudioLocal("2026-10-15T00:00");
-  assert.equal(validateInterval(startsAt, endsAt, now).ok, true);
+  assert.equal(validateInterval(startsAt, parseStudioLocal("2026-10-14T23:30"), now).ok, true);
+  const midnight = validateInterval(startsAt, parseStudioLocal("2026-10-15T00:00"), now);
+  assert.equal(midnight.ok, false);
+  assert.match(midnight.message, /23:30/);
 });
 
 test("slot description is optional and limited to 1000 characters", () => {

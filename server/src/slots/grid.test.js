@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assignLanes, formatMinutes, pastRowCount, resolveSelection, visibleSpan } from "../../../shared/calendar-grid.js";
+import { GRID_ROW_COUNT, assignLanes, formatMinutes, pastRowCount, resolveSelection, visibleSpan } from "../../../shared/calendar-grid.js";
 
-test("click and drag resolve to 30-minute steps from 09:00 to midnight", () => {
+test("click and drag resolve to 30-minute steps from 09:00 to 23:30", () => {
   const click = resolveSelection(0, 0, 0);
   assert.equal(click.ok, true);
   assert.equal(formatMinutes(click.startMin), "09:00");
@@ -13,9 +13,9 @@ test("click and drag resolve to 30-minute steps from 09:00 to midnight", () => {
   assert.equal(formatMinutes(drag.startMin), "19:00");
   assert.equal(formatMinutes(drag.endMin), "21:00");
 
-  const untilMidnight = resolveSelection(29, 29, 0);
-  assert.equal(untilMidnight.ok, true);
-  assert.equal(formatMinutes(untilMidnight.endMin), "00:00");
+  const untilEnd = resolveSelection(28, 28, 0);
+  assert.equal(untilEnd.ok, true);
+  assert.equal(formatMinutes(untilEnd.endMin), "23:30");
 });
 
 test("selection rejects the past and a range longer than 6 hours", () => {
@@ -34,7 +34,7 @@ test("selection rejects the past and a range longer than 6 hours", () => {
 
 test("past rows follow the studio clock and overlapping slots take lanes", () => {
   assert.equal(pastRowCount("2026-10-14", "2026-10-14", 16 * 60 + 10), 15);
-  assert.equal(pastRowCount("2026-10-13", "2026-10-14", 12 * 60), 30);
+  assert.equal(pastRowCount("2026-10-13", "2026-10-14", 12 * 60), GRID_ROW_COUNT);
   assert.equal(pastRowCount("2026-10-15", "2026-10-14", 12 * 60), 0);
 
   const lanes = assignLanes([

@@ -40,7 +40,7 @@
 .column,
 .columnStatic {
   position: relative;
-  height: calc(var(--row) * 30);
+  height: calc(var(--row) * var(--rows));
 }
 
 .times {
@@ -127,24 +127,24 @@
 
 .hoverFree,
 .selectionFree {
-  border: 1px solid var(--ok);
-  background: color-mix(in srgb, var(--ok) 48%, var(--surface));
+  border: 1px solid var(--cal-free);
+  background: var(--cal-free-hover);
 }
 
 .hoverBusy,
 .selectionBusy {
-  border: 1px solid var(--accent);
-  background: color-mix(in srgb, var(--accent) 46%, var(--surface));
+  border: 1px solid var(--cal-busy);
+  background: var(--cal-busy-hover);
 }
 
 .free {
   position: absolute;
   z-index: 1;
   box-sizing: border-box;
-  border: 1px solid var(--ok);
+  border: 1px solid var(--cal-free);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--ok) 22%, var(--surface));
-  color: var(--ok);
+  background: var(--cal-free-fill);
+  color: var(--cal-free);
   pointer-events: none;
 }
 
@@ -171,6 +171,29 @@
   text-decoration: none;
 }
 
+.slotStack {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 1px;
+  line-height: 1.15;
+}
+
+.slotLine {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.slotLine + .slotLine {
+  flex-wrap: wrap;
+  row-gap: 0;
+  white-space: normal;
+}
+
 .slot,
 .slotCancelled,
 .slotFree,
@@ -185,15 +208,15 @@
 }
 
 .slotFree {
-  border-color: var(--ok);
-  border-left-color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 28%, var(--surface));
+  border-color: var(--cal-free);
+  border-left-color: var(--cal-free);
+  background: var(--cal-free-slot);
 }
 
 .slotBusy {
-  border-color: var(--accent);
-  border-left-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 24%, var(--surface));
+  border-color: var(--cal-busy);
+  border-left-color: var(--cal-busy);
+  background: var(--cal-busy-fill);
 }
 
 .slotCancelled,
@@ -216,4 +239,51 @@
 
 .slotPast {
   cursor: default;
+}
+
+.popover {
+  position: fixed;
+  z-index: 5;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.35;
+  pointer-events: none;
+  text-align: left;
+  white-space: normal;
+}
+
+.popoverTitle,
+.popoverLine,
+.popoverMeta,
+.popoverNote {
+  margin: 0;
+}
+
+.popoverTitle {
+  font-weight: 600;
+}
+
+.popoverLine {
+  margin-top: 2px;
+}
+
+.popoverMeta {
+  margin-top: 2px;
+  color: var(--muted);
+}
+
+.popoverNote {
+  display: -webkit-box;
+  margin-top: 8px;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+  white-space: pre-wrap;
 }

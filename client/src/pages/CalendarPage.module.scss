@@ -74,13 +74,13 @@
 }
 
 .legendBusy::before {
-  border-color: var(--accent);
+  border-color: var(--cal-busy);
   background: var(--unavailable);
 }
 
 .legendFree::before {
-  border-color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  border-color: var(--cal-free);
+  background: var(--cal-free-fill);
 }
 
 .gridBar {
@@ -317,15 +317,15 @@
 }
 
 .slotRowFree {
-  border-color: var(--ok);
-  border-left-color: var(--ok);
-  background: color-mix(in srgb, var(--ok) 22%, var(--surface));
+  border-color: var(--cal-free);
+  border-left-color: var(--cal-free);
+  background: var(--cal-free-slot);
 }
 
 .slotRowBusy {
-  border-color: var(--accent);
-  border-left-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border-color: var(--cal-busy);
+  border-left-color: var(--cal-busy);
+  background: var(--cal-busy-fill);
 }
 
 .slotRowMuted {
