@@ -1,18 +1,28 @@
 .shell {
   --pad: 24px;
   --bottom-nav: calc(12px + 44px + 12px + 1px);
-  min-height: 100vh;
-  padding: 0 var(--pad) var(--bottom-nav);
-  box-sizing: border-box;
-}
-
-.fill {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
   min-height: 100dvh;
+  padding: 0 var(--pad) var(--bottom-nav);
+  box-sizing: border-box;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.fill {
   height: 100vh;
   height: 100dvh;
+}
+
+.fill .main {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .guest {

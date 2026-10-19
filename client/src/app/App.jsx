@@ -2,7 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { DocumentMeta } from "./DocumentMeta.jsx";
 import { AuthPage } from "../pages/AuthPage.jsx";
+import { CookieNotice } from "../components/CookieNotice.jsx";
 import { FaqPage } from "../pages/FaqPage.jsx";
+import { CookiesPage } from "../pages/CookiesPage.jsx";
 import { CalendarPage } from "../pages/CalendarPage.jsx";
 import { SlotPage } from "../pages/SlotPage.jsx";
 import { RequestsPage } from "../pages/RequestsPage.jsx";
@@ -27,6 +29,7 @@ export function App() {
             <Routes>
               <Route path="/login" element={<AuthPage />} />
               <Route path="/faq" element={<FaqPage />} />
+              <Route path="/cookies" element={<CookiesPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/slots/:id" element={<SlotPage />} />
               <Route path="/requests" element={<RequestsPage />} />
@@ -38,6 +41,7 @@ export function App() {
               <Route path="/admin/slots" element={<Navigate to="/calendar" replace />} />
               <Route path="*" element={<Navigate to="/calendar" replace />} />
             </Routes>
+            <CookieNotice />
           </NotificationsProvider>
         </SessionProvider>
       </BrowserRouter>

@@ -131,6 +131,11 @@
   text-underline-offset: 3px;
 }
 
+.legal {
+  width: min(100%, 400px);
+  margin-top: 28px;
+}
+
 @media (min-width: 960px) {
   .shell {
     grid-template-columns: minmax(360px, 1.05fr) minmax(420px, 0.95fr);
@@ -154,8 +159,9 @@
 
   .panel {
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 48px;
+    padding: 48px 48px 32px;
   }
 }

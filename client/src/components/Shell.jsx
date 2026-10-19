@@ -4,10 +4,20 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, switchAccount } from "../api/client.js";
 import { useSession } from "../session/SessionProvider.jsx";
 import { useNotifications } from "../notifications/NotificationsProvider.jsx";
+import { SiteFooter } from "./SiteFooter.jsx";
 import styles from "./Shell.module.scss";
 
 export function Shell({ user, onLogout, pending, fill = false, children }) {
   const [menu, setMenu] = useState(null);
+
+  useEffect(() => {
+    if (!user) return undefined;
+    const root = document.documentElement;
+    root.dataset.bottomNav = "1";
+    return () => {
+      delete root.dataset.bottomNav;
+    };
+  }, [user]);
   const incoming = useQuery({
     queryKey: ["requests", "incoming", "pending"],
     queryFn: () => api("/api/requests?box=incoming&status=pending"),
@@ -44,7 +54,8 @@ export function Shell({ user, onLogout, pending, fill = false, children }) {
           )}
         </nav>
       </header>
-      {children}
+      <div className={styles.main}>{children}</div>
+      <SiteFooter />
       {user ? (
         <nav className={styles.bottom}>
           <NavLink className={({ isActive }) => (isActive ? styles.tabOn : styles.tab)} to="/calendar">

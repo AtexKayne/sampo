@@ -1,0 +1,95 @@
+.title {
+  margin: 28px 0 0;
+  font-size: 40px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.lead,
+.status {
+  margin: 12px 0 0;
+  max-width: 40rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.article {
+  max-width: 40rem;
+  padding-bottom: 8px;
+}
+
+.section {
+  margin-top: 28px;
+}
+
+.section h2,
+.item h3 {
+  margin: 0;
+  font-weight: 500;
+  line-height: 1.15;
+}
+
+.section h2 {
+  font-size: 28px;
+}
+
+.item h3 {
+  font-family: var(--font);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.section p,
+.points {
+  margin: 12px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.list {
+  display: grid;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.item {
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.item p:first-of-type {
+  margin-top: 8px;
+}
+
+.points {
+  padding-left: 1.15rem;
+}
+
+.points li + li {
+  margin-top: 8px;
+}
+
+.code {
+  color: var(--ink);
+  font-family: ui-monospace, "Cascadia Code", "Segoe UI Mono", monospace;
+  font-size: 0.92em;
+}
+
+.section a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration-color: var(--gold);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.section a:hover {
+  color: var(--gold);
+}
+
+.dated {
+  font-size: 14px;
+}

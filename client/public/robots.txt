@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /login
+Allow: /cookies
 Allow: /icons/
 Allow: /manifest.webmanifest
 Disallow: /api/

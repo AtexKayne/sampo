@@ -23,8 +23,9 @@ export function DocumentMeta() {
     const named = PRIVATE_TITLES.find(([pattern]) => pattern.test(pathname));
     const isLogin = pathname === "/login";
     const isFaq = pathname === "/faq";
-    const isPublic = isLogin || isFaq;
-    const base = isFaq ? "FAQ — Сампо" : isPublic ? SITE_TITLE : named ? `${named[1]} — Сампо` : "Сампо";
+    const isCookies = pathname === "/cookies";
+    const isPublic = isLogin || isFaq || isCookies;
+    const base = isCookies ? "Файлы cookie — Сампо" : isFaq ? "FAQ — Сампо" : isPublic ? SITE_TITLE : named ? `${named[1]} — Сампо` : "Сампо";
     document.title = unread > 0 ? `(${unread}) ${base}` : base;
     setMeta("robots", isPublic ? "index, follow, max-image-preview:large" : "noindex, nofollow");
     setLink("canonical", isLogin ? `${SITE_ORIGIN}/login` : `${SITE_ORIGIN}${pathname}`);

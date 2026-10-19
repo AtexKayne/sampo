@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../api/client.js";
+import { SiteFooter } from "../components/SiteFooter.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./AuthPage.module.scss";
 
@@ -88,6 +89,7 @@ export function AuthPage() {
             Как пользоваться — в разделе <Link className={styles.faq} to="/faq">FAQ</Link>.
           </p>
         </div>
+        <SiteFooter className={styles.legal} />
       </section>
     </main>
   );
