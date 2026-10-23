@@ -121,17 +121,22 @@ test("larger totals cross the later count marks", () => {
 });
 
 test("streaks need neighbouring weeks and months", () => {
-  const weeks = earnedIds([
+  const weekDays = [5, 6, 7, 12, 13, 14, 19, 20, 21];
+  const weeks = earnedIds(weekDays.map((day) => visit(`2026-10-${String(day).padStart(2, "0")}T05:00:00.000Z`)));
+  assert.equal(weeks.has("three-weeks"), true);
+  const thin = earnedIds([
     visit("2026-10-05T05:00:00.000Z"),
     visit("2026-10-12T05:00:00.000Z"),
     visit("2026-10-19T05:00:00.000Z"),
   ]);
-  assert.equal(weeks.has("three-weeks"), true);
-  const gap = earnedIds([
-    visit("2026-10-05T05:00:00.000Z"),
-    visit("2026-10-19T05:00:00.000Z"),
-    visit("2026-10-26T05:00:00.000Z"),
-  ]);
+  assert.equal(thin.has("three-weeks"), false);
+  const shortLast = earnedIds(
+    [5, 6, 7, 12, 13, 14, 19, 20].map((day) => visit(`2026-10-${String(day).padStart(2, "0")}T05:00:00.000Z`)),
+  );
+  assert.equal(shortLast.has("three-weeks"), false);
+  const gap = earnedIds(
+    [5, 6, 7, 19, 20, 21, 26, 27, 28].map((day) => visit(`2026-10-${String(day).padStart(2, "0")}T05:00:00.000Z`)),
+  );
   assert.equal(gap.has("three-weeks"), false);
   const months = earnedIds([
     visit("2026-12-02T05:00:00.000Z"),

@@ -22,15 +22,15 @@ export const ACHIEVEMENTS = [
   { id: "lone-wolf", title: "Одинокий волк", detail: "7 сампо за неделю в соло" },
   { id: "solo-fine", title: "И так хорошо", detail: "15 сампо за месяц в соло" },
   { id: "first-pair", title: "В паре", detail: "Сампо с партнёром" },
-  { id: "circle", title: "Свой круг", detail: "5 разных партнёров за один месяц" },
-  { id: "wide-circle", title: "Широкий круг", detail: "10 разных партнёров за один месяц" },
+  { id: "circle", title: "Общительный", detail: "5 разных партнёров за один месяц" },
+  { id: "wide-circle", title: "Ну очень общительный", detail: "10 разных партнёров за один месяц" },
   { id: "loyal", title: "Постоянный партнёр", detail: "10 сампо с одним партнёром за месяц" },
   { id: "inseparable", title: "Не разлей вода", detail: "15 сампо за месяц с одним партнёром" },
-  { id: "three-weeks", title: "Три в ряд", detail: "Сампо каждую неделю три недели подряд" },
+  { id: "three-weeks", title: "Три в ряд", detail: "3 сампо в неделю три недели подряд" },
   { id: "two-months", title: "Два месяца подряд", detail: "Сампо в двух месяцах подряд" },
   { id: "dance-master", title: "Танцмастер", detail: "Сампо в шести месяцах подряд" },
   { id: "sloth", title: "Ленивец", detail: "Ни одного сампо за неделю" },
-  { id: "grand-sloth", title: "Грандленивец", detail: "Ни одного сампо за месяц" },
+  { id: "grand-sloth", title: "Королевский ленивец", detail: "Ни одного сампо за месяц" },
 ];
 
 function parts(date) {
@@ -96,6 +96,17 @@ function maxBy(visits, key) {
   let max = 0;
   for (const count of counts.values()) if (count > max) max = count;
   return max;
+}
+
+function keysWithMin(visits, key, min) {
+  const counts = new Map();
+  for (const visit of visits) {
+    const id = key(visit);
+    counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  const ids = [];
+  for (const [id, count] of counts) if (count >= min) ids.push(id);
+  return ids;
 }
 
 function hasStepRun(values, step, length) {
@@ -211,7 +222,7 @@ export function evaluateAchievements(visits, options = {}) {
   if (partners.maxDistinct >= 10) earned.add("wide-circle");
   if (partners.maxRepeat >= 10) earned.add("loyal");
   if (partners.maxRepeat >= 15) earned.add("inseparable");
-  if (hasStepRun(visits.map((visit) => weekIndex(visit.startsAt)), 7, 3)) earned.add("three-weeks");
+  if (hasStepRun(keysWithMin(visits, (visit) => weekIndex(visit.startsAt), 3), 7, 3)) earned.add("three-weeks");
   if (hasStepRun(visits.map((visit) => monthIndex(visit.startsAt)), 1, 2)) earned.add("two-months");
   if (hasStepRun(visits.map((visit) => monthIndex(visit.startsAt)), 1, 6)) earned.add("dance-master");
   if (since && now && hasIdleWeeks(visits, since, now)) earned.add("sloth");
