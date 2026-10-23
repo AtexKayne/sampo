@@ -1,6 +1,7 @@
 import { HttpError } from "../http/errors.js";
 import { validateDisplayName } from "../auth/password.js";
 import { studioParts } from "../slots/rules.js";
+import { evaluateAchievements } from "../../../shared/achievements.js";
 import { TIME_ZONE_OFFSET_MS } from "../../../shared/timezone.js";
 import { parseBlockedLevels, parseDanceLevel } from "../../../shared/dance-levels.js";
 
@@ -170,6 +171,7 @@ export async function adminProfile(sql, userId, now = new Date()) {
 
 export async function visitCounts(sql, userId, now = new Date()) {
   const month = studioMonthRange(now);
+  const previous = studioMonthRange(new Date(month.start.getTime() - 1));
   const [row] = await sql`
     SELECT
       count(*) FILTER (
@@ -180,12 +182,142 @@ export async function visitCounts(sql, userId, now = new Date()) {
           AND s.ends_at <= ${now}
           AND s.starts_at >= ${month.start}
           AND s.starts_at < ${month.next}
-      )::int AS month
+      )::int AS month,
+      count(*) FILTER (
+        WHERE s.status = 'open'
+          AND s.ends_at <= ${now}
+          AND s.starts_at >= ${previous.start}
+          AND s.starts_at < ${previous.next}
+      )::int AS previous
     FROM attendances a
     JOIN slots s ON s.id = a.slot_id
     WHERE a.user_id = ${userId}
   `;
-  return { month: row?.month ?? 0, total: row?.total ?? 0 };
+  return {
+    month: row?.month ?? 0,
+    previous: row?.previous ?? 0,
+    total: row?.total ?? 0,
+    previousMonth: studioParts(previous.start).month,
+  };
+}
+
+function leadersOf(rows) {
+  return rows.map((row) => ({
+    id: row.id,
+    displayName: row.display_name,
+    month: row.month,
+    total: row.total,
+  }));
+}
+
+function rankingQuery(sql, now) {
+  const month = studioMonthRange(now);
+  return sql`
+    SELECT u.id, u.display_name,
+      count(s.id) FILTER (
+        WHERE s.status = 'open' AND s.ends_at <= ${now}
+      )::int AS total,
+      count(s.id) FILTER (
+        WHERE s.status = 'open'
+          AND s.ends_at <= ${now}
+          AND s.starts_at >= ${month.start}
+          AND s.starts_at < ${month.next}
+      )::int AS month
+    FROM users u
+    LEFT JOIN attendances a ON a.user_id = u.id
+    LEFT JOIN slots s ON s.id = a.slot_id
+    WHERE u.app_role <> 'admin'
+    GROUP BY u.id
+  `;
+}
+
+async function ratingLeaders(sql, now, metric) {
+  const ranked = rankingQuery(sql, now);
+  const rows = metric === "month"
+    ? await sql`
+        SELECT id, display_name, month, total
+        FROM (${ranked}) ranked
+        WHERE month > 0
+        ORDER BY month DESC, total DESC, display_name, id
+        LIMIT 3
+      `
+    : await sql`
+        SELECT id, display_name, month, total
+        FROM (${ranked}) ranked
+        WHERE total > 0
+        ORDER BY total DESC, month DESC, display_name, id
+        LIMIT 3
+      `;
+  return leadersOf(rows);
+}
+
+async function ratingPlace(sql, userId, now, metric) {
+  const ranked = rankingQuery(sql, now);
+  const [row] = metric === "month"
+    ? await sql`
+        SELECT place FROM (
+          SELECT id, row_number() OVER (ORDER BY month DESC, total DESC, display_name, id) AS place
+          FROM (${ranked}) ranked
+          WHERE month > 0
+        ) numbered
+        WHERE id = ${userId}
+      `
+    : await sql`
+        SELECT place FROM (
+          SELECT id, row_number() OVER (ORDER BY total DESC, month DESC, display_name, id) AS place
+          FROM (${ranked}) ranked
+          WHERE total > 0
+        ) numbered
+        WHERE id = ${userId}
+      `;
+  return row?.place == null ? null : Number(row.place);
+}
+
+export async function userAchievements(sql, userId, now = new Date()) {
+  const [user] = await sql`SELECT created_at FROM users WHERE id = ${userId}`;
+  const rows = await sql`
+    SELECT s.starts_at, s.ends_at, s.place, a.guests, partner.partner_id
+    FROM attendances a
+    JOIN slots s ON s.id = a.slot_id
+    LEFT JOIN LATERAL (
+      SELECT CASE
+        WHEN p.user_low_id = ${userId} THEN p.user_high_id
+        ELSE p.user_low_id
+      END AS partner_id
+      FROM pairs p
+      WHERE p.slot_id = s.id
+        AND p.status = 'confirmed'
+        AND (p.user_low_id = ${userId} OR p.user_high_id = ${userId})
+      LIMIT 1
+    ) partner ON true
+    WHERE a.user_id = ${userId}
+      AND s.status = 'open'
+      AND s.ends_at <= ${now}
+  `;
+  return evaluateAchievements(rows.map((row) => ({
+    startsAt: new Date(row.starts_at),
+    endsAt: new Date(row.ends_at),
+    place: row.place,
+    guest: row.guests === 1,
+    partnerId: row.partner_id,
+  })), { now, since: user?.created_at });
+}
+
+export async function ratingSummary(sql, userId, now = new Date()) {
+  const [visits, total, month, totalPlace, monthPlace, achievements] = await Promise.all([
+    visitCounts(sql, userId, now),
+    ratingLeaders(sql, now, "total"),
+    ratingLeaders(sql, now, "month"),
+    ratingPlace(sql, userId, now, "total"),
+    ratingPlace(sql, userId, now, "month"),
+    userAchievements(sql, userId, now),
+  ]);
+  return {
+    visits,
+    leaders: { total, month },
+    place: { total: totalPlace, month: monthPlace },
+    achievements,
+  };
 }
 
 export async function profileSettings(sql, userId, now = new Date()) {

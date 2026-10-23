@@ -30,8 +30,10 @@
   white-space: nowrap;
 }
 
-.more:hover {
-  color: var(--gold);
+@media (hover: hover) and (pointer: fine) {
+  .more:hover {
+    color: var(--gold);
+  }
 }
 
 .accept {
@@ -47,12 +49,14 @@
   cursor: pointer;
 }
 
-.accept:hover {
-  background: #2a2a2a;
+@media (hover: hover) and (pointer: fine) {
+  .accept:hover {
+    background: #2a2a2a;
+  }
 }
 
 @media (max-width: 799px) {
   :global(html[data-bottom-nav="1"]) .banner {
-    bottom: calc(12px + 44px + 12px + 1px + 12px + env(safe-area-inset-bottom));
+    bottom: calc(6px + 52px + 6px + 1px + 12px + env(safe-area-inset-bottom));
   }
 }

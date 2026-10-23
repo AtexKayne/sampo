@@ -4,6 +4,7 @@ import { Link, Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
 import { RequestStatus } from "../components/RequestStatus.jsx";
+import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import { formatDayTitle, formatSlotTime } from "../time/zone.js";
@@ -243,41 +244,35 @@ export function SlotPanel({ id, onClose }) {
           ) : null}
         </article>
       ) : null}
-      {confirming
-        ? createPortal(
-            <div className={styles.backdrop} onClick={() => !run.isPending && setConfirming(false)}>
-              <div
-                className={styles.dialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="attend-confirm-title"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className={styles.dialogHead}>
-                  <h2 className={styles.dialogTitle} id="attend-confirm-title">
-                    Приду один
-                  </h2>
-                  <button className={styles.close} type="button" aria-label="Закрыть" disabled={run.isPending} onClick={() => setConfirming(false)}>
-                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-                <p className={styles.dialogText}>Займу одно место. Отправленные запросы на это время будут отозваны.</p>
-                {error ? <p className={styles.error}>{error}</p> : null}
-                <div className={styles.row}>
-                  <button className={styles.primary} type="button" disabled={run.isPending} onClick={confirmChoice}>
-                    Подтвердить
-                  </button>
-                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => setConfirming(false)}>
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {confirming ? (
+        <Sheet
+          onClose={() => {
+            if (!run.isPending) setConfirming(false);
+          }}
+          labelledBy="attend-confirm-title"
+        >
+          <div className={styles.dialogHead}>
+            <h2 className={styles.dialogTitle} id="attend-confirm-title">
+              Приду один
+            </h2>
+            <button className={styles.close} type="button" aria-label="Закрыть" disabled={run.isPending} onClick={() => setConfirming(false)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <p className={styles.dialogText}>Займу одно место. Отправленные запросы на это время будут отозваны.</p>
+          {error ? <p className={styles.error}>{error}</p> : null}
+          <div className={styles.row}>
+            <button className={styles.primary} type="button" disabled={run.isPending} onClick={confirmChoice}>
+              Подтвердить
+            </button>
+            <button className={styles.button} type="button" disabled={run.isPending} onClick={() => setConfirming(false)}>
+              Отмена
+            </button>
+          </div>
+        </Sheet>
+      ) : null}
     </div>
   );
 }

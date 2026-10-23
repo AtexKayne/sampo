@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
 import { disablePhonePush, enablePhonePush, iosNeedsHomeScreen, preparePush, readPhonePush } from "../notifications/push.js";
+import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./user.module.scss";
@@ -49,9 +49,14 @@ export function ProfilePage() {
         <div className={styles.adminLayout}>
           <div className={styles.pageHead}>
             <h1 className={styles.title}>Пользователи</h1>
-            <button className={styles.primary} type="button" onClick={() => setCreatingUser(true)}>
-              Новый пользователь
-            </button>
+            <div className={styles.headActions}>
+              <button className={`${styles.button} ${styles.mobileLogout}`} type="button" disabled={pendingLogout} onClick={onLogout}>
+                Выйти
+              </button>
+              <button className={styles.primary} type="button" onClick={() => setCreatingUser(true)}>
+                Новый пользователь
+              </button>
+            </div>
           </div>
           <div className={styles.adminPage}>
             <AdminUserSearch creating={creatingUser} onCreatingChange={setCreatingUser} />
@@ -64,7 +69,7 @@ export function ProfilePage() {
   return (
     <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
       <h1 className={styles.title}>Профиль</h1>
-      <ProfileSettings />
+      <ProfileSettings onLogout={onLogout} pendingLogout={pendingLogout} />
     </Shell>
   );
 }
@@ -107,7 +112,7 @@ export function AdminUserPage() {
   );
 }
 
-function ProfileSettings({ userId }) {
+function ProfileSettings({ userId, onLogout, pendingLogout }) {
   const session = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -273,21 +278,6 @@ function ProfileSettings({ userId }) {
           onChange={(event) => setDraft((current) => (current ? { ...current, displayName: event.target.value } : current))}
         />
       </label>
-      {saved ? (
-        <section className={styles.visits} aria-labelledby="visits-title">
-          <h2 className={styles.groupTitle} id="visits-title">Посещения</h2>
-          <dl className={styles.stats}>
-            <div className={styles.stat}>
-              <dt className={styles.statLabel}>За месяц</dt>
-              <dd className={styles.statValue}>{saved.visits.month}</dd>
-            </div>
-            <div className={styles.stat}>
-              <dt className={styles.statLabel}>Всего</dt>
-              <dd className={styles.statValue}>{saved.visits.total}</dd>
-            </div>
-          </dl>
-        </section>
-      ) : null}
       </form>
       <div className={styles.settings}>
       <h2 className={styles.settingsTitle}>Дополнительные настройки</h2>
@@ -497,47 +487,46 @@ function ProfileSettings({ userId }) {
         </button>
       </div>
       <div className={styles.row}>
+        {editing || !onLogout ? null : (
+          <button className={`${styles.button} ${styles.mobileLogout}`} type="button" disabled={pendingLogout} onClick={onLogout}>
+            Выйти
+          </button>
+        )}
         <button className={`${styles.button} ${styles.danger}`} type="button" disabled={remove.isPending} onClick={() => setConfirming(true)}>
           Удалить профиль
         </button>
       </div>
-      {confirming
-        ? createPortal(
-            <div className={styles.backdrop} onClick={() => !remove.isPending && closeDelete()}>
-              <div
-                className={styles.dialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="delete-profile-title"
-                aria-describedby="delete-profile-text"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className={styles.dialogHead}>
-                  <h2 className={styles.dialogTitle} id="delete-profile-title">Удалить профиль</h2>
-                  <button className={styles.close} type="button" aria-label="Закрыть" disabled={remove.isPending} onClick={closeDelete}>
-                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-                <p className={styles.dialogText} id="delete-profile-text">
-                  {editing && saved?.displayName ? `Профиль «${saved.displayName}» и все связанные данные будут удалены: ` : "Профиль и все связанные данные будут удалены: "}
-                  имя, уровень, списки, посещения, свободное время, запросы и уведомления. Восстановить их нельзя.
-                </p>
-                {deleteError ? <p className={styles.error}>{deleteError}</p> : null}
-                <div className={styles.row}>
-                  <button className={styles.primary} type="button" disabled={remove.isPending} onClick={() => remove.mutate()}>
-                    Удалить профиль
-                  </button>
-                  <button className={styles.button} type="button" disabled={remove.isPending} onClick={closeDelete}>
-                    Отмена
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {confirming ? (
+        <Sheet
+          onClose={() => {
+            if (!remove.isPending) closeDelete();
+          }}
+          labelledBy="delete-profile-title"
+          describedBy="delete-profile-text"
+        >
+          <div className={styles.dialogHead}>
+            <h2 className={styles.dialogTitle} id="delete-profile-title">Удалить профиль</h2>
+            <button className={styles.close} type="button" aria-label="Закрыть" disabled={remove.isPending} onClick={closeDelete}>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <p className={styles.dialogText} id="delete-profile-text">
+            {editing && saved?.displayName ? `Профиль «${saved.displayName}» и все связанные данные будут удалены: ` : "Профиль и все связанные данные будут удалены: "}
+            имя, уровень, списки, посещения, свободное время, запросы и уведомления. Восстановить их нельзя.
+          </p>
+          {deleteError ? <p className={styles.error}>{deleteError}</p> : null}
+          <div className={styles.row}>
+            <button className={styles.primary} type="button" disabled={remove.isPending} onClick={() => remove.mutate()}>
+              Удалить профиль
+            </button>
+            <button className={styles.button} type="button" disabled={remove.isPending} onClick={closeDelete}>
+              Отмена
+            </button>
+          </div>
+        </Sheet>
+      ) : null}
     </div>
   );
 }
@@ -816,19 +805,19 @@ function CreateUserDialog({ onClose, onCreated }) {
     save.mutate({ displayName, login: loginName, password });
   }
 
-  return createPortal(
-    <div className={styles.backdrop} onClick={() => !save.isPending && onClose()}>
-      <form
-        className={`${styles.dialog} ${styles.createDialog}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-user-title"
-        onClick={(event) => event.stopPropagation()}
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (canSave) submit();
-        }}
-      >
+  return (
+    <Sheet
+      as="form"
+      size="l"
+      labelledBy="admin-user-title"
+      onClose={() => {
+        if (!save.isPending) onClose();
+      }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSave) submit();
+      }}
+    >
         <div className={styles.dialogHead}>
           <h2 className={styles.dialogTitle} id="admin-user-title">Новый пользователь</h2>
           <button className={styles.close} type="button" aria-label="Закрыть" disabled={save.isPending} onClick={onClose}>
@@ -889,9 +878,7 @@ function CreateUserDialog({ onClose, onCreated }) {
             Зарегистрировать
           </button>
         </div>
-      </form>
-    </div>,
-    document.body,
+    </Sheet>
   );
 }
 
@@ -983,13 +970,13 @@ function PhonePush() {
       {state === "loading" || state === "unsupported" || iosBrowser ? null : state === "subscribed" ? (
         <div className={styles.row}>
           <button className={styles.button} type="button" disabled={pending} onClick={turnOff}>
-            Выключить на этом телефоне
+            Выключить на этом устройстве
           </button>
         </div>
       ) : (
         <div className={styles.row}>
           <button className={styles.button} type="button" disabled={pending || !ready} onClick={turnOn}>
-            Включить уведомления на телефон
+            Включить уведомления на устройстве
           </button>
         </div>
       )}

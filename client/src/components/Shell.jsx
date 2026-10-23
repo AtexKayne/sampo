@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, switchAccount } from "../api/client.js";
 import { useSession } from "../session/SessionProvider.jsx";
@@ -9,6 +9,12 @@ import styles from "./Shell.module.scss";
 
 export function Shell({ user, onLogout, pending, fill = false, children }) {
   const [menu, setMenu] = useState(null);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const session = useSession();
+  const [switching, setSwitching] = useState(false);
+  const [switchError, setSwitchError] = useState("");
 
   useEffect(() => {
     if (!user) return undefined;
@@ -24,6 +30,24 @@ export function Shell({ user, onLogout, pending, fill = false, children }) {
     enabled: Boolean(user) && user.appRole !== "admin",
   });
   const incomingCount = incoming.data?.requests?.length ?? 0;
+  const accountSwitch = user?.accountSwitch;
+
+  async function onSwitch() {
+    setSwitchError("");
+    setSwitching(true);
+    try {
+      const next = await switchAccount();
+      queryClient.clear();
+      session.setUser(next);
+      setMenu(null);
+      navigate("/calendar", { replace: true });
+    } catch (error) {
+      setSwitchError(error.message || "Не удалось переключить аккаунт");
+    } finally {
+      setSwitching(false);
+    }
+  }
+
   return (
     <div className={[styles.shell, user ? "" : styles.guest, fill ? styles.fill : ""].filter(Boolean).join(" ")}>
       <header className={styles.header}>
@@ -37,6 +61,11 @@ export function Shell({ user, onLogout, pending, fill = false, children }) {
               {user.appRole === "admin" ? null : (
                 <NoticeBell open={menu === "bell"} onToggle={() => setMenu((value) => (value === "bell" ? null : "bell"))} onClose={() => setMenu(null)} />
               )}
+              {accountSwitch ? (
+                <button className={styles.switcher} type="button" disabled={pending || switching} onClick={onSwitch}>
+                  {accountSwitch.to === "admin" ? "А" : "Ю"}
+                </button>
+              ) : null}
               <ProfileMenu
                 user={user}
                 onLogout={onLogout}
@@ -54,16 +83,137 @@ export function Shell({ user, onLogout, pending, fill = false, children }) {
           )}
         </nav>
       </header>
+      {switchError ? <p className={styles.switchBanner}>{switchError}</p> : null}
       <div className={styles.main}>{children}</div>
-      <SiteFooter />
+      <SiteFooter hideOnMobile={location.pathname.startsWith("/calendar")} />
       {user ? (
-        <nav className={styles.bottom}>
-          <NavLink className={({ isActive }) => (isActive ? styles.tabOn : styles.tab)} to="/calendar">
-            Календарь
-          </NavLink>
+        <nav className={styles.bottom} aria-label="Разделы">
+          {user.appRole === "admin" ? (
+            <>
+              <Tab to="/me" label="Пользователи" icon="users" active={usersActive(location.pathname)} />
+              <Tab to="/calendar" label="Календарь" icon="calendar" active={calendarActive(location.pathname)} />
+            </>
+          ) : (
+            <>
+              <Tab
+                to="/requests"
+                label="Запросы"
+                icon="requests"
+                count={incomingCount}
+                active={location.pathname.startsWith("/requests")}
+              />
+              <Tab to="/faq" label="FAQ" icon="faq" active={location.pathname.startsWith("/faq")} />
+              <Tab to="/calendar" label="Календарь" icon="calendar" active={calendarActive(location.pathname)} />
+              <Tab to="/rating" label="Рейтинг" icon="rating" active={location.pathname.startsWith("/rating")} />
+              <Tab to="/me" label="Профиль" icon="profile" active={profileActive(location.pathname)} />
+            </>
+          )}
         </nav>
       ) : null}
     </div>
+  );
+}
+
+function calendarActive(pathname) {
+  return pathname.startsWith("/calendar") || pathname.startsWith("/slots");
+}
+
+function usersActive(pathname) {
+  return pathname === "/me" || pathname.startsWith("/admin/users");
+}
+
+function profileActive(pathname) {
+  return pathname === "/me" || pathname.startsWith("/me/");
+}
+
+function Tab({ to, label, icon, count = 0, active }) {
+  return (
+    <NavLink
+      className={active ? styles.tabOn : styles.tab}
+      to={to}
+      aria-current={active ? "page" : undefined}
+      aria-label={count > 0 ? `${label}, ${count}` : label}
+    >
+      <span className={styles.tabIcon} aria-hidden="true">
+        <TabIcon name={icon} />
+        {count > 0 ? (
+          <span className={styles.tabCount}>
+            <span className={styles.mark}>{count}</span>
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.tabLabel}>{label}</span>
+    </NavLink>
+  );
+}
+
+function TabIcon({ name }) {
+  const common = {
+    viewBox: "0 0 24 24",
+    width: "24",
+    height: "24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.75",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+    "aria-hidden": "true",
+  };
+  if (name === "requests") {
+    return (
+      <svg {...common}>
+        <rect x="4" y="6" width="16" height="12" rx="2" />
+        <path d="m4 8 8 6 8-6" />
+      </svg>
+    );
+  }
+  if (name === "faq") {
+    return (
+      <svg {...common}>
+        <circle cx="12" cy="12" r="8" />
+        <path d="M9.6 9.6a2.4 2.4 0 1 1 3.1 2.25c-.7.32-1.1.86-1.1 1.55" />
+        <path d="M12 16.7v.3" />
+      </svg>
+    );
+  }
+  if (name === "calendar") {
+    return (
+      <svg {...common}>
+        <rect x="4" y="6" width="16" height="14" rx="2" />
+        <path d="M8 4v4M16 4v4M4 10h16" />
+      </svg>
+    );
+  }
+  if (name === "rating") {
+    return (
+      <svg {...common}>
+        <path d="M4 11h4v8H4zM10 5h4v14h-4zM16 8h4v11h-4z" />
+      </svg>
+    );
+  }
+  if (name === "users") {
+    return (
+      <svg {...common}>
+        <circle cx="9" cy="9" r="3" />
+        <path d="M4 19c.9-3.2 2.8-4.8 5-4.8" />
+        <circle cx="16.5" cy="9.5" r="2.5" />
+        <path d="M20.5 19c-.7-2.6-2.2-4-4-4.2" />
+      </svg>
+    );
+  }
+  if (name === "logout") {
+    return (
+      <svg {...common}>
+        <path d="M10 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3" />
+        <path d="m13 16 4-4-4-4M17 12H9" />
+      </svg>
+    );
+  }
+  return (
+    <svg {...common}>
+      <circle cx="12" cy="8.5" r="3.2" />
+      <path d="M6.2 19c1.1-3.2 3.2-4.8 5.8-4.8s4.7 1.6 5.8 4.8" />
+    </svg>
   );
 }
 
@@ -148,30 +298,8 @@ function NoticeBell({ open, onToggle, onClose }) {
 function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, onClose }) {
   const rootRef = useRef(null);
   const menuId = useId();
-  const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const session = useSession();
-  const [switching, setSwitching] = useState(false);
-  const [switchError, setSwitchError] = useState("");
   const name = user.displayName?.trim() || "Профиль";
   const initial = name.charAt(0).toLocaleUpperCase("ru");
-  const accountSwitch = user.accountSwitch;
-
-  async function onSwitch() {
-    setSwitchError("");
-    setSwitching(true);
-    try {
-      const next = await switchAccount();
-      queryClient.clear();
-      session.setUser(next);
-      onClose();
-      navigate("/calendar", { replace: true });
-    } catch (error) {
-      setSwitchError(error.message || "Не удалось переключить аккаунт");
-    } finally {
-      setSwitching(false);
-    }
-  }
 
   useEffect(() => {
     if (!open) return undefined;
@@ -190,7 +318,7 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
   }, [open, onClose]);
 
   return (
-    <div className={styles.menu} ref={rootRef}>
+    <div className={`${styles.menu} ${styles.desktopNav}`} ref={rootRef}>
       <button
         className={styles.profile}
         type="button"
@@ -210,25 +338,39 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
       {open ? (
         <nav className={styles.dropdown} id={menuId} aria-label="Аккаунт">
           <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/me" onClick={onClose}>
-            {user.appRole === "admin" ? "Пользователи" : "Профиль"}
+            <span className={styles.itemIcon} aria-hidden="true">
+              <TabIcon name={user.appRole === "admin" ? "users" : "profile"} />
+            </span>
+            <span className={styles.itemText}>{user.appRole === "admin" ? "Пользователи" : "Профиль"}</span>
           </NavLink>
           {user.appRole === "admin" ? null : (
             <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/requests" onClick={onClose}>
-              <span>Мои запросы</span>
+              <span className={styles.itemIcon} aria-hidden="true">
+                <TabIcon name="requests" />
+              </span>
+              <span className={styles.itemText}>Мои запросы</span>
               {incomingCount > 0 ? <span className={styles.count}>{incomingCount}</span> : null}
             </NavLink>
           )}
           <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/faq" onClick={onClose}>
-            FAQ
+            <span className={styles.itemIcon} aria-hidden="true">
+              <TabIcon name="faq" />
+            </span>
+            <span className={styles.itemText}>FAQ</span>
           </NavLink>
-          {accountSwitch ? (
-            <button className={styles.item} type="button" disabled={pending || switching} onClick={onSwitch}>
-              {accountSwitch.to === "admin" ? "Админ" : "Юзер"}
-            </button>
-          ) : null}
-          {switchError ? <p className={styles.switchError}>{switchError}</p> : null}
+          {user.appRole === "admin" ? null : (
+            <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/rating" onClick={onClose}>
+              <span className={styles.itemIcon} aria-hidden="true">
+                <TabIcon name="rating" />
+              </span>
+              <span className={styles.itemText}>Рейтинг</span>
+            </NavLink>
+          )}
           <button className={styles.item} type="button" disabled={pending} onClick={onLogout}>
-            Выйти
+            <span className={styles.itemIcon} aria-hidden="true">
+              <TabIcon name="logout" />
+            </span>
+            <span className={styles.itemText}>Выйти</span>
           </button>
         </nav>
       ) : null}

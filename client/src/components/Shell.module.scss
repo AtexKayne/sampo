@@ -1,6 +1,6 @@
 .shell {
   --pad: 24px;
-  --bottom-nav: calc(12px + 44px + 12px + 1px);
+  --bottom-nav: calc(6px + 52px + 6px + 1px + 12px + env(safe-area-inset-bottom, 0px));
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -88,8 +88,10 @@
   cursor: pointer;
 }
 
-.link:hover {
-  border-color: var(--ink);
+@media (hover: hover) and (pointer: fine) {
+  .link:hover {
+    border-color: var(--ink);
+  }
 }
 
 .menu {
@@ -109,10 +111,16 @@
   cursor: pointer;
 }
 
-.bell:hover,
 .bell[aria-expanded="true"] {
   background: var(--surface);
   color: var(--accent);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .bell:hover {
+    background: var(--surface);
+    color: var(--accent);
+  }
 }
 
 .bellIcon {
@@ -152,8 +160,10 @@
   cursor: pointer;
 }
 
-.noticeClear:hover:not(:disabled) {
-  background: var(--bg);
+@media (hover: hover) and (pointer: fine) {
+  .noticeClear:hover:not(:disabled) {
+    background: var(--bg);
+  }
 }
 
 .noticeClear:disabled {
@@ -177,8 +187,10 @@
   cursor: pointer;
 }
 
-.notice:hover {
-  background: var(--bg);
+@media (hover: hover) and (pointer: fine) {
+  .notice:hover {
+    background: var(--bg);
+  }
 }
 
 .noticeEmpty {
@@ -191,7 +203,7 @@
   position: fixed;
   z-index: 7;
   right: 16px;
-  bottom: calc(12px + 44px + 12px + 1px + 12px);
+  bottom: calc(6px + 52px + 6px + 1px + 12px);
   left: 16px;
   display: grid;
   gap: 8px;
@@ -304,8 +316,7 @@
   min-height: 44px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   padding: 0 12px;
   border: 0;
   border-radius: 8px;
@@ -317,9 +328,29 @@
   cursor: pointer;
 }
 
-.item:hover,
+.itemIcon {
+  flex: none;
+  display: inline-flex;
+  color: var(--muted);
+}
+
+.itemOn .itemIcon {
+  color: var(--ink);
+}
+
+.itemText {
+  flex: 1;
+  min-width: 0;
+}
+
 .itemOn {
   background: var(--bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .item:hover {
+    background: var(--bg);
+  }
 }
 
 .item:disabled {
@@ -327,9 +358,34 @@
   opacity: 0.6;
 }
 
-.switchError {
-  margin: 0;
-  padding: 8px 12px;
+.switcher {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .switcher:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
+}
+
+.switcher:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.switchBanner {
+  margin: 8px 0 0;
   color: var(--danger);
   font-size: 13px;
 }
@@ -341,8 +397,9 @@
   bottom: 0;
   left: 0;
   display: flex;
-  gap: 8px;
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  align-items: stretch;
+  gap: 4px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(16px);
@@ -350,17 +407,23 @@
 
 .tab,
 .tabOn {
-  min-height: 44px;
+  min-width: 0;
+  min-height: 52px;
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 2px;
+  padding: 4px 2px;
+  border: 0;
   border-radius: var(--radius);
+  background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 10px;
   font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  line-height: 1.2;
+  text-align: center;
   text-decoration: none;
 }
 
@@ -369,10 +432,27 @@
   font-weight: 600;
 }
 
-@media (max-width: 520px) {
-  .profileName,
-  .caret,
-  .caretOpen {
+.tabIcon {
+  position: relative;
+  display: inline-flex;
+}
+
+.tabCount {
+  position: absolute;
+  top: -4px;
+  right: -8px;
+  border: 2px solid var(--bg);
+}
+
+.tabLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 799px) {
+  .desktopNav {
     display: none;
   }
 }

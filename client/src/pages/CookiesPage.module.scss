@@ -86,8 +86,10 @@
   text-underline-offset: 3px;
 }
 
-.section a:hover {
-  color: var(--gold);
+@media (hover: hover) and (pointer: fine) {
+  .section a:hover {
+    color: var(--gold);
+  }
 }
 
 .dated {

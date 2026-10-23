@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
+import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { TimeGrid } from "../components/TimeGrid.jsx";
 import { SlotPanel } from "./SlotPage.jsx";
@@ -619,14 +620,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       ) : null}
       {!selection && formError ? <p className={styles.error}>{formError}</p> : null}
       {editing ? (
-        <div className={styles.backdrop} onClick={closeEdit}>
-          <div
-            className={styles.modal}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="slot-dialog-title"
-            onClick={(event) => event.stopPropagation()}
-          >
+        <Sheet onClose={closeEdit} labelledBy="slot-dialog-title" size="l">
             <SlotPanel id={editing.id} onClose={closeEdit} />
             {canCreate ? (
               <form
@@ -736,8 +730,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                 </div>
               </form>
             ) : null}
-          </div>
-        </div>
+        </Sheet>
       ) : null}
       {helpOpen ? <HelpDialog onClose={() => setHelpOpen(false)} /> : null}
     </Shell>
@@ -812,14 +805,7 @@ function SlotAgenda({ slots, markingAvailability, freeBlocks, onOpen }) {
 
 function HelpDialog({ onClose }) {
   return (
-    <div className={styles.backdrop} onClick={onClose}>
-      <div
-        className={`${styles.modal} ${styles.helpModal}`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="calendar-help-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Sheet onClose={onClose} labelledBy="calendar-help-title" size="xl">
         <div className={styles.modalHead}>
           <h2 className={styles.modalTitle} id="calendar-help-title">
             Как пользоваться
@@ -840,8 +826,7 @@ function HelpDialog({ onClose }) {
             Подробная инструкция и другие вопросы — в разделе <Link className={styles.guideLink} to="/faq">FAQ</Link>.
           </p>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -988,14 +973,7 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
 
   if (confirming) {
     return (
-      <div className={styles.backdrop} onClick={onBack}>
-        <div
-          className={styles.modal}
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="free-delete-title"
-          onClick={(event) => event.stopPropagation()}
-        >
+      <Sheet onClose={onBack} labelledBy="free-delete-title" size="l">
           <div className={styles.modalHead}>
             <h2 className={styles.modalTitle} id="free-delete-title">
               Удаление
@@ -1015,20 +993,12 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
               Назад
             </button>
           </div>
-        </div>
-      </div>
+      </Sheet>
     );
   }
 
   return (
-    <div className={styles.backdrop} onClick={onClose}>
-      <div
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="free-edit-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Sheet onClose={onClose} labelledBy="free-edit-title" size="l">
         <div className={styles.modalHead}>
           <h2 className={styles.modalTitle} id="free-edit-title">
             {formatDayTitle(day)}
@@ -1097,8 +1067,7 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
             Удалить
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }
 
@@ -1262,14 +1231,7 @@ function FreeTimeDialog({
   }
 
   return (
-    <div className={styles.backdrop} onClick={onClose}>
-      <div
-        className={styles.modal}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="free-dialog-title"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <Sheet onClose={onClose} labelledBy="free-dialog-title" size="l">
         <div className={styles.modalHead}>
           <h2 className={styles.modalTitle} id="free-dialog-title">
             {formatDayTitle(day)}
@@ -1323,7 +1285,6 @@ function FreeTimeDialog({
             Сбросить
           </button>
         </div>
-      </div>
-    </div>
+    </Sheet>
   );
 }

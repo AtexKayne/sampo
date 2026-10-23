@@ -97,8 +97,10 @@
   text-underline-offset: 3px;
 }
 
-.answer a:hover {
-  color: var(--gold);
+@media (hover: hover) and (pointer: fine) {
+  .answer a:hover {
+    color: var(--gold);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

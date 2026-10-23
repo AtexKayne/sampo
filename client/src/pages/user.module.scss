@@ -144,8 +144,10 @@
   text-decoration: none;
 }
 
-.dialogLink:hover span {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .dialogLink:hover span {
+    text-decoration: underline;
+  }
 }
 
 .dialogLinkIcon {
@@ -268,12 +270,14 @@
   color: var(--danger);
 }
 
-.button:hover:not(:disabled) {
-  border-color: var(--ink);
-}
+@media (hover: hover) and (pointer: fine) {
+  .button:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
 
-.primary:hover:not(:disabled) {
-  background: #2a2a2a;
+  .primary:hover:not(:disabled) {
+    background: #2a2a2a;
+  }
 }
 
 .button:disabled,
@@ -353,8 +357,10 @@
   text-decoration: none;
 }
 
-.personLink:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .personLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .list {
@@ -533,6 +539,24 @@
   flex: none;
 }
 
+.headActions {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.mobileLogout {
+  display: none;
+}
+
+@media (max-width: 799px) {
+  .mobileLogout {
+    display: inline-flex;
+  }
+}
+
 .adminLayout {
   flex: 1;
   display: flex;
@@ -636,8 +660,10 @@
   white-space: nowrap;
 }
 
-.userTable tbody tr:hover {
-  background: color-mix(in srgb, var(--bg) 65%, var(--surface));
+@media (hover: hover) and (pointer: fine) {
+  .userTable tbody tr:hover {
+    background: color-mix(in srgb, var(--bg) 65%, var(--surface));
+  }
 }
 
 .userTableNote td {
@@ -645,8 +671,10 @@
   white-space: normal;
 }
 
-.userTable tbody tr.userTableNote:hover {
-  background: transparent;
+@media (hover: hover) and (pointer: fine) {
+  .userTable tbody tr.userTableNote:hover {
+    background: transparent;
+  }
 }
 
 .userLink {
@@ -659,8 +687,10 @@
   white-space: nowrap;
 }
 
-.userLink:hover {
-  text-decoration: underline;
+@media (hover: hover) and (pointer: fine) {
+  .userLink:hover {
+    text-decoration: underline;
+  }
 }
 
 .userLogin,
@@ -697,8 +727,10 @@
   cursor: pointer;
 }
 
-.userNav:hover:not(:disabled) {
-  background: var(--surface);
+@media (hover: hover) and (pointer: fine) {
+  .userNav:hover:not(:disabled) {
+    background: var(--surface);
+  }
 }
 
 .userNav:disabled {
@@ -786,6 +818,144 @@
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin: 0;
+}
+
+.monthValue {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.deltaUp,
+.deltaDown,
+.deltaSame {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.deltaUp {
+  color: var(--ok);
+}
+
+.deltaDown {
+  color: var(--danger);
+}
+
+.deltaSame {
+  color: var(--muted);
+}
+
+.board {
+  display: grid;
+  gap: 12px;
+  width: calc(100% + (var(--pad, 24px) * 2));
+  max-width: none;
+  margin-top: 32px;
+  margin-right: calc(var(--pad, 24px) * -1);
+  margin-left: calc(var(--pad, 24px) * -1);
+  padding: 0 var(--pad, 24px);
+  box-sizing: border-box;
+}
+
+.boardTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-family: var(--font);
+  font-size: 16px;
+  letter-spacing: 0;
+}
+
+.boardTable th,
+.boardTable td {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  font-weight: 500;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.boardTable th {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.sortHead {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: right;
+}
+
+.sort,
+.sortOn {
+  flex: none;
+}
+
+.sort {
+  fill: var(--line);
+}
+
+.sortOn {
+  fill: var(--ink);
+}
+
+.place {
+  width: 4.5rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.medal {
+  display: block;
+}
+
+.myPlace {
+  margin: 4px 0 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.count {
+  width: 5.5rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.boardName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boardName a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mine .boardName {
+  font-weight: 700;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .boardName a:hover,
+  .sortHead:hover {
+    text-decoration: underline;
+  }
 }
 
 .stat {

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
+import { Achievements } from "../components/Achievements.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import { formatDayTitle, formatSlotTime } from "../time/zone.js";
@@ -71,6 +72,7 @@ export function DancerPage() {
       {profileQuery.isLoading ? <p className={styles.status}>Загрузка</p> : null}
       {profileQuery.isError ? <p className={styles.error}>{profileQuery.error.message}</p> : null}
       {profile ? (
+        <>
         <div className={styles.profile}>
           <header className={styles.group}>
             <h1 className={styles.title}>{profile.displayName}</h1>
@@ -89,6 +91,9 @@ export function DancerPage() {
               </div>
             </dl>
           </section>
+          </div>
+          <Achievements items={profile.achievements} />
+          <div className={styles.profile}>
           <div className={styles.row}>
             <button className={styles.button} type="button" disabled={run.isPending} onClick={() => toggleList("black")}>
               {profile.blacklisted ? "Убрать из чёрного списка" : "В чёрный список"}
@@ -116,6 +121,7 @@ export function DancerPage() {
             </section>
           ) : null}
         </div>
+        </>
       ) : null}
     </Shell>
   );

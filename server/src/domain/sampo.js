@@ -1,6 +1,6 @@
 import { GRID_END_MINUTES } from "../../../shared/calendar-grid.js";
 import { HttpError } from "../http/errors.js";
-import { blockedTargets, invitationDenied, inviteListHides, listMembership, visitCounts } from "./profile.js";
+import { blockedTargets, invitationDenied, inviteListHides, listMembership, userAchievements, visitCounts } from "./profile.js";
 import { endsOnSameStudioDay, parseStudioLocal, studioDayKey, studioParts, studioWeekday } from "../slots/rules.js";
 
 const WEEKDAYS = ["", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
@@ -1761,14 +1761,19 @@ export async function dancerProfile(sql, viewerId, subjectKey) {
       `;
   if (!user || user.app_role === "admin") fail(404, "NOT_FOUND", "Танцор не найден");
   if (viewerId === user.id) fail(400, "VALIDATION", "Это ваш профиль");
-  const lists = await listMembership(sql, viewerId, user.id);
-  const hidden = await inviteListHides(sql, user.id, viewerId);
+  const [lists, hidden, visits, achievements] = await Promise.all([
+    listMembership(sql, viewerId, user.id),
+    inviteListHides(sql, user.id, viewerId),
+    visitCounts(sql, user.id),
+    userAchievements(sql, user.id),
+  ]);
   return {
     id: user.id,
     login: user.login,
     displayName: user.display_name,
     danceLevel: user.dance_level,
-    visits: await visitCounts(sql, user.id),
+    visits,
+    achievements,
     blacklisted: lists.blacklisted,
     whitelisted: lists.whitelisted,
     slots: user.share_availability && !hidden ? await nearestFreeSlots(sql, user.id) : null,

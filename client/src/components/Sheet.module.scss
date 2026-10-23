@@ -1,0 +1,142 @@
+.backdrop {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: transparent;
+}
+
+.dim {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background: var(--overlay);
+  animation: sheetFade 220ms ease-out;
+}
+
+.leaving {
+  pointer-events: none;
+}
+
+.sheet {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(92dvh, 100%);
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px 20px 0 0;
+  background: var(--surface);
+  box-shadow: 0 -16px 48px rgba(18, 18, 18, 0.16);
+  animation: sheetUp 320ms cubic-bezier(0.32, 0.72, 0, 1);
+  touch-action: pan-y;
+}
+
+.ready {
+  animation: none;
+}
+
+.handle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding-top: 10px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.grip {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #d4cfc6;
+}
+
+.body {
+  display: grid;
+  gap: 16px;
+  min-height: 0;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+
+  input,
+  textarea,
+  select {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  :global(button[aria-label="Закрыть"]) {
+    display: none;
+  }
+}
+
+@keyframes sheetFade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 800px) {
+  .backdrop {
+    align-items: center;
+    padding: 24px;
+  }
+
+  .dim {
+    animation: none;
+  }
+
+  .sheet {
+    width: min(420px, 100%);
+    max-height: min(80vh, 720px);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    animation: none;
+  }
+
+  .l {
+    width: min(520px, 100%);
+  }
+
+  .xl {
+    width: min(640px, 100%);
+    max-height: min(86vh, 840px);
+  }
+
+  .handle {
+    display: none;
+  }
+
+  .body {
+    padding: 16px;
+
+    :global(button[aria-label="Закрыть"]) {
+      display: inline-flex;
+    }
+  }
+}

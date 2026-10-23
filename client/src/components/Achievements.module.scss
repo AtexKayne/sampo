@@ -1,0 +1,90 @@
+.section {
+  display: grid;
+  gap: 12px;
+  width: calc(100% + (var(--pad, 24px) * 2));
+  margin-top: 32px;
+  margin-right: calc(var(--pad, 24px) * -1);
+  margin-left: calc(var(--pad, 24px) * -1);
+  padding: 0 var(--pad, 24px);
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.count {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(164px, 1fr));
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.badge,
+.badgeOn {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  padding: 16px 12px 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  text-align: center;
+}
+
+.badgeOn {
+  border-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, var(--surface));
+}
+
+.icon {
+  display: flex;
+  width: 108px;
+  height: 108px;
+  opacity: 0.42;
+  filter: grayscale(1);
+}
+
+.badgeOn .icon {
+  opacity: 1;
+  filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--ink) 26%, transparent));
+  transition: transform 0.25s ease;
+}
+
+.badgeOn:hover .icon {
+  transform: translateY(-3px) rotate(-5deg) scale(1.05);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badgeOn .icon {
+    transition: none;
+  }
+
+  .badgeOn:hover .icon {
+    transform: none;
+  }
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.detail {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.3;
+}

@@ -4,3 +4,4 @@ dist/
 docs/server.local.md
 *.log
 .DS_Store
+.cursor/

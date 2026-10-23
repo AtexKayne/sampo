@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
 import { RequestStatus } from "../components/RequestStatus.jsx";
+import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import { formatDayTitle, formatSlotTime } from "../time/zone.js";
@@ -151,48 +151,42 @@ export function RequestActions({ item, pending, onRun }) {
           Отменить
         </button>
       ) : null}
-      {open
-        ? createPortal(
-            <div className={styles.backdrop} onClick={() => !pending && setOpen(false)}>
-              <div
-                className={styles.dialog}
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="cancel-request-title"
-                onClick={(event) => event.stopPropagation()}
-              >
-                <div className={styles.dialogHead}>
-                  <h2 className={styles.dialogTitle} id="cancel-request-title">Отменить запрос</h2>
-                  <button className={styles.close} type="button" aria-label="Закрыть" disabled={pending} onClick={() => setOpen(false)}>
-                    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                      <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </div>
-                <p className={styles.dialogText}>Пара будет снята. Записи на этот слот тоже снимутся.</p>
-                <label className={styles.field}>
-                  <span className={styles.fieldLabel}>Причина</span>
-                  <textarea
-                    className={styles.reason}
-                    value={reason}
-                    maxLength={300}
-                    onChange={(event) => setReason(event.target.value)}
-                  />
-                </label>
-                {localError ? <p className={styles.error}>{localError}</p> : null}
-                <div className={styles.row}>
-                  <button className={`${styles.button} ${styles.danger}`} type="button" disabled={pending} onClick={confirmCancel}>
-                    Отменить
-                  </button>
-                  <button className={styles.button} type="button" disabled={pending} onClick={() => setOpen(false)}>
-                    Назад
-                  </button>
-                </div>
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+      {open ? (
+        <Sheet
+          onClose={() => {
+            if (!pending) setOpen(false);
+          }}
+          labelledBy="cancel-request-title"
+        >
+          <div className={styles.dialogHead}>
+            <h2 className={styles.dialogTitle} id="cancel-request-title">Отменить запрос</h2>
+            <button className={styles.close} type="button" aria-label="Закрыть" disabled={pending} onClick={() => setOpen(false)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          <p className={styles.dialogText}>Пара будет снята. Записи на этот слот тоже снимутся.</p>
+          <label className={styles.field}>
+            <span className={styles.fieldLabel}>Причина</span>
+            <textarea
+              className={styles.reason}
+              value={reason}
+              maxLength={300}
+              onChange={(event) => setReason(event.target.value)}
+            />
+          </label>
+          {localError ? <p className={styles.error}>{localError}</p> : null}
+          <div className={styles.row}>
+            <button className={`${styles.button} ${styles.danger}`} type="button" disabled={pending} onClick={confirmCancel}>
+              Отменить
+            </button>
+            <button className={styles.button} type="button" disabled={pending} onClick={() => setOpen(false)}>
+              Назад
+            </button>
+          </div>
+        </Sheet>
+      ) : null}
     </>
   );
 }

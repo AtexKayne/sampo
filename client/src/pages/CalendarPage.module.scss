@@ -29,8 +29,10 @@
   cursor: pointer;
 }
 
-.helpLink:hover {
-  color: var(--ink);
+@media (hover: hover) and (pointer: fine) {
+  .helpLink:hover {
+    color: var(--ink);
+  }
 }
 
 .lead,
@@ -142,8 +144,10 @@
   cursor: pointer;
 }
 
-.navButton:hover:not(:disabled) {
-  background: var(--surface);
+@media (hover: hover) and (pointer: fine) {
+  .navButton:hover:not(:disabled) {
+    background: var(--surface);
+  }
 }
 
 .navButton:disabled {
@@ -151,8 +155,7 @@
   cursor: default;
 }
 
-.navButton.navOn,
-.navButton.navOn:hover:not(:disabled) {
+.navButton.navOn {
   background: var(--accent);
   color: var(--on-accent);
 }
@@ -355,12 +358,14 @@
   color: var(--on-accent);
 }
 
-.button:hover:not(:disabled) {
-  border-color: var(--ink);
-}
+@media (hover: hover) and (pointer: fine) {
+  .button:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
 
-.primary:hover:not(:disabled) {
-  background: #2a2a2a;
+  .primary:hover:not(:disabled) {
+    background: #2a2a2a;
+  }
 }
 
 .primary:disabled,
@@ -385,6 +390,35 @@
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
+}
+
+@media (max-width: 799px) {
+  .dock {
+    right: 0;
+    left: 0;
+    bottom: calc(6px + 52px + 6px + 1px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    max-height: min(70dvh, calc(100dvh - 140px));
+    padding-top: 22px;
+    overflow: auto;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -16px 48px rgba(18, 18, 18, 0.16);
+  }
+
+  .dock::before {
+    content: "";
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: #d4cfc6;
+    transform: translateX(-50%);
+  }
 }
 
 @media (min-width: 800px) {
@@ -594,8 +628,8 @@
   font-weight: 600;
 }
 
-.modal .lead,
-.modal .error {
+.modalHead ~ .lead,
+.modalHead ~ .error {
   margin: 0;
 }
 

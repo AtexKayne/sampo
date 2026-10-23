@@ -23,7 +23,7 @@ import {
   updateWindow,
   withdrawRequest,
 } from "./sampo.js";
-import { addToBlacklist, addToWhitelist, deleteProfile, profileSettings, removeFromBlacklist, saveProfile, searchDancers, setBlockedLevels, setDanceLevel } from "./profile.js";
+import { addToBlacklist, addToWhitelist, deleteProfile, profileSettings, ratingSummary, removeFromBlacklist, saveProfile, searchDancers, setBlockedLevels, setDanceLevel } from "./profile.js";
 import { HttpError } from "../http/errors.js";
 
 dotenv.config();
@@ -47,6 +47,27 @@ async function makeSlot(capacity, startsAt, endsAt) {
   await sql`INSERT INTO slots (id, starts_at, ends_at, place, capacity) VALUES (${id}, ${new Date(startsAt)}, ${new Date(endsAt)}, 'Hall', ${capacity})`;
   slots.push(id);
   return id;
+}
+
+async function makeEndedSlots(count, startsAt) {
+  const start = new Date(startsAt);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+  const rows = await sql`
+    INSERT INTO slots (id, starts_at, ends_at, place, capacity)
+    SELECT gen_random_uuid(), ${start}, ${end}, 'Hall', 4
+    FROM generate_series(1, ${count})
+    RETURNING id
+  `;
+  const ids = rows.map((row) => row.id);
+  slots.push(...ids);
+  return ids;
+}
+
+async function attendSlots(userId, slotIds) {
+  await sql`
+    INSERT INTO attendances (user_id, slot_id)
+    SELECT ${userId}, id FROM slots WHERE id IN ${sql(slotIds)}
+  `;
 }
 
 async function attendanceCount(userId, slotId) {
@@ -865,7 +886,105 @@ test("visited sampo count after they end, for this studio month and in total", a
   `;
   const settings = await profileSettings(sql, user, new Date("2026-10-13T08:00:00.000Z"));
   assert.equal(settings.visits.month, 1);
+  assert.equal(settings.visits.previous, 1);
+  assert.equal(settings.visits.previousMonth, 9);
   assert.equal(settings.visits.total, 2);
+
+  const december = await makeSlot(4, "2026-12-02T10:00:00.000Z", "2026-12-02T12:00:00.000Z");
+  await sql`INSERT INTO attendances (user_id, slot_id) VALUES (${user}, ${december})`;
+  const summary = await ratingSummary(sql, user, new Date("2027-01-15T08:00:00.000Z"));
+  assert.equal(summary.visits.month, 0);
+  assert.equal(summary.visits.previous, 1);
+  assert.equal(summary.visits.previousMonth, 12);
+  assert.equal(summary.visits.total, 4);
+});
+
+test("rating lists the three dancers with the most sampo, by total and by month", async () => {
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  const monthStart = new Date("2026-09-30T19:00:00.000Z");
+  const monthNext = new Date("2026-10-31T19:00:00.000Z");
+  const [counts] = await sql`
+    SELECT coalesce(max(total), 0)::int AS total, coalesce(max(month), 0)::int AS month
+    FROM (
+      SELECT
+        count(*) FILTER (WHERE s.status = 'open' AND s.ends_at <= ${now})::int AS total,
+        count(*) FILTER (
+          WHERE s.status = 'open' AND s.ends_at <= ${now}
+            AND s.starts_at >= ${monthStart} AND s.starts_at < ${monthNext}
+        )::int AS month
+      FROM attendances a
+      JOIN slots s ON s.id = a.slot_id
+      GROUP BY a.user_id
+    ) ranked
+  `;
+  const septemberCount = Math.max(counts.total, counts.month) + 10;
+  const octoberCount = counts.month + 3;
+  const september = await makeEndedSlots(septemberCount, "2026-09-02T10:00:00.000Z");
+  const october = await makeEndedSlots(octoberCount, "2026-10-02T10:00:00.000Z");
+  const later = await makeEndedSlots(1, "2026-10-20T10:00:00.000Z");
+  const cancelled = await makeEndedSlots(1, "2026-10-04T10:00:00.000Z");
+  await sql`UPDATE slots SET status = 'cancelled' WHERE id = ${cancelled[0]}`;
+
+  const byTotal = await makeUser("Яна рейтинг");
+  const byMonth = await makeUser("Анна рейтинг");
+  const absent = await makeUser("Нуль рейтинг");
+  const admin = await makeUser("Админ рейтинг");
+  await sql`UPDATE users SET app_role = 'admin' WHERE id = ${admin}`;
+  await attendSlots(byTotal, [...september, october[0], later[0], cancelled[0]]);
+  await attendSlots(byMonth, october);
+  await attendSlots(admin, [...september, ...october]);
+
+  const summary = await ratingSummary(sql, byTotal, now);
+  assert.equal(summary.leaders.total.length <= 3, true);
+  assert.equal(summary.leaders.month.length <= 3, true);
+  assert.equal(summary.place.total, 1);
+  assert.equal(summary.leaders.total[0].id, byTotal);
+  assert.equal(summary.leaders.total[0].displayName, "Яна рейтинг");
+  assert.equal(summary.leaders.total[0].total, septemberCount + 1);
+  assert.equal(summary.leaders.total[0].month, 1);
+  assert.equal(summary.leaders.month[0].id, byMonth);
+  assert.equal(summary.leaders.month[0].month, octoberCount);
+  assert.equal(summary.leaders.month[0].total, octoberCount);
+  const monthSummary = await ratingSummary(sql, byMonth, now);
+  assert.equal(monthSummary.place.month, 1);
+  for (const list of [summary.leaders.total, summary.leaders.month]) {
+    assert.equal(list.some((person) => person.id === admin || person.id === absent), false);
+  }
+});
+
+test("a finished sampo with a partner is an achievement on the rating and the dancer page", async () => {
+  const user = await makeUser("Ачивка");
+  const partner = await makeUser("Пара ачивки");
+  const slotId = await makeSlot(4, "2026-10-05T05:00:00.000Z", "2026-10-05T08:00:00.000Z");
+  const cancelled = await makeSlot(4, "2026-10-06T05:00:00.000Z", "2026-10-06T07:00:00.000Z");
+  const future = await makeSlot(4, "2026-10-20T05:00:00.000Z", "2026-10-20T07:00:00.000Z");
+  await sql`UPDATE slots SET status = 'cancelled' WHERE id = ${cancelled}`;
+  await sql`
+    INSERT INTO attendances (user_id, slot_id)
+    VALUES (${user}, ${slotId}), (${user}, ${cancelled}), (${user}, ${future})
+  `;
+  const requestId = crypto.randomUUID();
+  await sql`
+    INSERT INTO sampo_requests (id, slot_id, from_user_id, to_user_id, status)
+    VALUES (${requestId}, ${slotId}, ${user}, ${partner}, 'accepted')
+  `;
+  await sql`
+    INSERT INTO pairs (id, slot_id, user_low_id, user_high_id, request_id, status)
+    SELECT ${crypto.randomUUID()}, ${slotId}, least(${user}::uuid, ${partner}::uuid), greatest(${user}::uuid, ${partner}::uuid), ${requestId}, 'confirmed'
+  `;
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  const summary = await ratingSummary(sql, user, now);
+  const earned = new Set(summary.achievements.filter((item) => item.earned).map((item) => item.id));
+  assert.equal(summary.achievements.length >= 20, true);
+  assert.equal(earned.has("first-step"), true);
+  assert.equal(earned.has("first-pair"), true);
+  assert.equal(earned.has("monday"), true);
+  assert.equal(earned.has("long-set"), true);
+  assert.equal(earned.has("five"), false);
+  const viewer = await makeUser("Зритель ачивки");
+  const profile = await dancerProfile(sql, viewer, user);
+  assert.equal(profile.achievements.find((item) => item.id === "first-pair").earned, true);
+  assert.equal(profile.achievements.find((item) => item.id === "hundred").earned, false);
 });
 
 test("invitation notices follow the profile switch and the hour reminder is sent once", async () => {

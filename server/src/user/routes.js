@@ -26,6 +26,7 @@ import {
   addToBlacklist,
   addToWhitelist,
   profileSettings,
+  ratingSummary,
   removeFromBlacklist,
   removeFromWhitelist,
   saveProfile,
@@ -142,6 +143,12 @@ export function registerUserRoutes(app, { db, sql, config }) {
     const user = await requireUser(request, db, config);
     requireDancer(user);
     return profileSettings(sql, user.id);
+  });
+
+  app.get("/api/me/rating", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireDancer(user);
+    return ratingSummary(sql, user.id);
   });
 
   app.put("/api/me/settings", async (request) => {
