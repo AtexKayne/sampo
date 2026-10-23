@@ -66,6 +66,11 @@ export function Shell({ user, onLogout, pending, fill = false, children }) {
                   {accountSwitch.to === "admin" ? "А" : "Ю"}
                 </button>
               ) : null}
+              {user.appRole === "admin" ? (
+                <button className={`${styles.link} ${styles.headerLogout}`} type="button" disabled={pending} onClick={onLogout}>
+                  Выйти
+                </button>
+              ) : null}
               <ProfileMenu
                 user={user}
                 onLogout={onLogout}

@@ -77,6 +77,15 @@ export function DancerPage() {
           <header className={styles.group}>
             <h1 className={styles.title}>{profile.displayName}</h1>
             <p className={styles.groupHint}>Уровень: {profile.danceLevel ?? "Не указан"}</p>
+            <div className={styles.row}>
+              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => toggleList("black")}>
+                {profile.blacklisted ? "Убрать из чёрного списка" : "В чёрный список"}
+              </button>
+              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => toggleList("white")}>
+                {profile.whitelisted ? "Убрать из белого списка" : "В белый список"}
+              </button>
+            </div>
+            {error ? <p className={styles.error}>{error}</p> : null}
           </header>
           <section className={styles.visits} aria-labelledby="dancer-visits-title">
             <h2 className={styles.groupTitle} id="dancer-visits-title">Посещения</h2>
@@ -91,18 +100,6 @@ export function DancerPage() {
               </div>
             </dl>
           </section>
-          </div>
-          <Achievements items={profile.achievements} />
-          <div className={styles.profile}>
-          <div className={styles.row}>
-            <button className={styles.button} type="button" disabled={run.isPending} onClick={() => toggleList("black")}>
-              {profile.blacklisted ? "Убрать из чёрного списка" : "В чёрный список"}
-            </button>
-            <button className={styles.button} type="button" disabled={run.isPending} onClick={() => toggleList("white")}>
-              {profile.whitelisted ? "Убрать из белого списка" : "В белый список"}
-            </button>
-          </div>
-          {error ? <p className={styles.error}>{error}</p> : null}
           {profile.slots ? (
             <section className={styles.group} aria-labelledby="free-slots-title">
               <h2 className={styles.groupTitle} id="free-slots-title">Ближайшие свободные слоты</h2>
@@ -121,6 +118,7 @@ export function DancerPage() {
             </section>
           ) : null}
         </div>
+        <Achievements items={profile.achievements} />
         </>
       ) : null}
     </Shell>

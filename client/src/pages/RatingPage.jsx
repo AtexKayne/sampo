@@ -116,6 +116,7 @@ export function RatingPage() {
         <section className={styles.board} aria-labelledby="rating-board-title">
           <h2 className={styles.groupTitle} id="rating-board-title">Участники</h2>
           {leaders.length === 0 ? <p className={styles.groupHint}>Пока нет завершённых сампо</p> : null}
+          <div className={styles.boardScroll}>
           <table className={styles.boardTable}>
             <thead>
               <tr>
@@ -152,6 +153,7 @@ export function RatingPage() {
               </tbody>
             ) : null}
           </table>
+          </div>
           <p className={styles.myPlace}>Моё место в рейтинге: {myPlace ?? "—"}</p>
         </section>
       ) : null}

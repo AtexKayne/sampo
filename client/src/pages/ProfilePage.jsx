@@ -45,14 +45,11 @@ export function ProfilePage() {
 
   if (session.user.appRole === "admin") {
     return (
-      <Shell user={session.user} onLogout={onLogout} pending={pendingLogout} fill>
+      <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
         <div className={styles.adminLayout}>
           <div className={styles.pageHead}>
             <h1 className={styles.title}>Пользователи</h1>
             <div className={styles.headActions}>
-              <button className={`${styles.button} ${styles.mobileLogout}`} type="button" disabled={pendingLogout} onClick={onLogout}>
-                Выйти
-              </button>
               <button className={styles.primary} type="button" onClick={() => setCreatingUser(true)}>
                 Новый пользователь
               </button>

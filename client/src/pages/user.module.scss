@@ -524,27 +524,36 @@
 
 .pageHead {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px 16px;
   max-width: 920px;
+  min-width: 0;
   margin-top: 28px;
 }
 
 .pageHead .title {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
   margin: 0;
 }
 
 .pageHead .primary {
   flex: none;
+  max-width: 100%;
 }
 
 .headActions {
   display: flex;
-  flex: none;
+  flex: 1 1 auto;
   flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 8px;
   align-items: center;
+  min-width: min(100%, max-content);
+  max-width: 100%;
 }
 
 .mobileLogout {
@@ -555,27 +564,24 @@
   .mobileLogout {
     display: inline-flex;
   }
+
+  .headActions {
+    justify-content: flex-start;
+  }
 }
 
 .adminLayout {
-  flex: 1;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 920px;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.adminLayout .pageHead {
-  flex: none;
+  min-width: 0;
 }
 
 .adminPage {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-width: 0;
   margin-top: 16px;
 }
 
@@ -586,23 +592,18 @@
 }
 
 .group.adminUsers {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-width: 0;
   gap: 12px;
-}
-
-.group.adminUsers > :not(.userTableCard) {
-  flex: none;
 }
 
 .userTableCard {
   --table-line: color-mix(in srgb, var(--ink) 16%, var(--line));
-  flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  width: 100%;
+  min-width: 0;
   border: 1px solid var(--table-line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -610,9 +611,8 @@
 }
 
 .userTableWrap {
-  flex: 1;
-  min-height: 0;
-  overflow: auto;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .userTable {
@@ -623,8 +623,10 @@
 
 .userTable th,
 .userTable td {
+  max-width: 0;
   padding: 12px 14px;
   border-bottom: 1px solid var(--table-line);
+  overflow: hidden;
   text-align: left;
   vertical-align: middle;
 }
@@ -635,15 +637,14 @@
 }
 
 .userTable th {
-  position: sticky;
-  top: 0;
-  z-index: 1;
   background: var(--bg);
   color: var(--muted);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .userTable th:nth-child(1) {
@@ -655,9 +656,32 @@
 }
 
 .userTable td {
-  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+@media (max-width: 799px) {
+  .userTable th,
+  .userTable td {
+    padding: 10px 8px;
+  }
+
+  .userTable th {
+    font-size: 11px;
+    letter-spacing: 0.02em;
+  }
+
+  .userTable th:nth-child(1) {
+    width: 40%;
+  }
+
+  .userTable th:nth-child(2) {
+    width: 34%;
+  }
+
+  .userTable th:nth-child(3) {
+    width: 26%;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -852,19 +876,22 @@
 .board {
   display: grid;
   gap: 12px;
-  width: calc(100% + (var(--pad, 24px) * 2));
-  max-width: none;
+  width: 100%;
+  max-width: 800px;
   margin-top: 32px;
-  margin-right: calc(var(--pad, 24px) * -1);
-  margin-left: calc(var(--pad, 24px) * -1);
-  padding: 0 var(--pad, 24px);
   box-sizing: border-box;
+}
+
+.boardScroll {
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .boardTable {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
   font-family: var(--font);
   font-size: 16px;
   letter-spacing: 0;
@@ -872,11 +899,16 @@
 
 .boardTable th,
 .boardTable td {
-  padding: 12px 0;
+  padding: 12px 8px 12px 0;
   border-bottom: 1px solid var(--line);
   font-weight: 500;
   text-align: left;
   vertical-align: middle;
+}
+
+.boardTable th:last-child,
+.boardTable td:last-child {
+  padding-right: 0;
 }
 
 .boardTable th {
@@ -915,13 +947,15 @@
 }
 
 .place {
-  width: 4.5rem;
+  width: 44px;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
 .medal {
   display: block;
+  width: 32px;
+  height: 32px;
 }
 
 .myPlace {
@@ -931,12 +965,18 @@
 }
 
 .count {
-  width: 5.5rem;
+  width: 1%;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.boardTable .count {
   text-align: right;
 }
 
 .boardName {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -955,6 +995,29 @@
   .boardName a:hover,
   .sortHead:hover {
     text-decoration: underline;
+  }
+}
+
+@media (max-width: 520px) {
+  .boardTable {
+    font-size: 15px;
+  }
+
+  .boardTable th {
+    font-size: 12px;
+  }
+
+  .sortHead {
+    gap: 4px;
+  }
+
+  .place {
+    width: 36px;
+  }
+
+  .medal {
+    width: 28px;
+    height: 28px;
   }
 }
 
