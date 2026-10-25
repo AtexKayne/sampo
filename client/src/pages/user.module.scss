@@ -456,6 +456,11 @@
     display: inline;
   }
 
+  .invitePairHint {
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
   .slotDialog .button,
   .slotDialog .primary,
   .slotDialog .switchWait,
@@ -557,7 +562,9 @@
 .inviteShade {
   position: fixed;
   z-index: 21;
-  inset: 0;
+  top: 0;
+  left: 0;
+  display: block;
   pointer-events: none;
   animation: inviteShadeIn 180ms ease-out;
 

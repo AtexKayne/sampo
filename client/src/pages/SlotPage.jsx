@@ -105,6 +105,12 @@ export function SlotPanel({ id, onClose }) {
                     Отозвать
                   </button>
                 ) : null}
+                {item.status === "accepted" && slot.myPair && !started && item.otherId === slot.myPair.partnerId ? (
+                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/pairs/${slot.myPair.id}/cancel`, method: "POST" })}>
+                    <span className={styles.inviteLabelFull}>Отменить пару</span>
+                    <span className={styles.inviteLabelShort}>Отменить</span>
+                  </button>
+                ) : null}
               </span>
             </li>
           ))}
@@ -117,7 +123,11 @@ export function SlotPanel({ id, onClose }) {
   const inviteSection = dancer && slot && open ? (
     <section className={styles.section}>
       <h2 className={styles.lead}>Можно пригласить</h2>
-      {slot.inviteBlocked ? <p className={styles.hint}>{slot.inviteBlocked}</p> : null}
+      {slot.inviteBlocked ? (
+        <p className={[styles.hint, slot.inviteBlocked === "У вас уже есть пара на это время" ? styles.invitePairHint : ""].filter(Boolean).join(" ")}>
+          {slot.inviteBlocked}
+        </p>
+      ) : null}
       {freeQuery.isLoading ? <p className={styles.hint}>Загрузка</p> : null}
       {freeQuery.isError ? <p className={styles.error}>{freeQuery.error.message}</p> : null}
       {freeQuery.isSuccess && freeQuery.data.users.length === 0 ? <p className={styles.hint}>Никого нет</p> : null}
@@ -240,11 +250,6 @@ export function SlotPanel({ id, onClose }) {
               </button>
             ) : null}
             {slot.myAttendance && started ? <p className={styles.hint}>Я иду</p> : null}
-            {slot.myPair && !started ? (
-              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/pairs/${slot.myPair.id}/cancel`, method: "POST" })}>
-                Отменить пару
-              </button>
-            ) : null}
               </div>
               </div>
             </div>
@@ -325,19 +330,42 @@ function samePlace(prev, next) {
   return prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.maxHeight === next.maxHeight && prev.upward === next.upward;
 }
 
+function sameShade(prev, next) {
+  return (
+    prev &&
+    next &&
+    prev.top === next.top &&
+    prev.left === next.left &&
+    prev.right === next.right &&
+    prev.bottom === next.bottom &&
+    prev.width === next.width &&
+    prev.height === next.height
+  );
+}
+
+function visualCover() {
+  const viewport = window.visualViewport;
+  if (!viewport) {
+    return { width: window.innerWidth, height: window.innerHeight };
+  }
+  return { width: viewport.width, height: viewport.height };
+}
+
 function menuPlace(field, probe) {
   const rect = field.getBoundingClientRect();
   const origin = probe.getBoundingClientRect();
-  const viewHeight = window.visualViewport?.height ?? window.innerHeight;
+  const cover = visualCover();
+  const top = rect.top - origin.top;
+  const bottom = rect.bottom - origin.top;
   const gap = 4;
   const limit = 220;
-  const spaceBelow = viewHeight - rect.bottom - gap;
-  const spaceAbove = rect.top - gap;
+  const spaceBelow = cover.height - bottom - gap;
+  const spaceAbove = top - gap;
   const upward = spaceBelow < 160 && spaceAbove > spaceBelow;
-  const anchor = upward ? rect.top - gap : rect.bottom + gap;
+  const anchor = upward ? top - gap : bottom + gap;
   return {
     left: Math.round(rect.left - origin.left),
-    top: Math.round(anchor - origin.top),
+    top: Math.round(anchor),
     width: Math.round(rect.width),
     maxHeight: Math.round(Math.max(44, Math.min(limit, upward ? spaceAbove : spaceBelow))),
     upward,
@@ -378,13 +406,18 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
         setHole((prev) => (prev === null ? prev : null));
         return;
       }
+      const origin = probe.getBoundingClientRect();
       const rect = (inputRef.current ?? current).getBoundingClientRect();
-      const nextHole = { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom };
-      setHole((prev) =>
-        prev && prev.top === nextHole.top && prev.left === nextHole.left && prev.right === nextHole.right && prev.bottom === nextHole.bottom
-          ? prev
-          : nextHole,
-      );
+      const cover = visualCover();
+      const nextHole = {
+        top: Math.round(rect.top - origin.top),
+        left: Math.round(rect.left - origin.left),
+        right: Math.round(rect.right - origin.left),
+        bottom: Math.round(rect.bottom - origin.top),
+        width: Math.round(cover.width),
+        height: Math.round(cover.height),
+      };
+      setHole((prev) => (sameShade(prev, nextHole) ? prev : nextHole));
     }
 
     function schedule() {
@@ -414,7 +447,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       viewport?.removeEventListener("scroll", schedule);
       probe.remove();
     };
-  }, [open]);
+  }, [compact, open]);
 
   useEffect(() => {
     if (locked) setOpen(false);
@@ -566,10 +599,17 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
 }
 
 function InviteShade({ rect, onClose }) {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+  const { width, height } = rect;
   return (
-    <svg className={styles.inviteShade} width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+    <svg
+      className={styles.inviteShade}
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      preserveAspectRatio="none"
+      aria-hidden="true"
+      style={{ width, height }}
+    >
       <path d={inviteShadePath(rect, width, height)} fill="var(--overlay)" fillRule="evenodd" onPointerDown={onClose} />
     </svg>
   );

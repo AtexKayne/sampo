@@ -1,6 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link } from "react-router-dom";
 import {
   GRID_END_MINUTES,
   GRID_ROW_COUNT,
@@ -464,6 +463,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
               const passed = slotPassed(slot, now);
               const inFree = rangeInsideFree(key, clock.startMin, clock.endMin, freeBlocks, busyBlocks);
               const stacked = clock.endMin - clock.startMin > GRID_STEP_MINUTES && span.rows > 1;
+              const shortStack = stacked && span.rows < 3;
               const boxStyle = {
                 top: `calc(var(--row) * ${span.startRow})`,
                 height: `calc(var(--row) * ${span.rows})`,
@@ -481,18 +481,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                   {notes.map((note) => (
                     <span key={note}>{note}</span>
                   ))}
-                  {pairName ? (
-                    <span>
-                      Пара с{" "}
-                      {slot.myPair.partnerId ? (
-                        <Link className={styles.partner} to={`/dancers/${slot.myPair.partnerId}`} onClick={(event) => event.stopPropagation()}>
-                          {pairName}
-                        </Link>
-                      ) : (
-                        pairName
-                      )}
-                    </span>
-                  ) : null}
+                  {pairName ? <span>Пара с {pairName}</span> : null}
                 </>
               );
               const hasAbout = notes.length > 0 || Boolean(pairName);
@@ -508,7 +497,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                 </>
               );
               const tone = slot.status === "cancelled" ? styles.slotCancelled : !showAvailability ? "" : inFree ? styles.slotFree : styles.slotBusy;
-              const className = [styles.slot, tone, stacked ? styles.slotStack : "", passed ? styles.slotPast : ""].filter(Boolean).join(" ");
+              const className = [styles.slot, tone, stacked ? styles.slotStack : "", shortStack ? styles.slotShort : "", passed ? styles.slotPast : ""].filter(Boolean).join(" ");
               const hoverProps = {
                 onPointerEnter: (event) => onSlotEnter(event, { slot, time, notes, pairName }),
                 onPointerLeave: onSlotLeave,

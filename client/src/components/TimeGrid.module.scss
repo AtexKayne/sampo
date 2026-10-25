@@ -194,17 +194,16 @@
   white-space: normal;
 }
 
+.slotShort .slotLine + .slotLine {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
 .slot,
 .slotCancelled,
 .slotFree,
 .slotBusy {
   cursor: pointer;
-}
-
-.partner {
-  color: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .slotFree {
