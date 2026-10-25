@@ -455,14 +455,14 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             const hasSlots = slotDays.has(key);
             return (
               <button
-                className={[index === pickedDay && !past ? styles.stripOn : styles.stripDay, hasSlots ? styles.stripHas : ""].filter(Boolean).join(" ")}
+                className={[index === pickedDay && !past ? styles.stripOn : styles.stripDay, hasSlots ? styles.stripHas : "", key === todayKey ? styles.stripToday : "", studioWeekday(day) >= 6 ? styles.stripWeekend : ""].filter(Boolean).join(" ")}
                 key={key}
                 type="button"
                 disabled={past}
                 onClick={() => setPickedDay(index)}
               >
-                <span>{formatWeekday(day)}</span>
-                <span>{formatDayNumber(day)}</span>
+                <span className={styles.stripWeek}>{formatWeekday(day)}</span>
+                <span className={styles.stripNum}>{formatDayNumber(day)}</span>
                 {hasSlots ? <span className={styles.stripNote}>есть слоты</span> : null}
               </button>
             );

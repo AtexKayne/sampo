@@ -11,7 +11,7 @@ import {
   resolveSelection,
   visibleSpan,
 } from "../../../shared/calendar-grid.js";
-import { formatDayNumber, formatDayTitle, formatWeekday, slotClock, studioDayKey, studioMinutes } from "../time/zone.js";
+import { formatDayNumber, formatDayTitle, formatWeekday, slotClock, studioDayKey, studioMinutes, studioWeekday } from "../time/zone.js";
 import styles from "./TimeGrid.module.scss";
 
 function slotNotes(slot) {
@@ -377,9 +377,9 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
       {days.map((day) => {
         const key = studioDayKey(day);
         return (
-          <div className={key === todayKey ? styles.today : styles.dayHead} key={key}>
-            <span>{formatWeekday(day)}</span>
-            <span>{formatDayNumber(day)}</span>
+          <div className={[key === todayKey ? styles.today : styles.dayHead, studioWeekday(day) >= 6 ? styles.weekend : ""].filter(Boolean).join(" ")} key={key}>
+            <span className={styles.weekday}>{formatWeekday(day)}</span>
+            <span className={styles.dateNum}>{formatDayNumber(day)}</span>
           </div>
         );
       })}
@@ -464,11 +464,13 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
               const inFree = rangeInsideFree(key, clock.startMin, clock.endMin, freeBlocks, busyBlocks);
               const stacked = clock.endMin - clock.startMin > GRID_STEP_MINUTES && span.rows > 1;
               const shortStack = stacked && span.rows < 3;
+              const insetLeft = lane === 0 ? 4 : 1;
+              const insetRight = lane === laneCount - 1 ? 4 : 1;
               const boxStyle = {
                 top: `calc(var(--row) * ${span.startRow})`,
                 height: `calc(var(--row) * ${span.rows})`,
-                left: `calc(${lane} * 100% / ${laneCount} + 1px)`,
-                width: `calc(100% / ${laneCount} - 2px)`,
+                left: `calc(${lane} * 100% / ${laneCount} + ${insetLeft}px)`,
+                width: `calc(100% / ${laneCount} - ${insetLeft + insetRight}px)`,
               };
               const when = (
                 <>

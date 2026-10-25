@@ -169,9 +169,11 @@
   margin: 0;
   min-width: 9.5rem;
   color: var(--ink);
-  font-size: 14px;
+  font-family: var(--display);
+  font-size: 26px;
   font-weight: 500;
-  line-height: 1.2;
+  letter-spacing: -0.03em;
+  line-height: 1;
   text-align: center;
   white-space: nowrap;
 }
@@ -190,20 +192,15 @@
   .range {
     flex: 1;
     min-width: 0;
+    font-size: 22px;
   }
 }
 
 .strip {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
+  gap: 2px;
+  margin-top: 6px;
   overflow-x: auto;
-}
-
-@media (max-width: 799px) {
-  .strip {
-    gap: 4px;
-  }
 }
 
 .stripDay,
@@ -218,23 +215,55 @@
 .stripDay,
 .stripOn {
   position: relative;
-  min-width: 44px;
+  min-width: 40px;
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 4px 2px 9px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  gap: 3px;
+  padding: 4px 2px 12px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
   color: var(--ink);
   cursor: pointer;
+}
+
+.stripWeek {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  line-height: 1;
+}
+
+.stripNum {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.stripWeekend .stripWeek,
+.stripToday:not(.stripOn) .stripWeek {
+  color: var(--gold);
+}
+
+.stripToday:not(.stripOn) .stripNum {
+  color: var(--gold);
 }
 
 .stripHas::after {
   content: "";
   position: absolute;
-  bottom: 4px;
+  bottom: 5px;
   left: 50%;
   width: 4px;
   height: 4px;
@@ -255,25 +284,34 @@
   border: 0;
 }
 
-.stripOn {
-  border-color: var(--accent);
-  color: var(--accent);
+.stripOn .stripWeek {
+  color: var(--ink);
+}
+
+.stripOn .stripNum {
+  background: var(--ink);
+  color: var(--on-accent);
+}
+
+button.stripDay,
+button.stripOn {
+  transition: none;
+
+  &:active:not(:disabled):not(:has(:disabled)) {
+    transform: none;
+  }
 }
 
 .stripDay:disabled,
 .stripOn:disabled {
   color: var(--muted);
   cursor: default;
-  opacity: 0.6;
+  opacity: 0.38;
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .stripDay:hover:not(:disabled) {
-    border-color: var(--ink);
-  }
-
-  .stripOn:hover:not(:disabled) {
-    background: var(--bg);
+  .stripDay:hover:not(:disabled) .stripNum {
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
   }
 }
 
