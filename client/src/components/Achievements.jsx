@@ -1,15 +1,16 @@
 import { AchievementIcon } from "./AchievementIcon.jsx";
 import styles from "./Achievements.module.scss";
 
-export function Achievements({ items }) {
-  if (!items?.length) return null;
-  const ordered = [...items].sort((left, right) => Number(right.earned) - Number(left.earned));
+export function Achievements({ items, onlyEarned = false }) {
+  const visible = onlyEarned ? items?.filter((item) => item.earned) : items;
+  if (!visible?.length) return null;
+  const ordered = [...visible].sort((left, right) => Number(right.earned) - Number(left.earned));
   const earned = ordered.filter((item) => item.earned).length;
 
   return (
     <section className={styles.section} aria-labelledby="achievements-title">
       <h2 className={styles.title} id="achievements-title">Достижения</h2>
-      <p className={styles.count}>{earned} из {items.length}</p>
+      {onlyEarned ? null : <p className={styles.count}>{earned} из {items.length}</p>}
       <ul className={styles.list}>
         {ordered.map((item) => (
           <li

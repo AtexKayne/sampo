@@ -118,7 +118,7 @@ export function DancerPage() {
             </section>
           ) : null}
         </div>
-        <Achievements items={profile.achievements} />
+        <Achievements items={profile.achievements} onlyEarned />
         </>
       ) : null}
     </Shell>
