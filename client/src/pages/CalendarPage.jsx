@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
@@ -744,9 +745,8 @@ function dayKeyOfSlot(slot) {
 function slotNotes(slot) {
   const notes = [];
   if (slot.status === "cancelled") notes.push("Отменён");
-  if (slot.myAttendance) notes.push("Я иду");
+  if (slot.myAttendance && !slot.myPair && !slot.withPartner) notes.push("Приду один");
   if (slot.unavailable) notes.push("Недоступен");
-  else if (slot.free) notes.push("Свободен");
   if (slot.myPendingOutgoing) notes.push("Ждём ответ");
   if (slot.myPendingIncomingCount > 0) notes.push("Вас пригласили");
   if (slot.myPair?.partnerName) notes.push(`Пара с ${slot.myPair.partnerName}`);
@@ -919,6 +919,204 @@ function timeChoices(from, to) {
   return items;
 }
 
+function placeTimeMenu(anchor, menu) {
+  const rect = anchor.getBoundingClientRect();
+  const gap = 4;
+  const margin = 8;
+  const limit = 240;
+  const spaceBelow = window.innerHeight - rect.bottom - gap - margin;
+  const spaceAbove = rect.top - gap - margin;
+  const upward = spaceBelow < 160 && spaceAbove > spaceBelow;
+  const maxHeight = Math.max(44, Math.min(limit, upward ? spaceAbove : spaceBelow));
+  let left = rect.left;
+  if (left + rect.width > window.innerWidth - margin) left = window.innerWidth - margin - rect.width;
+  if (left < margin) left = margin;
+  return {
+    left: Math.round(left),
+    top: Math.round(upward ? rect.top - gap : rect.bottom + gap),
+    width: Math.round(rect.width),
+    maxHeight: Math.round(maxHeight),
+    upward,
+  };
+}
+
+function TimeSelect({ label, value, options, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [place, setPlace] = useState(null);
+  const rootRef = useRef(null);
+  const menuRef = useRef(null);
+  const activeRef = useRef(null);
+  const alignedRef = useRef(false);
+  const selected = options.includes(value) ? value : options[0];
+  const activeIndex = options.length === 0 ? 0 : Math.min(active, options.length - 1);
+
+  useLayoutEffect(() => {
+    if (!open) return undefined;
+    const anchor = rootRef.current;
+    const menu = menuRef.current;
+    if (!anchor || !menu) return undefined;
+    function update(event) {
+      if (event?.target instanceof Node && menu.contains(event.target)) return;
+      const next = placeTimeMenu(anchor, menu);
+      setPlace((prev) =>
+        prev &&
+        prev.left === next.left &&
+        prev.top === next.top &&
+        prev.width === next.width &&
+        prev.maxHeight === next.maxHeight &&
+        prev.upward === next.upward
+          ? prev
+          : next,
+      );
+    }
+    update();
+    window.addEventListener("resize", update);
+    window.addEventListener("scroll", update, true);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("scroll", update, true);
+    };
+  }, [open, options]);
+
+  useEffect(() => {
+    if (!open) {
+      alignedRef.current = false;
+      return;
+    }
+    if (!place || alignedRef.current) return;
+    alignedRef.current = true;
+    const item = activeRef.current;
+    const menu = menuRef.current;
+    if (!item || !menu) return;
+    const top = item.offsetTop;
+    const bottom = top + item.offsetHeight;
+    if (top < menu.scrollTop) menu.scrollTop = top;
+    else if (bottom > menu.scrollTop + menu.clientHeight) menu.scrollTop = bottom - menu.clientHeight;
+  }, [open, place]);
+
+  useEffect(() => {
+    const item = activeRef.current;
+    const menu = menuRef.current;
+    if (!open || !alignedRef.current || !item || !menu) return;
+    const top = item.offsetTop;
+    const bottom = top + item.offsetHeight;
+    if (top < menu.scrollTop) menu.scrollTop = top;
+    else if (bottom > menu.scrollTop + menu.clientHeight) menu.scrollTop = bottom - menu.clientHeight;
+  }, [open, activeIndex]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function onPointerDown(event) {
+      const target = event.target;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, [open]);
+
+  function reveal(index) {
+    setActive(index);
+    setOpen(true);
+  }
+
+  function choose(minutes) {
+    onChange(minutes);
+    setOpen(false);
+  }
+
+  function onKeyDown(event) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      event.stopPropagation();
+      const current = Math.max(0, options.indexOf(selected));
+      if (!open) {
+        reveal(current);
+        return;
+      }
+      const next = event.key === "ArrowDown" ? Math.min(activeIndex + 1, options.length - 1) : Math.max(activeIndex - 1, 0);
+      setActive(next);
+      return;
+    }
+    if (event.key === "Enter" && open) {
+      event.preventDefault();
+      event.stopPropagation();
+      choose(options[activeIndex]);
+      return;
+    }
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    }
+  }
+
+  return (
+    <div className={styles.timeSelect} ref={rootRef}>
+      <button
+        className={styles.timeTrigger}
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => {
+          if (open) {
+            setOpen(false);
+            return;
+          }
+          reveal(Math.max(0, options.indexOf(selected)));
+        }}
+        onKeyDown={onKeyDown}
+      >
+        <span>{formatMinutes(selected)}</span>
+        <svg className={open ? styles.timeChevronOn : styles.timeChevron} viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open
+        ? createPortal(
+            <ul
+              className={[styles.timeMenu, place?.upward ? styles.timeMenuUp : ""].filter(Boolean).join(" ")}
+              role="listbox"
+              aria-label={label}
+              ref={menuRef}
+              style={
+                place
+                  ? {
+                      left: place.left,
+                      top: place.top,
+                      width: place.width,
+                      maxHeight: place.maxHeight,
+                      transform: place.upward ? "translateY(-100%)" : undefined,
+                    }
+                  : { visibility: "hidden" }
+              }
+            >
+              {options.map((minutes, index) => (
+                <li key={minutes}>
+                  <button
+                    className={[styles.timeOption, minutes === selected ? styles.timeOptionChosen : "", index === activeIndex ? styles.timeOptionOn : ""]
+                      .filter(Boolean)
+                      .join(" ")}
+                    type="button"
+                    role="option"
+                    aria-selected={minutes === selected}
+                    ref={index === activeIndex ? activeRef : null}
+                    onMouseEnter={() => setActive(index)}
+                    onClick={() => choose(minutes)}
+                  >
+                    {formatMinutes(minutes)}
+                  </button>
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
 function WindowEditDialog({ window, day, confirming, error, pending, onClose, onAskDelete, onBack, onSave, onDelete }) {
   const initial = windowRange(window);
   const [startMin, setStartMin] = useState(initial.startMin);
@@ -1008,23 +1206,21 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
         <div className={styles.timeFields}>
           <label className={styles.field}>
             <span className={styles.label}>Начало</span>
-            <select className={styles.input} value={startMin} onChange={(event) => changeStart(event.target.value)}>
-              {timeChoices(GRID_START_MINUTES, GRID_END_MINUTES - GRID_STEP_MINUTES).map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {formatMinutes(minutes)}
-                </option>
-              ))}
-            </select>
+            <TimeSelect
+              label="Начало"
+              value={startMin}
+              options={timeChoices(GRID_START_MINUTES, GRID_END_MINUTES - GRID_STEP_MINUTES)}
+              onChange={changeStart}
+            />
           </label>
           <label className={styles.field}>
             <span className={styles.label}>Конец</span>
-            <select className={styles.input} value={endMin} onChange={(event) => setEndMin(Number(event.target.value))}>
-              {timeChoices(startMin + GRID_STEP_MINUTES, GRID_END_MINUTES).map((minutes) => (
-                <option key={minutes} value={minutes}>
-                  {formatMinutes(minutes)}
-                </option>
-              ))}
-            </select>
+            <TimeSelect
+              label="Конец"
+              value={endMin}
+              options={timeChoices(startMin + GRID_STEP_MINUTES, GRID_END_MINUTES)}
+              onChange={setEndMin}
+            />
           </label>
         </div>
         <fieldset className={styles.choices}>
@@ -1232,15 +1428,17 @@ function FreeTimeDialog({
 
   return (
     <Sheet onClose={onClose} labelledBy="free-dialog-title" size="l">
-        <div className={styles.modalHead}>
-          <h2 className={styles.modalTitle} id="free-dialog-title">
-            {formatDayTitle(day)}
-          </h2>
-          <ModalClose onClick={onClose} />
-        </div>
-        <p className={styles.timeValue}>
-          {formatMinutes(selection.startMin)}–{formatMinutes(selection.endMin)}
-        </p>
+        <header className={styles.modalShell}>
+          <div className={styles.modalHead}>
+            <h2 className={styles.modalTitle} id="free-dialog-title">
+              {formatDayTitle(day)}
+            </h2>
+            <ModalClose onClick={onClose} />
+          </div>
+          <p className={styles.modalNote}>
+            {formatMinutes(selection.startMin)}–{formatMinutes(selection.endMin)}
+          </p>
+        </header>
         <p className={styles.lead}>
           {blocked
             ? "В это время пригласить нельзя. Остальное свободное время дня сохраняется."

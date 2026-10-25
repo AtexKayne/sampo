@@ -54,3 +54,77 @@ textarea {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
 }
+
+input[type="checkbox"]:not([class]),
+input[type="radio"]:not([class]) {
+  --control: 20px;
+  appearance: none;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--control);
+  height: var(--control);
+  margin: 0;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 32%, var(--line));
+  background-color: var(--surface);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 0 0;
+  vertical-align: middle;
+  cursor: pointer;
+  transition:
+    background-color 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    border-color 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    background-size 160ms cubic-bezier(0.32, 0.72, 0, 1),
+    transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+input[type="checkbox"]:not([class]) {
+  border-radius: 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 8.2 6.4 11.4 12.8 4.6' fill='none' stroke='%23f7f6f3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+input[type="radio"]:not([class]) {
+  border-radius: 50%;
+  background-image: radial-gradient(circle, var(--ink) 100%, transparent 100%);
+}
+
+input[type="checkbox"]:not([class]):checked {
+  border-color: var(--accent);
+  background-color: var(--accent);
+  background-size: 12px 12px;
+}
+
+input[type="radio"]:not([class]):checked {
+  border-color: var(--accent);
+  background-size: 8px 8px;
+}
+
+input[type="checkbox"]:not([class]):active:not(:disabled),
+input[type="radio"]:not([class]):active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+input[type="checkbox"]:not([class]):disabled,
+input[type="radio"]:not([class]):disabled {
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  input[type="checkbox"]:not([class]):hover:not(:disabled):not(:checked),
+  input[type="radio"]:not([class]):hover:not(:disabled):not(:checked) {
+    border-color: var(--ink);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  input[type="checkbox"]:not([class]),
+  input[type="radio"]:not([class]) {
+    transition: none;
+  }
+
+  input[type="checkbox"]:not([class]):active:not(:disabled),
+  input[type="radio"]:not([class]):active:not(:disabled) {
+    transform: none;
+  }
+}

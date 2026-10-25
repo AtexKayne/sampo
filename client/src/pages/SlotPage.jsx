@@ -73,24 +73,88 @@ export function SlotPanel({ id, onClose }) {
     }
   }
 
+  const requestsSection = dancer && slot ? (
+    <section className={[styles.section, onClose ? styles.slotRequests : ""].filter(Boolean).join(" ")}>
+      <h2 className={styles.lead}>Запросы</h2>
+      {requests.length ? (
+        <ul className={styles.list}>
+          {requests.map((item) => (
+            <li className={styles.person} key={item.id}>
+              <span className={styles.requestMain}>
+                <RequestStatus status={item.status} />
+                <span>
+                  {item.direction === "incoming" ? "Вам" : "Вы"}:{" "}
+                  <Link className={styles.personLink} to={`/dancers/${item.otherId}`}>
+                    {item.otherName}
+                  </Link>
+                </span>
+              </span>
+              <span className={styles.row}>
+                {item.direction === "incoming" && item.status === "pending" ? (
+                  <>
+                    <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
+                      Подтвердить
+                    </button>
+                    <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
+                      Отказать
+                    </button>
+                  </>
+                ) : null}
+                {item.direction === "outgoing" && item.status === "pending" ? (
+                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/cancel`, method: "POST" })}>
+                    Отозвать
+                  </button>
+                ) : null}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className={styles.hint}>Запросов на этот слот нет</p>
+      )}
+    </section>
+  ) : null;
+  const inviteSection = dancer && slot && open ? (
+    <section className={styles.section}>
+      <h2 className={styles.lead}>Можно пригласить</h2>
+      {slot.inviteBlocked ? <p className={styles.hint}>{slot.inviteBlocked}</p> : null}
+      {freeQuery.isLoading ? <p className={styles.hint}>Загрузка</p> : null}
+      {freeQuery.isError ? <p className={styles.error}>{freeQuery.error.message}</p> : null}
+      {freeQuery.isSuccess && freeQuery.data.users.length === 0 ? <p className={styles.hint}>Никого нет</p> : null}
+      {freeQuery.isSuccess && freeQuery.data.users.length > 0 ? (
+        <InvitePicker
+          people={freeQuery.data.users}
+          pending={run.isPending}
+          blocked={Boolean(slot.inviteBlocked)}
+          locked={Boolean(slot.myAttendance || slot.myPair)}
+          compact={Boolean(onClose)}
+          onInvite={(userId) => run.mutateAsync({ path: `/api/slots/${id}/requests`, method: "POST", body: { toUserId: userId } })}
+        />
+      ) : null}
+    </section>
+  ) : null;
+
   return (
     <div className={styles.panel}>
       {slotQuery.isLoading ? <p className={styles.status}>Загрузка</p> : null}
       {slotQuery.isError ? <p className={styles.error}>{slotQuery.error.message}</p> : null}
       {slot ? (
-        <article className={styles.panel}>
+        <article className={[styles.panel, onClose ? styles.slotDialog : ""].filter(Boolean).join(" ")}>
           <div className={styles.cluster}>
             <header className={onClose ? styles.dialogShell : styles.section}>
               <div className={onClose ? styles.dialogHead : undefined}>
                 <h2 className={onClose ? styles.dialogTitle : styles.panelTitle} id="slot-dialog-title">
                   {onClose ? (
-                    <Link className={styles.dialogLink} to={`/slots/${id}`} target="_blank" rel="noopener noreferrer" title="Открыть страницу слота">
-                      <span>{formatDayTitle(new Date(slot.startsAt))}</span>
-                      <svg className={styles.dialogLinkIcon} viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                        <path d="M14 5h5v5M19 5l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d="M17 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </Link>
+                    <>
+                      <Link className={styles.dialogLink} to={`/slots/${id}`} target="_blank" rel="noopener noreferrer" title="Открыть страницу слота">
+                        <span>{formatDayTitle(new Date(slot.startsAt))}</span>
+                        <svg className={styles.dialogLinkIcon} viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                          <path d="M14 5h5v5M19 5l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                          <path d="M17 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </Link>
+                      <span className={styles.dialogTitlePlain}>{formatDayTitle(new Date(slot.startsAt))}</span>
+                    </>
                   ) : (
                     <span>{formatDayTitle(new Date(slot.startsAt))}</span>
                   )}
@@ -125,11 +189,12 @@ export function SlotPanel({ id, onClose }) {
             {dancer ? (
             <div className={styles.section}>
               {error ? <p className={styles.error}>{error}</p> : null}
+              <div className={onClose ? styles.slotActionRow : styles.slotActionStack}>
               {open && !slot.myAttendance && !slot.myPair ? (
-                <div className={styles.switch}>
+                <div className={onClose ? styles.slotActionFit : styles.switch}>
                   {slot.myAvailability ? (
                     <button
-                      className={styles.switchStop}
+                      className={[styles.switchStop, onClose ? styles.slotHalf : ""].filter(Boolean).join(" ")}
                       type="button"
                       disabled={run.isPending}
                       onClick={() => {
@@ -137,11 +202,12 @@ export function SlotPanel({ id, onClose }) {
                         run.mutate({ path: `/api/slots/${id}/availability`, method: "PUT", body: { open: false } });
                       }}
                     >
-                      Не приглашать в этот слот
+                      <span className={styles.inviteLabelFull}>Не приглашать в этот слот</span>
+                      <span className={styles.inviteLabelShort}>Не приглашать</span>
                     </button>
                   ) : (
                     <button
-                      className={styles.switchWait}
+                      className={[styles.switchWait, onClose ? styles.slotHalf : ""].filter(Boolean).join(" ")}
                       type="button"
                       disabled={run.isPending}
                       onClick={() => {
@@ -154,10 +220,10 @@ export function SlotPanel({ id, onClose }) {
                   )}
                 </div>
               ) : null}
-              <div className={styles.row}>
+              <div className={onClose ? styles.slotActionFit : styles.row}>
             {open && !slot.myAttendance ? (
               <button
-                className={`${styles.button} ${styles.wide}`}
+                className={onClose ? `${styles.button} ${styles.slotHalf}` : `${styles.button} ${styles.wide}`}
                 type="button"
                 disabled={run.isPending}
                 onClick={() => {
@@ -169,7 +235,7 @@ export function SlotPanel({ id, onClose }) {
               </button>
             ) : null}
             {slot.myAttendance && !slot.myPair && !started ? (
-              <button className={`${styles.button} ${styles.wide}`} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/slots/${id}/attendance`, method: "DELETE" })}>
+              <button className={onClose ? styles.button : `${styles.button} ${styles.wide}`} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/slots/${id}/attendance`, method: "DELETE" })}>
                 Отменить выбор
               </button>
             ) : null}
@@ -180,68 +246,12 @@ export function SlotPanel({ id, onClose }) {
               </button>
             ) : null}
               </div>
+              </div>
             </div>
             ) : null}
           </div>
-          {dancer ? (
-          <section className={styles.section}>
-            <h2 className={styles.lead}>Запросы</h2>
-            {requests.length ? (
-            <ul className={styles.list}>
-              {requests.map((item) => (
-                <li className={styles.person} key={item.id}>
-                  <span className={styles.requestMain}>
-                    <RequestStatus status={item.status} />
-                    <span>
-                      {item.direction === "incoming" ? "Вам" : "Вы"}:{" "}
-                      <Link className={styles.personLink} to={`/dancers/${item.otherId}`}>
-                        {item.otherName}
-                      </Link>
-                    </span>
-                  </span>
-                  <span className={styles.row}>
-                    {item.direction === "incoming" && item.status === "pending" ? (
-                      <>
-                        <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
-                          Подтвердить
-                        </button>
-                        <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
-                          Отказать
-                        </button>
-                      </>
-                    ) : null}
-                    {item.direction === "outgoing" && item.status === "pending" ? (
-                      <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/cancel`, method: "POST" })}>
-                        Отозвать запрос
-                      </button>
-                    ) : null}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className={styles.hint}>Запросов на этот слот нет</p>
-            )}
-          </section>
-          ) : null}
-          {dancer && open ? (
-            <section className={styles.section}>
-              <h2 className={styles.lead}>Можно пригласить</h2>
-              {slot.inviteBlocked ? <p className={styles.hint}>{slot.inviteBlocked}</p> : null}
-              {freeQuery.isLoading ? <p className={styles.hint}>Загрузка</p> : null}
-              {freeQuery.isError ? <p className={styles.error}>{freeQuery.error.message}</p> : null}
-              {freeQuery.isSuccess && freeQuery.data.users.length === 0 ? <p className={styles.hint}>Никого нет</p> : null}
-              {freeQuery.isSuccess && freeQuery.data.users.length > 0 ? (
-                <InvitePicker
-                  people={freeQuery.data.users}
-                  pending={run.isPending}
-                  blocked={Boolean(slot.inviteBlocked)}
-                  locked={Boolean(slot.myAttendance || slot.myPair)}
-                  onInvite={(userId) => run.mutateAsync({ path: `/api/slots/${id}/requests`, method: "POST", body: { toUserId: userId } })}
-                />
-              ) : null}
-            </section>
-          ) : null}
+          {onClose ? inviteSection : requestsSection}
+          {onClose ? requestsSection : inviteSection}
         </article>
       ) : null}
       {confirming ? (
@@ -334,17 +344,19 @@ function menuPlace(field, probe) {
   };
 }
 
-function InvitePicker({ people, pending, blocked, locked, onInvite }) {
+function InvitePicker({ people, pending, blocked, locked, compact = false, onInvite }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  const [active, setActive] = useState(-1);
   const rootRef = useRef(null);
   const fieldRef = useRef(null);
+  const inputRef = useRef(null);
   const menuRef = useRef(null);
   const activeRef = useRef(null);
   const [place, setPlace] = useState(null);
+  const [hole, setHole] = useState(null);
   const matches = people.filter((person) => matchesName(person.displayName, query));
-  const activeIndex = matches.length === 0 ? 0 : Math.min(active, matches.length - 1);
+  const activeIndex = active >= 0 && matches.length > 0 ? Math.min(active, matches.length - 1) : -1;
 
   useLayoutEffect(() => {
     if (!open) return undefined;
@@ -361,6 +373,18 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
       if (!current) return;
       const next = menuPlace(current, probe);
       setPlace((prev) => (prev && samePlace(prev, next) ? prev : next));
+      const mobile = window.matchMedia("(max-width: 799px)").matches;
+      if (!compact || !mobile) {
+        setHole((prev) => (prev === null ? prev : null));
+        return;
+      }
+      const rect = (inputRef.current ?? current).getBoundingClientRect();
+      const nextHole = { top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom };
+      setHole((prev) =>
+        prev && prev.top === nextHole.top && prev.left === nextHole.left && prev.right === nextHole.right && prev.bottom === nextHole.bottom
+          ? prev
+          : nextHole,
+      );
     }
 
     function schedule() {
@@ -426,17 +450,17 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
       event.preventDefault();
       setOpen(true);
       if (matches.length === 0) return;
-      setActive(open ? Math.min(activeIndex + 1, matches.length - 1) : activeIndex);
+      setActive(activeIndex < 0 ? 0 : Math.min(activeIndex + 1, matches.length - 1));
       return;
     }
     if (event.key === "ArrowUp") {
       event.preventDefault();
       setOpen(true);
       if (matches.length === 0) return;
-      setActive(Math.max(activeIndex - 1, 0));
+      setActive(activeIndex < 0 ? matches.length - 1 : Math.max(activeIndex - 1, 0));
       return;
     }
-    if (event.key === "Enter" && open && canAsk(matches[activeIndex])) {
+    if (event.key === "Enter" && open && activeIndex >= 0 && canAsk(matches[activeIndex])) {
       event.preventDefault();
       invite(matches[activeIndex]);
       return;
@@ -457,6 +481,7 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
     <div className={styles.combo} ref={rootRef}>
       <div className={styles.comboField} ref={fieldRef}>
         <input
+          ref={inputRef}
           className={styles.input}
           role="combobox"
           aria-expanded={open}
@@ -471,7 +496,7 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
             if (locked) return;
             setQuery(event.target.value);
             setOpen(true);
-            setActive(0);
+            setActive(-1);
           }}
           onFocus={() => {
             if (!locked) setOpen(true);
@@ -493,8 +518,10 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
       </div>
       {open && !locked && place
         ? createPortal(
-            <ul
-              className={styles.menu}
+            <>
+              {hole ? <InviteShade rect={hole} onClose={() => setOpen(false)} /> : null}
+              <ul
+              className={[styles.menu, compact ? styles.menuCompact : "", hole ? styles.menuLift : ""].filter(Boolean).join(" ")}
               id="invite-list"
               role="list"
               ref={menuRef}
@@ -516,7 +543,7 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
                   <Link className={`${styles.optionName} ${styles.personLink}`} to={`/dancers/${person.id}`}>
                     {person.displayName}
                   </Link>
-                  <RequestStatus status={person.requestStatus === "cancelled" ? null : person.requestStatus} />
+                  {person.requestStatus && person.requestStatus !== "cancelled" ? <RequestStatus status={person.requestStatus} /> : null}
                   <button
                     className={`${styles.button} ${styles.invite}`}
                     type="button"
@@ -529,12 +556,45 @@ function InvitePicker({ people, pending, blocked, locked, onInvite }) {
                 </li>
               ))}
               {matches.length === 0 ? <li className={styles.menuEmpty}>Никого нет</li> : null}
-            </ul>,
+            </ul>
+            </>,
             document.body,
           )
         : null}
     </div>
   );
+}
+
+function InviteShade({ rect, onClose }) {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  return (
+    <svg className={styles.inviteShade} width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+      <path d={inviteShadePath(rect, width, height)} fill="var(--overlay)" fillRule="evenodd" onPointerDown={onClose} />
+    </svg>
+  );
+}
+
+function inviteShadePath(rect, width, height) {
+  const holeWidth = rect.right - rect.left;
+  const holeHeight = rect.bottom - rect.top;
+  const radius = Math.min(10, holeWidth / 2, holeHeight / 2);
+  return `M 0 0 H ${width} V ${height} H 0 Z ${roundedHole(rect.left, rect.top, holeWidth, holeHeight, radius)}`;
+}
+
+function roundedHole(x, y, width, height, radius) {
+  return [
+    `M ${x + radius} ${y}`,
+    `H ${x + width - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x + width} ${y + radius}`,
+    `V ${y + height - radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x + width - radius} ${y + height}`,
+    `H ${x + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x} ${y + height - radius}`,
+    `V ${y + radius}`,
+    `A ${radius} ${radius} 0 0 1 ${x + radius} ${y}`,
+    "Z",
+  ].join(" ");
 }
 
 function visibleRequests(requests) {

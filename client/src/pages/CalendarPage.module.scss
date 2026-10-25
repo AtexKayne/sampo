@@ -589,6 +589,26 @@
   border-bottom: 1px solid var(--line);
 }
 
+.modalShell {
+  display: grid;
+  margin: -16px -16px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.modalShell .modalHead {
+  margin: 0;
+  border-bottom: 0;
+}
+
+.modalNote {
+  margin: 0;
+  padding: 0 16px 12px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
 .close {
   display: inline-flex;
   flex: none;
@@ -609,8 +629,7 @@
   gap: 12px;
 }
 
-.modalTitle,
-.timeValue {
+.modalTitle {
   margin: 0;
 }
 
@@ -624,13 +643,28 @@
   line-height: 1.2;
 }
 
-.timeValue {
-  font-weight: 600;
+.modalHead ~ .lead,
+.modalHead ~ .error,
+.modalShell ~ .lead,
+.modalShell ~ .error {
+  margin: 0;
 }
 
-.modalHead ~ .lead,
-.modalHead ~ .error {
-  margin: 0;
+@media (max-width: 799px) {
+  .modalHead {
+    justify-content: center;
+    padding: 0 16px;
+  }
+
+  .modalTitle {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .modalNote,
+  .modalHead + .lead {
+    text-align: center;
+  }
 }
 
 .timeFields {
@@ -641,6 +675,123 @@
   .input {
     width: 100%;
     font: inherit;
+  }
+}
+
+.timeSelect {
+  min-width: 0;
+}
+
+.timeTrigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.timeChevron,
+.timeChevronOn {
+  flex: none;
+  color: var(--muted);
+  transition: transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.timeChevronOn {
+  transform: rotate(180deg);
+}
+
+.timeMenu {
+  position: fixed;
+  z-index: 30;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  animation: timeMenuIn 160ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.timeMenuUp {
+  animation-name: timeMenuInUp;
+}
+
+.timeOption,
+.timeOptionOn {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  touch-action: pan-y;
+  cursor: pointer;
+}
+
+.timeOptionChosen {
+  font-weight: 600;
+}
+
+.timeOptionOn {
+  background: var(--bg);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .timeOption:hover,
+  .timeOptionOn:hover {
+    background: var(--bg);
+  }
+}
+
+@keyframes timeMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes timeMenuInUp {
+  from {
+    opacity: 0;
+    transform: translateY(calc(-100% + 6px));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(-100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeMenu,
+  .timeMenuUp,
+  .timeChevron,
+  .timeChevronOn {
+    animation: none;
+    transition: none;
   }
 }
 
@@ -664,13 +815,6 @@
   min-height: 44px;
   margin: 0;
   cursor: pointer;
-
-  input[type="radio"] {
-    width: 18px;
-    height: 18px;
-    margin: 0;
-    accent-color: var(--accent);
-  }
 }
 
 .intervalInput {

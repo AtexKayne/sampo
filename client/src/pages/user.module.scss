@@ -155,6 +155,10 @@
   color: var(--accent);
 }
 
+.dialogTitlePlain {
+  display: none;
+}
+
 .dialogNotes {
   display: grid;
   gap: 4px;
@@ -192,6 +196,31 @@
   line-height: 1.4;
 }
 
+@media (max-width: 799px) {
+  .dialogHead {
+    justify-content: center;
+    padding: 0 16px;
+  }
+
+  .dialogTitle {
+    justify-content: center;
+    text-align: center;
+  }
+
+  .dialogLink {
+    display: none;
+  }
+
+  .dialogTitlePlain {
+    display: inline;
+  }
+
+  .dialogNotes,
+  .dialogText {
+    text-align: center;
+  }
+}
+
 .row {
   display: flex;
   flex-wrap: wrap;
@@ -202,6 +231,47 @@
 .switch {
   display: grid;
   gap: 8px;
+}
+
+.slotActionStack {
+  display: grid;
+  gap: 4px;
+}
+
+.slotActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.slotActionFit {
+  display: contents;
+}
+
+.slotHalf {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.inviteLabelShort {
+  display: none;
+}
+
+.slotDialog .lead {
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.slotDialog .switchWait,
+.slotDialog .switchStop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 0 16px;
+  line-height: 1.2;
 }
 
 .switchWait,
@@ -369,6 +439,76 @@
   list-style: none;
 }
 
+.slotRequests .person {
+  border-bottom: 0;
+}
+
+@media (max-width: 799px) {
+  .slotRequests {
+    font-size: 13px;
+  }
+
+  .inviteLabelFull {
+    display: none;
+  }
+
+  .inviteLabelShort {
+    display: inline;
+  }
+
+  .slotDialog .button,
+  .slotDialog .primary,
+  .slotDialog .switchWait,
+  .slotDialog .switchStop,
+  .menuCompact .invite {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+
+  .slotRequests .person {
+    flex-wrap: wrap;
+    gap: 4px 8px;
+    min-height: 0;
+    padding: 2px 0;
+  }
+
+  .slotRequests .requestMain {
+    flex: 1 1 8rem;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .slotRequests .requestMain > span:first-child {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+  }
+
+  .slotRequests .requestMain > span:first-child svg {
+    width: 13px;
+    height: 13px;
+  }
+
+  .slotRequests .requestMain > span:last-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .slotRequests .row {
+    flex: none;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .slotRequests .list {
+    max-height: 132px;
+    overflow: auto;
+  }
+}
+
 .combo {
   display: grid;
   gap: 8px;
@@ -407,6 +547,39 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
+}
+
+.menuLift {
+  z-index: 22;
+  box-shadow: var(--shadow);
+}
+
+.inviteShade {
+  position: fixed;
+  z-index: 21;
+  inset: 0;
+  pointer-events: none;
+  animation: inviteShadeIn 180ms ease-out;
+
+  path {
+    pointer-events: fill;
+  }
+}
+
+@keyframes inviteShadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inviteShade {
+    animation: none;
+  }
 }
 
 .option,
@@ -488,10 +661,14 @@
   opacity: 0.6;
 }
 
-.radio {
+input.radio {
   position: absolute;
   inset: 0;
+  width: auto;
+  height: auto;
   margin: 0;
+  border: 0;
+  background: transparent;
   opacity: 0;
   cursor: pointer;
 }
@@ -1060,11 +1237,8 @@
 }
 
 .check input {
-  width: 22px;
-  height: 22px;
   margin: 0;
   flex: none;
-  accent-color: var(--accent);
 }
 
 .check:has(:disabled) {

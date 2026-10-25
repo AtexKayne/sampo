@@ -135,7 +135,7 @@ export function RequestActions({ item, pending, onRun }) {
       ) : null}
       {item.status === "pending" && item.direction !== "incoming" ? (
         <button className={styles.button} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/cancel`).catch(() => {})}>
-          Отозвать запрос
+          Отозвать
         </button>
       ) : null}
       {canCancel ? (
