@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
@@ -65,8 +65,13 @@ export function ProfilePage() {
 
   return (
     <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
-      <h1 className={styles.title}>Профиль</h1>
-      <ProfileSettings onLogout={onLogout} pendingLogout={pendingLogout} />
+      <div className={styles.profileHead}>
+        <h1 className={styles.title}>Профиль</h1>
+        <button className={`${styles.button} ${styles.mobileLogout}`} type="button" disabled={pendingLogout} onClick={onLogout}>
+          Выйти
+        </button>
+      </div>
+      <ProfileSettings />
     </Shell>
   );
 }
@@ -109,7 +114,7 @@ export function AdminUserPage() {
   );
 }
 
-function ProfileSettings({ userId, onLogout, pendingLogout }) {
+function ProfileSettings({ userId }) {
   const session = useSession();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -166,6 +171,32 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
     },
     onError: (reason) => setError(reason.message),
   });
+  const hasLogin = editing ? Boolean(saved?.hasLogin) : Boolean(session.user?.hasLogin);
+  const credentialsRef = useRef(null);
+  const [credentials, setCredentials] = useState(null);
+  const [credentialError, setCredentialError] = useState("");
+  const [credentialNotice, setCredentialNotice] = useState("");
+  const [credentialEpoch, setCredentialEpoch] = useState(0);
+  const credentialSave = useMutation({
+    mutationFn: (body) => api(editing ? `${settingsPath}/password` : "/api/me/password", { method: "POST", body }),
+    onSuccess: (user) => {
+      setCredentialError("");
+      setCredentialNotice(hasLogin ? "Логин и пароль сохранены" : "Теперь можно входить по логину и паролю");
+      setCredentialEpoch((current) => current + 1);
+      if (editing) {
+        queryClient.setQueryData(settingsKey, (current) => (
+          current ? { ...current, login: user.login, hasLogin: user.hasLogin } : current
+        ));
+        return;
+      }
+      session.setUser({ ...session.user, ...user, accountSwitch: session.user?.accountSwitch });
+    },
+    onError: (reason) => {
+      setCredentialNotice("");
+      setCredentialError(reason.message);
+      document.getElementById("credentials-title")?.scrollIntoView({ block: "center" });
+    },
+  });
   const remove = useMutation({
     mutationFn: async () => {
       if (editing) {
@@ -200,6 +231,28 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
   }, [confirming, remove.isPending]);
 
   const dirty = isDirty(draft, saved);
+  const busy = save.isPending || credentialSave.isPending;
+  const changed = Boolean(dirty || credentials?.dirty);
+  const saveActive = changed || busy;
+  useEffect(() => {
+    if (!error) return;
+    document.getElementById("profile-save-error")?.scrollIntoView({ block: "center" });
+  }, [error]);
+  useEffect(() => () => {
+    delete document.documentElement.dataset.profileSave;
+  }, []);
+  useEffect(() => {
+    const root = document.documentElement;
+    if (saveActive) {
+      root.dataset.profileSave = "1";
+      return undefined;
+    }
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timer = window.setTimeout(() => {
+      delete root.dataset.profileSave;
+    }, reduce ? 0 : 320);
+    return () => window.clearTimeout(timer);
+  }, [saveActive]);
   const trimmed = query.trim();
   const activeList = draft?.listMode === "white" ? draft.whitelist : draft?.blacklist ?? [];
   const listed = new Set(activeList.map((person) => person.id));
@@ -246,6 +299,44 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
     setDeleteError("");
   }
 
+  function onCredentialDraft(next) {
+    credentialsRef.current = next;
+    setCredentials((current) => (
+      current
+      && current.login === next.login
+      && current.password === next.password
+      && current.confirm === next.confirm
+      && current.dirty === next.dirty
+        ? current
+        : next
+    ));
+  }
+
+  function onCredentialEdit() {
+    setCredentialError("");
+    setCredentialNotice("");
+  }
+
+  async function submitAll() {
+    const creds = credentialsRef.current;
+    const profileDirty = isDirty(draft, saved);
+    const credsDirty = Boolean(creds?.dirty);
+    if ((!profileDirty && !credsDirty) || busy || credentialSave.isPending || remove.isPending) return;
+    setError("");
+    setCredentialError("");
+    if (credsDirty && creds.password !== creds.confirm) {
+      setCredentialError("Пароли не совпадают");
+      document.getElementById("credentials-title")?.scrollIntoView({ block: "center" });
+      return;
+    }
+    try {
+      if (profileDirty) await save.mutateAsync(draft);
+      if (credsDirty) await credentialSave.mutateAsync({ login: creds.login, password: creds.password });
+    } catch {
+      // Mutations surface the message.
+    }
+  }
+
   function removePerson(id) {
     setDraft((current) => {
       if (!current) return current;
@@ -261,9 +352,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
         className={styles.profileForm}
         onSubmit={(event) => {
           event.preventDefault();
-          if (!draft || !dirty || save.isPending) return;
-          setError("");
-          save.mutate(draft);
+          submitAll();
         }}
       >
       <label className={styles.field}>
@@ -271,7 +360,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
         <input
           className={styles.input}
           value={draft?.displayName ?? ""}
-          disabled={!draft || save.isPending}
+          disabled={!draft || busy}
           onChange={(event) => setDraft((current) => (current ? { ...current, displayName: event.target.value } : current))}
         />
       </label>
@@ -281,14 +370,12 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
       {editing && !saved ? null : (
         <LoginCredentials
           account={editing ? { login: saved.login, hasLogin: saved.hasLogin } : null}
-          path={editing ? `${settingsPath}/password` : "/api/me/password"}
-          onSaved={editing
-            ? (user) => {
-                queryClient.setQueryData(settingsKey, (current) => (
-                  current ? { ...current, login: user.login, hasLogin: user.hasLogin } : current
-                ));
-              }
-            : undefined}
+          disabled={busy}
+          error={credentialError}
+          notice={credentialNotice}
+          resetKey={credentialEpoch}
+          onDraft={onCredentialDraft}
+          onEdit={onCredentialEdit}
         />
       )}
       {session.user?.appRole === "admin" && !editing ? <AdminUserSearch /> : null}
@@ -306,7 +393,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                 name="dance-level"
                 label="Не указан"
                 checked={draft.danceLevel == null}
-                disabled={save.isPending}
+                disabled={busy}
                 onChange={() => chooseLevel(null)}
               />
               {DANCE_LEVELS.map((code) => (
@@ -315,7 +402,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                   name="dance-level"
                   label={code}
                   checked={draft.danceLevel === code}
-                  disabled={save.isPending}
+                  disabled={busy}
                   onChange={() => chooseLevel(code)}
                 />
               ))}
@@ -332,7 +419,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                   key={code}
                   label={code}
                   checked={draft.blockedLevels.includes(code)}
-                  disabled={save.isPending}
+                  disabled={busy}
                   multiple
                   onChange={() => toggleBlocked(code)}
                 />
@@ -348,14 +435,14 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                 name="invite-list"
                 label="Чёрный список"
                 checked={draft.listMode !== "white"}
-                disabled={save.isPending}
+                disabled={busy}
                 onChange={() => setListMode("black")}
               />
               <LevelOption
                 name="invite-list"
                 label="Белый список"
                 checked={draft.listMode === "white"}
-                disabled={save.isPending}
+                disabled={busy}
                 onChange={() => setListMode("white")}
               />
               </div>
@@ -373,7 +460,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
               placeholder="Имя танцора"
               aria-label="Поиск танцора по имени"
               autoComplete="off"
-              disabled={save.isPending}
+              disabled={busy}
               onChange={(event) => setQuery(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter") event.preventDefault();
@@ -394,7 +481,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                       <button
                         className={styles.button}
                         type="button"
-                        disabled={save.isPending || listed.has(person.id)}
+                        disabled={busy || listed.has(person.id)}
                         onClick={() => addPerson(person)}
                       >
                         {listed.has(person.id) ? "В списке" : "Добавить"}
@@ -414,7 +501,7 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                 {activeList.map((person) => (
                   <li className={styles.person} key={person.id}>
                     <span>{personLabel(person)}</span>
-                    <button className={styles.button} type="button" disabled={save.isPending} onClick={() => removePerson(person.id)}>
+                    <button className={styles.button} type="button" disabled={busy} onClick={() => removePerson(person.id)}>
                       Убрать
                     </button>
                   </li>
@@ -429,19 +516,19 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
               <Check
                 label="Присылать уведомления о приглашениях"
                 checked={draft.notifyInvites}
-                disabled={save.isPending}
+                disabled={busy}
                 onChange={() => toggleFlag("notifyInvites")}
               />
               <Check
                 label="Присылать уведомления за час до сампо"
                 checked={draft.notifyHourBefore}
-                disabled={save.isPending}
+                disabled={busy}
                 onChange={() => toggleFlag("notifyHourBefore")}
               />
               <Check
                 label="Присылать уведомления о новых слотах"
                 checked={draft.notifyNewSlots}
-                disabled={save.isPending}
+                disabled={busy}
                 onChange={() => toggleFlag("notifyNewSlots")}
               />
               {draft.notifyNewSlots ? (
@@ -450,14 +537,14 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
                     name="notify-new-slots"
                     label="Только слоты, которые попадают в свободное время"
                     checked={draft.notifyNewSlotsScope !== "all"}
-                    disabled={save.isPending}
+                    disabled={busy}
                     onChange={() => setSlotScope("free")}
                   />
                   <Radio
                     name="notify-new-slots"
                     label="Все новые слоты"
                     checked={draft.notifyNewSlotsScope === "all"}
-                    disabled={save.isPending}
+                    disabled={busy}
                     onChange={() => setSlotScope("all")}
                   />
                 </div>
@@ -470,28 +557,30 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
             <Check
               label="Делиться информацией о ближайших свободных слотах"
               checked={draft.shareAvailability}
-              disabled={save.isPending}
+              disabled={busy}
               onChange={() => toggleFlag("shareAvailability")}
             />
           </section>
         </div>
       ) : null}
       </div>
-      <div className={styles.save}>
-        {error ? <p className={styles.error}>{error}</p> : null}
-        <button className={styles.primary} type="submit" form="profile-settings" disabled={!dirty || save.isPending || remove.isPending}>
-          Сохранить изменения
-        </button>
-      </div>
-      <div className={styles.row}>
-        {editing || !onLogout ? null : (
-          <button className={`${styles.button} ${styles.mobileLogout}`} type="button" disabled={pendingLogout} onClick={onLogout}>
-            Выйти
-          </button>
-        )}
+      <div className={styles.profileEnd}>
         <button className={`${styles.button} ${styles.danger}`} type="button" disabled={remove.isPending} onClick={() => setConfirming(true)}>
           Удалить профиль
         </button>
+        {error ? <p className={styles.error} id="profile-save-error">{error}</p> : null}
+        <div className={`${styles.saveSlot} ${saveActive ? styles.saveSlotOn : ""}`}>
+          <div className={styles.savePlate}>
+            <button
+              className={`${styles.primary} ${styles.saveButton}`}
+              type="submit"
+              form="profile-settings"
+              disabled={!changed || busy || remove.isPending}
+            >
+              Сохранить изменения
+            </button>
+          </div>
+        </div>
       </div>
       {confirming ? (
         <Sheet
@@ -528,55 +617,30 @@ function ProfileSettings({ userId, onLogout, pendingLogout }) {
   );
 }
 
-function LoginCredentials({ account, path, onSaved }) {
+function LoginCredentials({ account, disabled, error, notice, resetKey, onDraft, onEdit }) {
   const session = useSession();
   const savedLogin = account ? account.login || "" : session.user?.login || "";
   const hasLogin = account ? Boolean(account.hasLogin) : Boolean(session.user?.hasLogin);
   const [loginName, setLoginName] = useState(savedLogin);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const onDraftRef = useRef(onDraft);
+  onDraftRef.current = onDraft;
   useEffect(() => {
     setLoginName(savedLogin);
   }, [savedLogin]);
-  const save = useMutation({
-    mutationFn: (body) => api(path, { method: "POST", body }),
-    onSuccess: (user) => {
-      setError("");
-      setNotice(hasLogin ? "Логин и пароль сохранены" : "Теперь можно входить по логину и паролю");
-      setPassword("");
-      setConfirm("");
-      if (onSaved) onSaved(user);
-      else session.setUser({ ...session.user, ...user, accountSwitch: session.user?.accountSwitch });
-    },
-    onError: (reason) => {
-      setNotice("");
-      setError(reason.message);
-    },
-  });
+  useEffect(() => {
+    setPassword("");
+    setConfirm("");
+  }, [resetKey]);
   const loginChanged = loginName.trim().toLowerCase() !== savedLogin;
-  const canSave = !save.isPending && (password.length > 0 || (hasLogin && loginChanged));
-
-  function submit() {
-    setError("");
-    setNotice("");
-    if (password !== confirm) {
-      setError("Пароли не совпадают");
-      return;
-    }
-    save.mutate({ login: loginName, password });
-  }
+  const dirty = password.length > 0 || confirm.length > 0 || loginChanged;
+  useEffect(() => {
+    onDraftRef.current({ login: loginName, password, confirm, dirty });
+  }, [loginName, password, confirm, dirty]);
 
   return (
-    <form
-      className={styles.group}
-      aria-labelledby="credentials-title"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (canSave) submit();
-      }}
-    >
+    <section className={styles.group} aria-labelledby="credentials-title">
       <div className={styles.caption}>
         <h3 className={styles.groupTitle} id="credentials-title">Вход по логину</h3>
         <p className={styles.groupHint}>
@@ -590,13 +654,14 @@ function LoginCredentials({ account, path, onSaved }) {
         <input
           className={styles.input}
           value={loginName}
+          form="profile-settings"
           autoComplete="username"
           autoCapitalize="none"
           spellCheck="false"
-          disabled={save.isPending}
+          disabled={disabled}
           onChange={(event) => {
+            onEdit();
             setLoginName(event.target.value);
-            setNotice("");
           }}
         />
       </label>
@@ -606,11 +671,12 @@ function LoginCredentials({ account, path, onSaved }) {
           className={styles.input}
           type="password"
           value={password}
+          form="profile-settings"
           autoComplete="new-password"
-          disabled={save.isPending}
+          disabled={disabled}
           onChange={(event) => {
+            onEdit();
             setPassword(event.target.value);
-            setNotice("");
           }}
         />
       </label>
@@ -620,22 +686,18 @@ function LoginCredentials({ account, path, onSaved }) {
           className={styles.input}
           type="password"
           value={confirm}
+          form="profile-settings"
           autoComplete="new-password"
-          disabled={save.isPending}
+          disabled={disabled}
           onChange={(event) => {
+            onEdit();
             setConfirm(event.target.value);
-            setNotice("");
           }}
         />
       </label>
       {error ? <p className={styles.error}>{error}</p> : null}
       {notice ? <p className={styles.saved}>{notice}</p> : null}
-      <div className={styles.row}>
-        <button className={styles.primary} type="submit" disabled={!canSave}>
-          {hasLogin ? "Сохранить логин и пароль" : "Задать логин и пароль"}
-        </button>
-      </div>
-    </form>
+    </section>
   );
 }
 

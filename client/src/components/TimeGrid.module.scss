@@ -206,6 +206,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .column .slot:not(.slotPast):hover {
+    filter: brightness(0.97);
+  }
+}
+
 .slotFree {
   border-color: var(--cal-free);
   border-left-color: var(--cal-free);

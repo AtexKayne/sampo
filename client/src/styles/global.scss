@@ -1,4 +1,5 @@
 @use "./tokens";
+@use "./press" as press;
 
 *,
 *::before,
@@ -39,6 +40,16 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+  @include press.control;
+}
+
+button:disabled {
+  cursor: default;
 }
 
 ::selection {

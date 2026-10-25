@@ -148,6 +148,11 @@
   .navButton:hover:not(:disabled) {
     background: var(--surface);
   }
+
+  .navButton.navOn:hover:not(:disabled) {
+    background: #2a2a2a;
+    color: var(--on-accent);
+  }
 }
 
 .navButton:disabled {
@@ -262,6 +267,16 @@
   opacity: 0.6;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .stripDay:hover:not(:disabled) {
+    border-color: var(--ink);
+  }
+
+  .stripOn:hover:not(:disabled) {
+    background: var(--bg);
+  }
+}
+
 .agenda {
   display: flex;
   flex-direction: column;
@@ -336,6 +351,12 @@
   border-left-color: var(--muted);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .slotRow:hover {
+    filter: brightness(0.97);
+  }
+}
+
 .button,
 .primary {
   display: inline-flex;
@@ -365,6 +386,10 @@
 
   .primary:hover:not(:disabled) {
     background: #2a2a2a;
+  }
+
+  .danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 8%, var(--surface));
   }
 }
 
@@ -501,6 +526,12 @@
   border-bottom: 0;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .hit:hover:not(:disabled) {
+    background: var(--surface);
+  }
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -624,6 +655,12 @@
   cursor: pointer;
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .close:hover {
+    background: var(--bg);
+  }
+}
+
 .adminFields {
   display: grid;
   gap: 12px;
@@ -696,6 +733,12 @@
   color: var(--ink);
   font: inherit;
   cursor: pointer;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .timeTrigger:hover {
+    border-color: var(--ink);
+  }
 }
 
 .timeChevron,

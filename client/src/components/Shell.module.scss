@@ -1,3 +1,5 @@
+@use "../styles/press" as press;
+
 .shell {
   --pad: 24px;
   --bottom-nav: calc(6px + 52px + 6px + 1px + 12px + env(safe-area-inset-bottom, 0px));
@@ -86,11 +88,26 @@
   font-size: 14px;
   text-decoration: none;
   cursor: pointer;
+  @include press.control;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .link:hover {
     border-color: var(--ink);
+  }
+
+  .profile:hover:not(:disabled) {
+    color: var(--gold);
+  }
+
+  .toast:hover {
+    border-color: var(--ink);
+  }
+
+  .tab:hover,
+  .tabOn:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
   }
 }
 
@@ -326,6 +343,7 @@
   text-align: left;
   text-decoration: none;
   cursor: pointer;
+  @include press.control;
 }
 
 .itemIcon {
@@ -431,6 +449,7 @@
   line-height: 1.2;
   text-align: center;
   text-decoration: none;
+  @include press.control;
 }
 
 .tabOn {
@@ -467,6 +486,10 @@
 }
 
 @media (max-width: 799px) {
+  :global(html[data-profile-save]) .shell {
+    --bottom-nav: calc(6px + 52px + 6px + 1px + 8px + 44px + 8px + 1px + 8px + env(safe-area-inset-bottom, 0px));
+  }
+
   .desktopNav {
     display: none;
   }

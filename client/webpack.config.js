@@ -73,9 +73,14 @@ module.exports = (env, argv) => {
       }),
     ],
     devServer: {
-      // IPv4 explicitly: "localhost" on this machine binds only ::1, and that socket refuses connections.
-      host: "127.0.0.1",
+      // 0.0.0.0 — все IPv4-интерфейсы, чтобы открыть сайт с другого устройства в сети.
+      // "localhost" на этой машине слушает только ::1 и такие соединения отклоняет.
+      host: "0.0.0.0",
+      allowedHosts: "all",
       port: 8080,
+      client: {
+        webSocketURL: "auto://0.0.0.0:0/ws",
+      },
       historyApiFallback: true,
       hot: true,
       static: {

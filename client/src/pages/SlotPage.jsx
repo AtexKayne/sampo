@@ -212,8 +212,7 @@ export function SlotPanel({ id, onClose }) {
                         run.mutate({ path: `/api/slots/${id}/availability`, method: "PUT", body: { open: false } });
                       }}
                     >
-                      <span className={styles.inviteLabelFull}>Не приглашать в этот слот</span>
-                      <span className={styles.inviteLabelShort}>Не приглашать</span>
+                      Не приглашать
                     </button>
                   ) : (
                     <button
@@ -225,7 +224,7 @@ export function SlotPanel({ id, onClose }) {
                         run.mutate({ path: `/api/slots/${id}/availability`, method: "PUT", body: { open: true } });
                       }}
                     >
-                      Жду приглашения на этот слот
+                      Жду приглашения
                     </button>
                   )}
                 </div>
@@ -338,6 +337,8 @@ function sameShade(prev, next) {
     prev.left === next.left &&
     prev.right === next.right &&
     prev.bottom === next.bottom &&
+    prev.coverTop === next.coverTop &&
+    prev.coverLeft === next.coverLeft &&
     prev.width === next.width &&
     prev.height === next.height
   );
@@ -401,8 +402,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       if (!current) return;
       const next = menuPlace(current, probe);
       setPlace((prev) => (prev && samePlace(prev, next) ? prev : next));
-      const mobile = window.matchMedia("(max-width: 799px)").matches;
-      if (!compact || !mobile) {
+      if (!compact) {
         setHole((prev) => (prev === null ? prev : null));
         return;
       }
@@ -410,12 +410,14 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       const rect = (inputRef.current ?? current).getBoundingClientRect();
       const cover = visualCover();
       const nextHole = {
-        top: Math.round(rect.top - origin.top),
-        left: Math.round(rect.left - origin.left),
-        right: Math.round(rect.right - origin.left),
-        bottom: Math.round(rect.bottom - origin.top),
-        width: Math.round(cover.width),
-        height: Math.round(cover.height),
+        top: rect.top,
+        left: rect.left,
+        right: rect.right,
+        bottom: rect.bottom,
+        coverTop: -origin.top,
+        coverLeft: -origin.left,
+        width: cover.width,
+        height: cover.height,
       };
       setHole((prev) => (sameShade(prev, nextHole) ? prev : nextHole));
     }
@@ -569,9 +571,8 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
               {matches.map((person, index) => (
                 <li
                   key={person.id}
-                  className={index === activeIndex ? styles.optionOn : styles.option}
+                  className={styles.option}
                   ref={index === activeIndex ? activeRef : null}
-                  onMouseEnter={() => setActive(index)}
                 >
                   <Link className={`${styles.optionName} ${styles.personLink}`} to={`/dancers/${person.id}`}>
                     {person.displayName}
@@ -608,7 +609,7 @@ function InviteShade({ rect, onClose }) {
       viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       aria-hidden="true"
-      style={{ width, height }}
+      style={{ top: rect.coverTop, left: rect.coverLeft, width, height }}
     >
       <path d={inviteShadePath(rect, width, height)} fill="var(--overlay)" fillRule="evenodd" onPointerDown={onClose} />
     </svg>
