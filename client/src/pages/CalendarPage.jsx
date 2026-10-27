@@ -169,6 +169,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       setDescription("");
       setResponsible(null);
       await queryClient.invalidateQueries({ queryKey: ["slots"] });
+      await queryClient.invalidateQueries({ queryKey: ["slot-descriptions"] });
     },
     onError: (error) => setFormError(error.message),
   });
@@ -179,6 +180,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       setEditing(null);
       setEditError("");
       await queryClient.invalidateQueries({ queryKey: ["slots"] });
+      await queryClient.invalidateQueries({ queryKey: ["slot-descriptions"] });
     },
     onError: (error) => setEditError(error.message),
   });
@@ -224,6 +226,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       setEditing(null);
       setEditError("");
       await queryClient.invalidateQueries({ queryKey: ["slots"] });
+      await queryClient.invalidateQueries({ queryKey: ["slot-descriptions"] });
     },
     onError: (error) => setEditError(error.message),
   });
@@ -584,10 +587,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
               onChange={(event) => setCapacity(event.target.value)}
             />
           </label>
-          <label className={styles.field}>
-            <span className={styles.label}>Описание</span>
-            <textarea className={styles.area} maxLength={1000} value={description} onChange={(event) => setDescription(event.target.value)} />
-          </label>
+          <DescriptionField value={description} onChange={setDescription} />
           <ResponsibleField value={responsible} onChange={setResponsible} />
           <label className={styles.field}>
             <span className={styles.label}>Ещё столько же недель</span>
@@ -664,16 +664,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                     onChange={(event) => setEditCapacity(event.target.value)}
                   />
                 </label>
-                <label className={styles.field}>
-                  <span className={styles.label}>Описание</span>
-                  <textarea
-                    className={styles.area}
-                    maxLength={1000}
-                    value={editDescription}
-                    disabled={!canEditSlot}
-                    onChange={(event) => setEditDescription(event.target.value)}
-                  />
-                </label>
+                <DescriptionField value={editDescription} disabled={!canEditSlot} onChange={setEditDescription} />
                 <ResponsibleField value={editResponsible} disabled={!canEditSlot} onChange={setEditResponsible} />
                 {startedSlot ? <p className={styles.error}>Нельзя изменить начавшийся слот</p> : null}
                 {deletePrompt ? (
@@ -827,6 +818,43 @@ function HelpDialog({ onClose }) {
           </p>
         </div>
     </Sheet>
+  );
+}
+
+function DescriptionField({ value, onChange, disabled = false }) {
+  const suggestions = useQuery({
+    queryKey: ["slot-descriptions"],
+    queryFn: () => api("/api/admin/slot-descriptions"),
+    enabled: !disabled,
+  });
+  const needle = value.trim().toLowerCase();
+  const hints = (suggestions.data?.descriptions ?? [])
+    .filter((text) => text !== value.trim())
+    .filter((text) => !needle || text.toLowerCase().includes(needle))
+    .slice(0, 6);
+
+  return (
+    <div className={styles.field}>
+      <span className={styles.label}>Описание</span>
+      <textarea
+        className={styles.area}
+        maxLength={1000}
+        value={value}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {hints.length > 0 ? (
+        <ul className={styles.chips}>
+          {hints.map((text) => (
+            <li key={text} className={styles.chipItem}>
+              <button className={styles.chip} type="button" title={text} onClick={() => onChange(text)}>
+                  <span className={styles.chipText}>{text}</span>
+                </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }
 

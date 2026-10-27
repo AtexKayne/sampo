@@ -13,6 +13,7 @@ import {
   validateResponsible,
 } from "./rules.js";
 import { announceNewSlots, assertCapacity, assertTimeEditable, cancelSlot, presentSlot, presentSlots } from "../domain/sampo.js";
+import { listSlotDescriptions } from "./descriptions.js";
 
 function fail(result) {
   throw new HttpError(result.statusCode, result.code, result.message);
@@ -80,6 +81,12 @@ export function registerSlotRoutes(app, { db, sql, config }) {
   app.get("/api/slots/:id", async (request) => {
     const user = await requireUser(request, db, config);
     return presentSlot(sql, await loadSlot(db, request.params.id), user.id);
+  });
+
+  app.get("/api/admin/slot-descriptions", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return { descriptions: await listSlotDescriptions(sql) };
   });
 
   app.post("/api/admin/slots", async (request) => {

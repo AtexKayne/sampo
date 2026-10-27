@@ -275,7 +275,7 @@ export function SlotPanel({ id, onClose }) {
               </svg>
             </button>
           </div>
-          <p className={styles.dialogText}>Займу одно место. Отправленные запросы на это время будут отозваны.</p>
+          <p className={styles.dialogText}>Займу одно место. Отправленные запросы на это время будут отозваны. Пригласить меня на этот слот будет нельзя.</p>
           {error ? <p className={styles.error}>{error}</p> : null}
           <div className={styles.row}>
             <button className={styles.primary} type="button" disabled={run.isPending} onClick={confirmChoice}>

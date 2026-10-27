@@ -279,6 +279,19 @@ function canInvite(slot, conflict, availability) {
   return slot.status === "open" && slot.startsAt > new Date() && !conflict && availability.open;
 }
 
+async function comingAlone(tx, userId, slotId) {
+  const [row] = await tx`
+    SELECT 1 FROM attendances a
+    WHERE a.user_id = ${userId} AND a.slot_id = ${slotId} AND a.guests = 0
+      AND NOT EXISTS (
+        SELECT 1 FROM pairs p
+        WHERE p.slot_id = a.slot_id AND p.status = 'confirmed'
+          AND (p.user_low_id = a.user_id OR p.user_high_id = a.user_id)
+      )
+  `;
+  return Boolean(row);
+}
+
 async function seatsTaken(tx, slotId) {
   const [{ count }] = await tx`
     SELECT coalesce(sum(1 + guests), 0)::int AS count FROM attendances WHERE slot_id = ${slotId}
@@ -1166,6 +1179,7 @@ export async function createRequest(sql, actorId, slotId, toUserId) {
     if (!target) fail(404, "NOT_FOUND", "Участник не найден");
     if (target.app_role === "admin") fail(409, "NOT_AVAILABLE", "Этого человека нельзя пригласить");
     if (await invitationDenied(tx, actorId, toUserId)) fail(403, "INVITE_BLOCKED", "Этот человек не принимает ваши приглашения");
+    if (await comingAlone(tx, toUserId, slotId)) fail(409, "NOT_AVAILABLE", "Этот человек придёт один");
     const targetConflict = await conflicting(tx, toUserId, slot);
     const targetAvailability = await availabilityOf(tx, toUserId, slot);
     if (!canInvite(slot, targetConflict, targetAvailability)) fail(409, "NOT_AVAILABLE", "Этого человека нельзя пригласить");
@@ -1647,8 +1661,9 @@ export async function presentSlots(sql, rawSlots, userId) {
     const conflict = myAttendanceRows.some((row) => row.id !== slot.id && overlaps(row.starts_at, row.ends_at, slot.startsAt, slot.endsAt))
       || myPairRows.some((row) => overlaps(row.starts_at, row.ends_at, slot.startsAt, slot.endsAt));
     const myAvailability = state.open;
-    const free = canInvite(slot, conflict, { open: state.open });
     const pair = pairRows.find((row) => row.slot_id === slot.id);
+    const comingAlone = myAttendance && !withPartner && !pair;
+    const free = !comingAlone && canInvite(slot, conflict, { open: state.open });
     const partnerId = pair ? (pair.user_low_id === userId ? pair.user_high_id : pair.user_low_id) : null;
     const incoming = requestRows.filter((row) => row.slot_id === slot.id && row.to_user_id === userId);
     const outgoing = requestRows.some((row) => row.slot_id === slot.id && row.from_user_id === userId);
@@ -1787,7 +1802,7 @@ export async function freePeople(sql, slotId, actorId, q) {
   if (slot.status !== "open" || slot.startsAt <= new Date()) return [];
   const query = String(q ?? "").trim().slice(0, 80);
   const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
-  const [people, requestRows] = await Promise.all([
+  const [people, requestRows, aloneRows] = await Promise.all([
     sql`
       SELECT id, display_name FROM users
       WHERE id <> ${actorId} AND app_role <> 'admin' AND display_name ILIKE ${pattern}
@@ -1798,6 +1813,15 @@ export async function freePeople(sql, slotId, actorId, q) {
       WHERE slot_id = ${slotId} AND (from_user_id = ${actorId} OR to_user_id = ${actorId})
       ORDER BY created_at DESC
     `,
+    sql`
+      SELECT a.user_id FROM attendances a
+      WHERE a.slot_id = ${slotId} AND a.guests = 0
+        AND NOT EXISTS (
+          SELECT 1 FROM pairs p
+          WHERE p.slot_id = a.slot_id AND p.status = 'confirmed'
+            AND (p.user_low_id = a.user_id OR p.user_high_id = a.user_id)
+        )
+    `,
   ]);
   const requestStatus = new Map();
   for (const row of requestRows) {
@@ -1805,12 +1829,13 @@ export async function freePeople(sql, slotId, actorId, q) {
     if (!requestStatus.has(otherId)) requestStatus.set(otherId, row.status);
   }
   const denied = await blockedTargets(sql, actorId, people.map((person) => person.id));
+  const alone = new Set(aloneRows.map((row) => row.user_id));
   const result = [];
   for (const person of people) {
     const conflict = await conflicting(sql, person.id, slot);
     const availability = await availabilityOf(sql, person.id, slot);
     const status = requestStatus.get(person.id) ?? null;
-    const canAsk = canInvite(slot, conflict, availability) && status !== "pending" && status !== "accepted" && !denied.has(person.id);
+    const canAsk = !alone.has(person.id) && canInvite(slot, conflict, availability) && status !== "pending" && status !== "accepted" && !denied.has(person.id);
     if (!canAsk && !status) continue;
     result.push({ id: person.id, displayName: person.display_name, requestStatus: status, canInvite: canAsk });
   }

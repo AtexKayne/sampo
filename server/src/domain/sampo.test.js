@@ -386,6 +386,24 @@ test("a chosen visit blocks invitations until it is cancelled", async () => {
   assert.equal(request.status, "pending");
 });
 
+test("coming alone hides the person from invitations on that slot", async () => {
+  const host = await makeUser("Зоя");
+  const guest = await makeUser("Игнат");
+  const slotId = await makeSlot(4, "2026-12-16T14:00:00.000Z", "2026-12-16T16:00:00.000Z");
+  const other = await makeSlot(4, "2026-12-17T14:00:00.000Z", "2026-12-17T16:00:00.000Z");
+  await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${guest}, ${slotId}), (${guest}, ${other})`;
+  await attend(sql, guest, slotId);
+  await assert.rejects(
+    createRequest(sql, host, slotId, guest),
+    (error) => error instanceof HttpError && error.code === "NOT_AVAILABLE" && error.message === "Этот человек придёт один",
+  );
+  assert.deepEqual(await freePeople(sql, slotId, host, "Игнат"), []);
+  assert.deepEqual((await freePeople(sql, other, host, "Игнат")).map((person) => person.id), [guest]);
+  await leave(sql, guest, slotId);
+  const request = await createRequest(sql, host, slotId, guest);
+  assert.equal(request.status, "pending");
+});
+
 test("a slot switch marks that slot free or unavailable", async () => {
   const host = await makeUser("Яша");
   const guest = await makeUser("Эля");

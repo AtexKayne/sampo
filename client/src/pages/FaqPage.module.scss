@@ -48,6 +48,10 @@
   cursor: pointer;
 }
 
+button.toggle:active:not(:disabled):not(:has(:disabled)) {
+  transform: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .toggle:hover {
     background: var(--bg);
