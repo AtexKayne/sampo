@@ -36,6 +36,7 @@ const LOOKS = {
   "dance-master": { metal: "gold", field: ["#7d5fff", "#25136b"] },
   sloth: { metal: "bronze", field: ["#9be08f", "#1d5e3c"], center: [40, 30] },
   "grand-sloth": { metal: "gold", field: ["#6fd0a0", "#0d3f2f"], center: [40, 30] },
+  "cunning-carburetor": { metal: "gold", field: ["#ffeaa6", "#e2a83c"], center: [44, 30] },
 };
 
 function star(cx, cy, outer, inner, points = 5) {
@@ -171,6 +172,37 @@ function Sloth({ grand, paint }) {
           <path d="M48.4 28.4h2.6l-2.6 2.8h2.6M51.8 23.2h1.8l-1.8 2h1.8" stroke={CREAM} strokeWidth="0.9" fill="none" />
         </>
       ) : null}
+    </g>
+  );
+}
+
+const CAPY = "#b9824f";
+const CAPY_LIGHT = "#d4a271";
+const CAPY_DARK = "#8a5a32";
+const CAPY_NOSE = "#8a7262";
+const CAPY_MUZZLE = "#f4dfc1";
+const CAPY_EAR = "#e98b7f";
+
+function Capybara() {
+  return (
+    <g stroke={BROWN} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" transform="translate(1.6 -1)">
+      <circle cx="27.9" cy="16" r="3" fill={CAPY} />
+      <circle cx="27.9" cy="16.2" r="1.6" fill={CAPY_DARK} stroke="none" />
+      <path d="M12.9 31.4C12.6 28.6 13.6 27 15.4 26.2 19 23.6 25.8 18.6 31.6 16.6c4.8-1.6 10-.4 12.8 3.4 2.6 3.4 4 8.4 3.8 13-.2 4.6-1.4 8.4-3.4 11l-1.2 3.2-1.8-1.4-1.4 3.6-1.8-1.8-1.8 3.4-1.8-2.4-2 2.8-1.6-2.8-2.2 2-1-2.8-2.4 1.4-.4-2.8c-1.4-1.6-2-3.4-2.6-4.8-2.8-.6-6-2-8-4.2-1.4-1.6-1.8-3.8-1.9-6Z" fill={CAPY} />
+      <path d="M24.6 21.4c1.4-1.2 3-2 4.8-2.4" fill="none" stroke={CAPY_LIGHT} strokeWidth="1.4" />
+      <path d="M13 31.2c-.2-2.6 1-4.2 2.8-5 2.8-1.4 6-1.6 7.8-.6-1.2 1.4-2.4 2.6-2.6 4.6-.2 2.4-2 3.8-4.2 3.8s-3.6-1.2-3.8-2.8Z" fill={CAPY_NOSE} stroke="none" />
+      <path d="M14.6 35.8c1.6-1.2 3.4-1.4 5.2-1.2 2.8-.8 5.8-1.2 7.6-.6-1.4 2.6-2.8 5.4-4.4 7.6-3-.6-6.2-2-8.2-4.2Z" fill={CAPY_MUZZLE} stroke="none" />
+      <path d="M12.9 31.4C12.6 28.6 13.6 27 15.4 26.2" fill="none" />
+      <ellipse cx="17.4" cy="30.8" rx="1.3" ry="0.9" transform="rotate(-25 17.4 30.8)" fill={BROWN} stroke="none" />
+      <path d="M17.4 33.2l.4 3.2M15.6 37c2.4 1.6 5.4 2 8 1.2" fill="none" strokeWidth="1" />
+      <path d="M28.9 25.3l4.8-.8c.3 1.9-.7 3.3-2.3 3.3s-2.5-1-2.5-2.5Z" fill={BROWN} stroke="none" />
+      <path d="M28.4 25.6l5.8-1.2" fill="none" strokeWidth="1.3" />
+      <circle cx="32.2" cy="25.9" r="0.45" fill="#fff" stroke="none" />
+      <circle cx="40" cy="16.8" r="4" fill={CAPY} />
+      <circle cx="40.6" cy="17.6" r="2.4" fill={CAPY_EAR} stroke="none" />
+      <path d="M36.2 18.4c1.2-.6 2.4-.4 3.2.4" fill="none" stroke={CAPY} strokeWidth="1.6" />
+      <path d="M28 37c3.4 1.4 6 3.6 7.4 6.4M44.2 32.6l1.6 1.4M43.4 37.2l1.8 1.2" fill="none" strokeWidth="0.9" />
+      <path d="M18.4 34.4l-7.6-.4M18.6 35.4l-7.4 2.2M19.2 36.4l-6.4 4" fill="none" strokeWidth="0.6" />
     </g>
   );
 }
@@ -635,9 +667,10 @@ const SCENES = {
   ),
   sloth: (paint) => <Sloth paint={paint} />,
   "grand-sloth": (paint) => <Sloth grand paint={paint} />,
+  "cunning-carburetor": <Capybara />,
 };
 
-export function AchievementIcon({ name }) {
+export function AchievementIcon({ name, size = 108 }) {
   const id = useId().replace(/:/g, "");
   const look = LOOKS[name] ?? LOOKS["first-step"];
   const metal = METALS[look.metal];
@@ -652,7 +685,7 @@ export function AchievementIcon({ name }) {
   ];
 
   return (
-    <svg viewBox="0 0 64 64" width="108" height="108" fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 64 64" width={size} height={size} fill="none" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <defs>
         <linearGradient id={`${id}-metal`} x1="0" y1="0" x2="1" y2="1">
           {metalStops.map(([offset, color]) => <stop key={offset} offset={offset} stopColor={color} />)}

@@ -23,7 +23,7 @@ import {
   updateWindow,
   withdrawRequest,
 } from "./sampo.js";
-import { addToBlacklist, addToWhitelist, deleteProfile, profileSettings, ratingSummary, removeFromBlacklist, saveProfile, searchDancers, setBlockedLevels, setDanceLevel } from "./profile.js";
+import { addToBlacklist, addToWhitelist, deleteProfile, profileSettings, ratingSummary, removeFromBlacklist, saveProfile, searchDancers, setBlockedLevels, setDanceLevel, setSampoTotal, setUserAchievements } from "./profile.js";
 import { HttpError } from "../http/errors.js";
 
 dotenv.config();
@@ -925,14 +925,16 @@ test("rating lists the three dancers with the most sampo, by total and by month"
     SELECT coalesce(max(total), 0)::int AS total, coalesce(max(month), 0)::int AS month
     FROM (
       SELECT
-        count(*) FILTER (WHERE s.status = 'open' AND s.ends_at <= ${now})::int AS total,
-        count(*) FILTER (
+        greatest(0, count(s.id) FILTER (WHERE s.status = 'open' AND s.ends_at <= ${now})::int + u.sampo_adjust)::int AS total,
+        greatest(0, count(s.id) FILTER (
           WHERE s.status = 'open' AND s.ends_at <= ${now}
             AND s.starts_at >= ${monthStart} AND s.starts_at < ${monthNext}
-        )::int AS month
-      FROM attendances a
-      JOIN slots s ON s.id = a.slot_id
-      GROUP BY a.user_id
+        )::int + coalesce((u.sampo_months->>'2026-10')::int, 0))::int AS month
+      FROM users u
+      LEFT JOIN attendances a ON a.user_id = u.id
+      LEFT JOIN slots s ON s.id = a.slot_id
+      WHERE u.app_role <> 'admin'
+      GROUP BY u.id
     ) ranked
   `;
   const septemberCount = Math.max(counts.total, counts.month) + 10;
@@ -1176,4 +1178,172 @@ test("deleting a profile removes that dancer and keeps the partner's visit", asy
   assert.equal(session, undefined);
   const [slot] = await sql`SELECT id FROM slots WHERE id = ${slotId}`;
   assert.equal(slot.id, slotId);
+});
+
+test("an edited sampo total moves the current month and does not change achievements", async () => {
+  const user = await makeUser("Поправка сампо");
+  const viewer = await makeUser("Зритель поправки");
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  const september = await makeSlot(4, "2026-09-02T10:00:00.000Z", "2026-09-02T12:00:00.000Z");
+  await sql`INSERT INTO attendances (user_id, slot_id) VALUES (${user}, ${september})`;
+  const earned = (items) => new Set(items.filter((item) => item.earned).map((item) => item.id));
+
+  await assert.rejects(
+    setSampoTotal(sql, user, 0, now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+
+  await setSampoTotal(sql, user, 4, now);
+  const raised = await ratingSummary(sql, user, now);
+  assert.equal(raised.visits.total, 4);
+  assert.equal(raised.visits.month, 3);
+  assert.equal(raised.visits.previous, 1);
+  assert.equal(earned(raised.achievements).has("first-step"), true);
+  assert.equal(earned(raised.achievements).has("five"), false);
+  const page = await dancerProfile(sql, viewer, user);
+  assert.equal(page.visits.total, 4);
+  assert.equal(page.visits.month, 3);
+  assert.equal(earned(page.achievements).has("five"), false);
+
+  await assert.rejects(
+    setSampoTotal(sql, user, 0, now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+  await setSampoTotal(sql, user, 1, now);
+  const lowered = await ratingSummary(sql, user, now);
+  assert.equal(lowered.visits.total, 1);
+  assert.equal(lowered.visits.month, 0);
+  assert.equal(lowered.visits.previous, 1);
+  assert.equal(earned(lowered.achievements).has("first-step"), true);
+
+  const october = await makeSlot(4, "2026-10-02T10:00:00.000Z", "2026-10-02T12:00:00.000Z");
+  await sql`INSERT INTO attendances (user_id, slot_id) VALUES (${user}, ${october})`;
+  const grown = await ratingSummary(sql, user, now);
+  assert.equal(grown.visits.total, 2);
+  assert.equal(grown.visits.month, 1);
+  assert.equal(earned(grown.achievements).has("five"), false);
+
+  await setSampoTotal(sql, user, 6, now);
+  const added = await ratingSummary(sql, user, now);
+  assert.equal(added.visits.total, 6);
+  assert.equal(added.visits.month, 5);
+  assert.equal(added.visits.previous, 1);
+
+  const [adjust] = await sql`SELECT sampo_adjust, sampo_months FROM users WHERE id = ${user}`;
+  await saveProfile(sql, user, {
+    displayName: "Поправка сампо",
+    danceLevel: null,
+    blockedLevels: [],
+    listMode: "black",
+    blacklist: [],
+    whitelist: [],
+    notifyInvites: false,
+    notifyHourBefore: false,
+    notifyNewSlots: false,
+    notifyNewSlotsScope: "free",
+    shareAvailability: false,
+    sampoTotal: 0,
+  });
+  const [kept] = await sql`SELECT sampo_adjust, sampo_months FROM users WHERE id = ${user}`;
+  assert.equal(kept.sampo_adjust, adjust.sampo_adjust);
+  assert.deepEqual(kept.sampo_months, adjust.sampo_months);
+
+  const november = new Date("2026-11-15T08:00:00.000Z");
+  const nextMonth = await ratingSummary(sql, user, november);
+  assert.equal(nextMonth.visits.total, 6);
+  assert.equal(nextMonth.visits.month, 0);
+  assert.equal(nextMonth.visits.previous, 5);
+  await assert.rejects(
+    setSampoTotal(sql, user, 5, november),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+  await setSampoTotal(sql, user, 8, november);
+  const novemberRaised = await ratingSummary(sql, user, november);
+  assert.equal(novemberRaised.visits.total, 8);
+  assert.equal(novemberRaised.visits.month, 2);
+  assert.equal(novemberRaised.visits.previous, 5);
+  assert.equal(earned(novemberRaised.achievements).has("five"), false);
+
+  await assert.rejects(
+    setSampoTotal(sql, user, -1, now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+  await assert.rejects(
+    setSampoTotal(sql, user, 1.5, now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+  await assert.rejects(
+    setSampoTotal(sql, user, 100_001, now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+});
+
+test("admin can grant and revoke several achievements", async () => {
+  const user = await makeUser("Ачивки админа");
+  const viewer = await makeUser("Зритель ачивок админа");
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  const slotId = await makeSlot(4, "2026-10-02T10:00:00.000Z", "2026-10-02T12:00:00.000Z");
+  await sql`INSERT INTO attendances (user_id, slot_id) VALUES (${user}, ${slotId})`;
+  const before = await ratingSummary(sql, user, now);
+  const earnedIds = (items) => items.filter((item) => item.earned).map((item) => item.id);
+  const had = earnedIds(before.achievements);
+  assert.equal(had.includes("first-step"), true);
+  assert.equal(had.includes("hundred"), false);
+  assert.equal(had.includes("five"), false);
+
+  const granted = await setUserAchievements(sql, user, [...had, "hundred", "five"], now);
+  const afterGrant = earnedIds(granted.achievements);
+  assert.equal(afterGrant.includes("hundred"), true);
+  assert.equal(afterGrant.includes("five"), true);
+  assert.equal(afterGrant.includes("first-step"), true);
+  assert.equal(granted.visits.total, before.visits.total);
+  const page = await dancerProfile(sql, viewer, user);
+  assert.equal(page.achievements.find((item) => item.id === "hundred").earned, true);
+  assert.equal(page.achievements.find((item) => item.id === "five").earned, true);
+
+  const revoked = await setUserAchievements(sql, user, afterGrant.filter((id) => id !== "first-step" && id !== "five"), now);
+  const afterRevoke = earnedIds(revoked.achievements);
+  assert.equal(afterRevoke.includes("first-step"), false);
+  assert.equal(afterRevoke.includes("five"), false);
+  assert.equal(afterRevoke.includes("hundred"), true);
+  assert.equal((await dancerProfile(sql, viewer, user)).achievements.find((item) => item.id === "first-step").earned, false);
+  assert.equal((await ratingSummary(sql, user, now)).achievements.find((item) => item.id === "hundred").earned, true);
+
+  const restored = await setUserAchievements(sql, user, had, now);
+  assert.deepEqual(earnedIds(restored.achievements).sort(), [...had].sort());
+  const [left] = await sql`SELECT count(*)::int AS count FROM user_achievement_overrides WHERE user_id = ${user}`;
+  assert.equal(left.count, 0);
+
+  await assert.rejects(
+    setUserAchievements(sql, user, ["no-such"], now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+  await assert.rejects(
+    setUserAchievements(sql, user, "hundred", now),
+    (error) => error instanceof HttpError && error.code === "VALIDATION",
+  );
+});
+
+test("the hidden carburetor can be granted to many people and stays off the rating catalogue", async () => {
+  const first = await makeUser("Карбюратор один");
+  const second = await makeUser("Карбюратор два");
+  const viewer = await makeUser("Зритель карбюратора");
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  const earnedIds = (items) => items.filter((item) => item.earned).map((item) => item.id);
+
+  const empty = await ratingSummary(sql, first, now);
+  assert.equal(empty.achievements.some((item) => item.id === "cunning-carburetor"), false);
+
+  const granted = await setUserAchievements(sql, first, [...earnedIds(empty.achievements), "cunning-carburetor"], now);
+  assert.equal(granted.achievements.find((item) => item.id === "cunning-carburetor").earned, true);
+  const rating = await ratingSummary(sql, first, now);
+  assert.equal(rating.achievements.find((item) => item.id === "cunning-carburetor").earned, true);
+  assert.equal((await ratingSummary(sql, second, now)).achievements.some((item) => item.id === "cunning-carburetor"), false);
+  const page = await dancerProfile(sql, viewer, first);
+  assert.equal(page.achievements.find((item) => item.id === "cunning-carburetor").earned, true);
+  assert.equal((await dancerProfile(sql, viewer, second)).achievements.some((item) => item.id === "cunning-carburetor"), false);
+
+  await setUserAchievements(sql, second, ["cunning-carburetor"], now);
+  assert.equal((await dancerProfile(sql, viewer, second)).achievements.find((item) => item.id === "cunning-carburetor").earned, true);
+  assert.equal((await dancerProfile(sql, viewer, first)).achievements.find((item) => item.id === "cunning-carburetor").earned, true);
 });

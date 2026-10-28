@@ -140,3 +140,17 @@
     }
   }
 }
+
+.footer {
+  flex: none;
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.withFooter .body {
+  flex: 1 1 auto;
+  padding-bottom: 16px;
+}

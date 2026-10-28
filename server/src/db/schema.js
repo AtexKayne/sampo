@@ -1,4 +1,4 @@
-import { bigint, boolean, integer, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
@@ -13,6 +13,8 @@ export const users = pgTable("users", {
   notifyNewSlots: boolean("notify_new_slots").notNull().default(false),
   notifyNewSlotsScope: text("notify_new_slots_scope").notNull().default("free"),
   shareAvailability: boolean("share_availability").notNull().default(false),
+  sampoAdjust: integer("sampo_adjust").notNull().default(0),
+  sampoMonths: jsonb("sampo_months").notNull().default({}),
   appRole: text("app_role").notNull().default("user"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

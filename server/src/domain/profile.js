@@ -1,7 +1,7 @@
 import { HttpError } from "../http/errors.js";
 import { validateDisplayName } from "../auth/password.js";
 import { studioParts } from "../slots/rules.js";
-import { evaluateAchievements } from "../../../shared/achievements.js";
+import { ACHIEVEMENTS, evaluateAchievements } from "../../../shared/achievements.js";
 import { TIME_ZONE_OFFSET_MS } from "../../../shared/timezone.js";
 import { parseBlockedLevels, parseDanceLevel } from "../../../shared/dance-levels.js";
 
@@ -158,7 +158,10 @@ export async function adminProfile(sql, userId, now = new Date()) {
     WHERE id = ${userId}
   `;
   if (!user) fail(404, "NOT_FOUND", "Профиль не найден");
-  const settings = await profileSettings(sql, userId, now);
+  const [settings, achievements] = await Promise.all([
+    profileSettings(sql, userId, now),
+    userAchievements(sql, userId, now),
+  ]);
   return {
     ...settings,
     id: user.id,
@@ -166,17 +169,93 @@ export async function adminProfile(sql, userId, now = new Date()) {
     hasLogin: Boolean(user.login),
     vkLinked: user.vk_user_id != null,
     appRole: user.app_role,
+    achievements,
   };
+}
+
+function shownCount(actual, adjust) {
+  return Math.max(0, actual + adjust);
+}
+
+function studioMonthKey(date) {
+  const parts = studioParts(date);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}`;
+}
+
+function monthAdjustOf(months, key) {
+  const value = months?.[key];
+  return typeof value === "number" && Number.isInteger(value) ? value : 0;
+}
+
+const SAMPO_TOTAL_MAX = 100_000;
+
+export function parseSampoTotal(value) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > SAMPO_TOTAL_MAX) {
+    return { ok: false, message: "Укажите количество сампо целым числом от 0 до 100000" };
+  }
+  return { ok: true, total: value };
+}
+
+export async function setSampoTotal(sql, userId, total, now = new Date()) {
+  const parsed = parseSampoTotal(total);
+  if (!parsed.ok) fail(400, "VALIDATION", parsed.message);
+  const month = studioMonthRange(now);
+  const monthKey = studioMonthKey(now);
+  await sql.begin(async (tx) => {
+    const [user] = await tx`
+      SELECT sampo_adjust, sampo_months
+      FROM users
+      WHERE id = ${userId}
+    `;
+    if (!user) fail(404, "NOT_FOUND", "Профиль не найден");
+    const [actual] = await tx`
+      SELECT
+        count(*) FILTER (
+          WHERE s.status = 'open' AND s.ends_at <= ${now}
+        )::int AS total_n,
+        count(*) FILTER (
+          WHERE s.status = 'open'
+            AND s.ends_at <= ${now}
+            AND s.starts_at >= ${month.start}
+            AND s.starts_at < ${month.next}
+        )::int AS month_n
+      FROM attendances a
+      JOIN slots s ON s.id = a.slot_id
+      WHERE a.user_id = ${userId}
+    `;
+    const actualTotal = actual?.total_n ?? 0;
+    const actualMonth = actual?.month_n ?? 0;
+    const months = user.sampo_months && typeof user.sampo_months === "object" ? user.sampo_months : {};
+    const shownTotal = shownCount(actualTotal, user.sampo_adjust);
+    const shownMonth = shownCount(actualMonth, monthAdjustOf(months, monthKey));
+    if (parsed.total === shownTotal) return;
+    const delta = parsed.total - shownTotal;
+    if (delta < 0 && -delta > shownMonth) {
+      fail(400, "VALIDATION", "Нельзя уменьшить количество сампо больше, чем посещений в этом месяце");
+    }
+    const nextMonths = { ...months };
+    const nextAmount = shownMonth + delta - actualMonth;
+    if (nextAmount === 0) delete nextMonths[monthKey];
+    else nextMonths[monthKey] = nextAmount;
+    await tx`
+      UPDATE users
+      SET sampo_adjust = ${parsed.total - actualTotal},
+          sampo_months = ${tx.json(nextMonths)}
+      WHERE id = ${userId}
+    `;
+  });
 }
 
 export async function visitCounts(sql, userId, now = new Date()) {
   const month = studioMonthRange(now);
   const previous = studioMonthRange(new Date(month.start.getTime() - 1));
+  const monthKey = studioMonthKey(now);
+  const previousKey = studioMonthKey(previous.start);
   const [row] = await sql`
     SELECT
       count(*) FILTER (
         WHERE s.status = 'open' AND s.ends_at <= ${now}
-      )::int AS total,
+      )::int AS actual,
       count(*) FILTER (
         WHERE s.status = 'open'
           AND s.ends_at <= ${now}
@@ -188,15 +267,18 @@ export async function visitCounts(sql, userId, now = new Date()) {
           AND s.ends_at <= ${now}
           AND s.starts_at >= ${previous.start}
           AND s.starts_at < ${previous.next}
-      )::int AS previous
+      )::int AS previous,
+      coalesce((SELECT sampo_adjust FROM users WHERE id = ${userId}), 0)::int AS adjust,
+      coalesce((SELECT sampo_months FROM users WHERE id = ${userId}), '{}'::jsonb) AS months
     FROM attendances a
     JOIN slots s ON s.id = a.slot_id
     WHERE a.user_id = ${userId}
   `;
+  const months = row?.months && typeof row.months === "object" ? row.months : {};
   return {
-    month: row?.month ?? 0,
-    previous: row?.previous ?? 0,
-    total: row?.total ?? 0,
+    month: shownCount(row?.month ?? 0, monthAdjustOf(months, monthKey)),
+    previous: shownCount(row?.previous ?? 0, monthAdjustOf(months, previousKey)),
+    total: shownCount(row?.actual ?? 0, row?.adjust ?? 0),
     previousMonth: studioParts(previous.start).month,
   };
 }
@@ -212,22 +294,23 @@ function leadersOf(rows) {
 
 function rankingQuery(sql, now) {
   const month = studioMonthRange(now);
+  const monthKey = studioMonthKey(now);
   return sql`
     SELECT u.id, u.display_name,
-      count(s.id) FILTER (
+      greatest(0, count(s.id) FILTER (
         WHERE s.status = 'open' AND s.ends_at <= ${now}
-      )::int AS total,
-      count(s.id) FILTER (
+      )::int + u.sampo_adjust)::int AS total,
+      greatest(0, count(s.id) FILTER (
         WHERE s.status = 'open'
           AND s.ends_at <= ${now}
           AND s.starts_at >= ${month.start}
           AND s.starts_at < ${month.next}
-      )::int AS month
+      )::int + coalesce((u.sampo_months->>${monthKey})::int, 0))::int AS month
     FROM users u
     LEFT JOIN attendances a ON a.user_id = u.id
     LEFT JOIN slots s ON s.id = a.slot_id
     WHERE u.app_role <> 'admin'
-    GROUP BY u.id
+    GROUP BY u.id, u.sampo_adjust, u.sampo_months
   `;
 }
 
@@ -273,7 +356,19 @@ async function ratingPlace(sql, userId, now, metric) {
   return row?.place == null ? null : Number(row.place);
 }
 
-export async function userAchievements(sql, userId, now = new Date()) {
+const ACHIEVEMENT_IDS = new Set(ACHIEVEMENTS.map((item) => item.id));
+
+function parseAchievementIds(value) {
+  if (!Array.isArray(value)) return { ok: false, message: "Выберите ачивки" };
+  const ids = [];
+  for (const id of value) {
+    if (typeof id !== "string" || !ACHIEVEMENT_IDS.has(id)) return { ok: false, message: "Выберите ачивку из списка" };
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return { ok: true, ids };
+}
+
+async function earnedFromVisits(sql, userId, now) {
   const [user] = await sql`SELECT created_at FROM users WHERE id = ${userId}`;
   const rows = await sql`
     SELECT s.starts_at, s.ends_at, s.place, a.guests, partner.partner_id
@@ -303,6 +398,68 @@ export async function userAchievements(sql, userId, now = new Date()) {
   })), { now, since: user?.created_at });
 }
 
+async function achievementOverrides(sql, userId) {
+  const rows = await sql`
+    SELECT achievement_id, granted
+    FROM user_achievement_overrides
+    WHERE user_id = ${userId}
+  `;
+  const granted = new Set();
+  const revoked = new Set();
+  for (const row of rows) {
+    if (row.granted) granted.add(row.achievement_id);
+    else revoked.add(row.achievement_id);
+  }
+  return { granted, revoked };
+}
+
+function applyAchievementOverrides(items, overrides) {
+  return items.map((item) => ({
+    ...item,
+    earned: overrides.revoked.has(item.id) ? false : item.earned || overrides.granted.has(item.id),
+  }));
+}
+
+function visibleAchievements(items, mode) {
+  if (mode === "all") return items;
+  if (mode === "earned") return items.filter((item) => !item.hidden || item.earned);
+  return items.filter((item) => !item.hidden);
+}
+
+export async function userAchievements(sql, userId, now = new Date()) {
+  const [items, overrides] = await Promise.all([
+    earnedFromVisits(sql, userId, now),
+    achievementOverrides(sql, userId),
+  ]);
+  return applyAchievementOverrides(items, overrides);
+}
+
+export async function publicAchievements(sql, userId, now = new Date()) {
+  return visibleAchievements(await userAchievements(sql, userId, now), "earned");
+}
+
+export async function catalogueAchievements(sql, userId, now = new Date()) {
+  return visibleAchievements(await userAchievements(sql, userId, now), "earned");
+}
+
+export async function setUserAchievements(sql, userId, ids, now = new Date()) {
+  const parsed = parseAchievementIds(ids);
+  if (!parsed.ok) fail(400, "VALIDATION", parsed.message);
+  const natural = await earnedFromVisits(sql, userId, now);
+  const wanted = new Set(parsed.ids);
+  await sql.begin(async (tx) => {
+    await tx`DELETE FROM user_achievement_overrides WHERE user_id = ${userId}`;
+    for (const item of natural) {
+      if (wanted.has(item.id) === item.earned) continue;
+      await tx`
+        INSERT INTO user_achievement_overrides (user_id, achievement_id, granted)
+        VALUES (${userId}, ${item.id}, ${wanted.has(item.id)})
+      `;
+    }
+  });
+  return adminProfile(sql, userId, now);
+}
+
 export async function ratingSummary(sql, userId, now = new Date()) {
   const [visits, total, month, totalPlace, monthPlace, achievements] = await Promise.all([
     visitCounts(sql, userId, now),
@@ -310,7 +467,7 @@ export async function ratingSummary(sql, userId, now = new Date()) {
     ratingLeaders(sql, now, "month"),
     ratingPlace(sql, userId, now, "total"),
     ratingPlace(sql, userId, now, "month"),
-    userAchievements(sql, userId, now),
+    catalogueAchievements(sql, userId, now),
   ]);
   return {
     visits,

@@ -27,6 +27,7 @@ function mobileSheet() {
 
 export function Sheet({
   children,
+  footer = null,
   onClose,
   labelledBy,
   describedBy,
@@ -138,7 +139,7 @@ export function Sheet({
     <div className={[styles.backdrop, leaving ? styles.leaving : ""].filter(Boolean).join(" ")} onClick={dismiss}>
       <div className={styles.dim} style={dimMotion} />
       <Tag
-        className={[styles.sheet, sizeClass, ready ? styles.ready : "", className].filter(Boolean).join(" ")}
+        className={[styles.sheet, sizeClass, footer ? styles.withFooter : "", ready ? styles.ready : "", className].filter(Boolean).join(" ")}
         role="dialog"
         aria-modal="true"
         aria-labelledby={labelledBy}
@@ -159,6 +160,7 @@ export function Sheet({
           <span className={styles.grip} />
         </div>
         <div className={styles.body}>{children}</div>
+        {footer ? <div className={styles.footer}>{footer}</div> : null}
       </Tag>
     </div>,
     document.body,

@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
 import { disablePhonePush, enablePhonePush, iosNeedsHomeScreen, preparePush, readPhonePush } from "../notifications/push.js";
+import { AchievementIcon } from "../components/AchievementIcon.jsx";
 import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
@@ -125,6 +126,7 @@ function ProfileSettings({ userId }) {
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [pickingAchievements, setPickingAchievements] = useState(false);
   const [query, setQuery] = useState("");
   const [needle, setNeedle] = useState("");
   const settingsQuery = useQuery({
@@ -135,7 +137,7 @@ function ProfileSettings({ userId }) {
   useEffect(() => {
     if (!saved) return;
     setDraft((current) => current ?? saved);
-  }, [saved]);
+  }, [saved, editing]);
   useEffect(() => {
     const timer = setTimeout(() => setNeedle(query.trim()), 200);
     return () => clearTimeout(timer);
@@ -364,6 +366,21 @@ function ProfileSettings({ userId }) {
           onChange={(event) => setDraft((current) => (current ? { ...current, displayName: event.target.value } : current))}
         />
       </label>
+      {editing && saved ? (
+        <div className={styles.stack}>
+          <SampoCountEditor
+            saved={saved}
+            disabled={busy || remove.isPending}
+            onSaved={(next) => {
+              setDraft((current) => (current ? { ...current, visits: next.visits } : current));
+              queryClient.setQueryData(settingsKey, next);
+            }}
+          />
+          <button className={`${styles.button} ${styles.achievementButton}`} type="button" disabled={!saved.achievements} onClick={() => setPickingAchievements(true)}>
+            Редактировать достижения ({saved.achievements.filter((item) => item.earned).length})
+          </button>
+        </div>
+      ) : null}
       </form>
       <div className={styles.settings}>
       <h2 className={styles.settingsTitle}>Дополнительные настройки</h2>
@@ -582,6 +599,17 @@ function ProfileSettings({ userId }) {
           </div>
         </div>
       </div>
+      {pickingAchievements && saved?.achievements ? (
+        <AchievementPicker
+          userId={userId}
+          items={saved.achievements}
+          onClose={() => setPickingAchievements(false)}
+          onSaved={(next) => {
+            queryClient.setQueryData(settingsKey, next);
+            setPickingAchievements(false);
+          }}
+        />
+      ) : null}
       {confirming ? (
         <Sheet
           onClose={() => {
@@ -941,6 +969,188 @@ function CreateUserDialog({ onClose, onCreated }) {
   );
 }
 
+function SampoCountEditor({ saved, disabled, onSaved }) {
+  const shown = String(saved.visits?.total ?? 0);
+  const [open, setOpen] = useState(false);
+  const [value, setValue] = useState(shown);
+  const [error, setError] = useState("");
+  const save = useMutation({
+    mutationFn: (sampoTotal) => api(`/api/admin/users/${saved.id}`, {
+      method: "PUT",
+      body: profileBody(saved, sampoTotal),
+    }),
+    onSuccess: (next) => {
+      setError("");
+      setOpen(false);
+      setValue(String(next.visits?.total ?? 0));
+      onSaved(next);
+    },
+    onError: (reason) => setError(reason.message),
+  });
+  const dirty = value !== shown;
+  const pending = save.isPending;
+
+  function onAction() {
+    if (!open) {
+      setError("");
+      setValue(shown);
+      setOpen(true);
+      return;
+    }
+    if (!dirty) {
+      setError("");
+      setValue(shown);
+      setOpen(false);
+      return;
+    }
+    const sampoTotal = parseSampoTotal(value);
+    const month = saved.visits?.month ?? 0;
+    const total = saved.visits?.total ?? 0;
+    if (sampoTotal == null) {
+      setError("Укажите целое число от 0 до 100000");
+      return;
+    }
+    if (total - sampoTotal > month) {
+      setError("Нельзя уменьшить больше, чем посещений в этом месяце");
+      return;
+    }
+    setError("");
+    save.mutate(sampoTotal);
+  }
+
+  const action = !open ? "Изменить" : dirty ? "Сохранить" : "Отменить";
+
+  return (
+    <div className={styles.sampoEdit}>
+      <div className={styles.sampoRow}>
+        <span className={styles.fieldLabel}>Количество сампо</span>
+        <span className={styles.sampoSlot}>
+          {open ? (
+            <input
+              className={`${styles.input} ${styles.sampoInput}`}
+              inputMode="numeric"
+              autoComplete="off"
+              autoFocus
+              value={value}
+              disabled={disabled || pending}
+              aria-label="Количество сампо"
+              onChange={(event) => {
+                const next = event.target.value.replace(/\D/g, "").slice(0, 6);
+                setValue(next);
+                setError("");
+              }}
+            />
+          ) : (
+            <span className={styles.sampoValue}>{shown}</span>
+          )}
+        </span>
+        <button
+          className={styles.button}
+          type="button"
+          disabled={disabled || pending}
+          onClick={onAction}
+        >
+          {action}
+        </button>
+      </div>
+      {error ? <p className={styles.error}>{error}</p> : null}
+    </div>
+  );
+}
+
+function profileBody(profile, sampoTotal) {
+  return {
+    displayName: profile.displayName,
+    danceLevel: profile.danceLevel,
+    blockedLevels: profile.blockedLevels,
+    listMode: profile.listMode,
+    blacklist: profile.blacklist.map((person) => person.id),
+    whitelist: profile.whitelist.map((person) => person.id),
+    notifyInvites: profile.notifyInvites,
+    notifyHourBefore: profile.notifyHourBefore,
+    notifyNewSlots: profile.notifyNewSlots,
+    notifyNewSlotsScope: profile.notifyNewSlotsScope === "all" ? "all" : "free",
+    shareAvailability: profile.shareAvailability,
+    sampoTotal,
+  };
+}
+
+function AchievementPicker({ userId, items, onClose, onSaved }) {
+  const [selected, setSelected] = useState(() => new Set(items.filter((item) => item.earned).map((item) => item.id)));
+  const [error, setError] = useState("");
+  const save = useMutation({
+    mutationFn: (achievementIds) => api(`/api/admin/users/${userId}/achievements`, { method: "PUT", body: { achievementIds } }),
+    onSuccess: (next) => onSaved(next),
+    onError: (reason) => setError(reason.message),
+  });
+  const dirty = !sameSelection(items, selected);
+
+  function toggle(id) {
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  return (
+    <Sheet
+      size="l"
+      labelledBy="achievements-edit-title"
+      onClose={() => {
+        if (!save.isPending) onClose();
+      }}
+      footer={(
+        <>
+          {error ? <p className={styles.error}>{error}</p> : null}
+          <button className={`${styles.primary} ${styles.wide}`} type="button" disabled={!dirty || save.isPending} onClick={() => save.mutate([...selected])}>
+            Сохранить
+          </button>
+        </>
+      )}
+    >
+      <div className={styles.dialogHead}>
+        <h2 className={styles.dialogTitle} id="achievements-edit-title">Ачивки</h2>
+        <button className={styles.close} type="button" aria-label="Закрыть" disabled={save.isPending} onClick={onClose}>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      <p className={styles.dialogText}>Отметьте достижения пользователя. Можно выбрать несколько.</p>
+      <ul className={styles.achievementList}>
+        {items.map((item) => (
+          <li key={item.id}>
+            <label className={`${styles.check} ${styles.achievementPick}`}>
+              <input
+                type="checkbox"
+                checked={selected.has(item.id)}
+                disabled={save.isPending}
+                onChange={() => toggle(item.id)}
+              />
+              <span className={styles.achievementIcon}>
+                <AchievementIcon name={item.id} size={64} />
+              </span>
+              <span className={styles.achievementOption}>
+                <span>{item.title}</span>
+                <span className={styles.groupHint}>{item.detail}</span>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+    </Sheet>
+  );
+}
+
+function sameSelection(items, selected) {
+  const earned = items.filter((item) => item.earned).map((item) => item.id).sort();
+  const chosen = [...selected].sort();
+  if (earned.length !== chosen.length) return false;
+  return earned.every((id, index) => id === chosen[index]);
+}
+
 function LevelOption({ name, label, checked, disabled, multiple, onChange }) {
   return (
     <label className={checked ? styles.choiceOn : styles.choice}>
@@ -1074,6 +1284,13 @@ function sameIds(left, right) {
   const a = [...left].sort();
   const b = [...right].sort();
   return a.every((id, index) => id === b[index]);
+}
+
+function parseSampoTotal(value) {
+  if (typeof value !== "string" || !/^\d{1,6}$/.test(value.trim())) return null;
+  const total = Number(value.trim());
+  if (!Number.isInteger(total) || total > 100_000) return null;
+  return total;
 }
 
 function isDirty(draft, saved) {

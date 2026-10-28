@@ -1378,3 +1378,75 @@ input.radio {
   cursor: default;
   opacity: 0.6;
 }
+
+.achievementList {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.achievementPick {
+  align-items: center;
+  padding: 6px 0;
+}
+
+.achievementIcon {
+  display: flex;
+  flex: none;
+  width: 64px;
+  height: 64px;
+}
+
+.achievementOption {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.achievementButton {
+  width: 100%;
+}
+
+.sampoEdit {
+  display: grid;
+  gap: 4px;
+}
+
+.sampoRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sampoRow .fieldLabel {
+  flex: none;
+}
+
+.sampoSlot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 5.5rem;
+  min-height: 44px;
+}
+
+.sampoValue {
+  font-weight: 600;
+  line-height: 1;
+  text-align: center;
+}
+
+.sampoInput {
+  width: 100%;
+  text-align: center;
+}
+
+.sampoRow .button {
+  flex: 1 1 auto;
+}

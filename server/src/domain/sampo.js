@@ -1,6 +1,6 @@
 import { GRID_END_MINUTES } from "../../../shared/calendar-grid.js";
 import { HttpError } from "../http/errors.js";
-import { blockedTargets, invitationDenied, inviteListHides, listMembership, userAchievements, visitCounts } from "./profile.js";
+import { blockedTargets, invitationDenied, inviteListHides, listMembership, publicAchievements, visitCounts } from "./profile.js";
 import { endsOnSameStudioDay, parseStudioLocal, studioDayKey, studioParts, studioWeekday } from "../slots/rules.js";
 
 const WEEKDAYS = ["", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
@@ -1780,7 +1780,7 @@ export async function dancerProfile(sql, viewerId, subjectKey) {
     listMembership(sql, viewerId, user.id),
     inviteListHides(sql, user.id, viewerId),
     visitCounts(sql, user.id),
-    userAchievements(sql, user.id),
+    publicAchievements(sql, user.id),
   ]);
   return {
     id: user.id,

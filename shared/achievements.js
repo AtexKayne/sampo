@@ -31,6 +31,7 @@ export const ACHIEVEMENTS = [
   { id: "dance-master", title: "Танцмастер", detail: "Сампо в шести месяцах подряд" },
   { id: "sloth", title: "Ленивец", detail: "Ни одного сампо за неделю" },
   { id: "grand-sloth", title: "Королевский ленивец", detail: "Ни одного сампо за месяц" },
+  { id: "cunning-carburetor", title: "Коварный карбюратор", detail: "Скрытая ачивка в единственном экземпляре", hidden: true },
 ];
 
 function parts(date) {
@@ -232,5 +233,6 @@ export function evaluateAchievements(visits, options = {}) {
     title: item.title,
     detail: item.detail,
     earned: earned.has(item.id),
+    hidden: Boolean(item.hidden),
   }));
 }

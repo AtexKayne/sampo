@@ -366,7 +366,8 @@ pending → expired      система, когда now >= slot.startsAt
 | POST `/api/admin/users` | admin | `{ login, password, displayName }`, роль нового пользователя `user` |
 | GET `/api/admin/users?q` | admin | поиск чужих профилей по имени или логину |
 | GET `/api/admin/users/:id` | admin | чужой профиль: настройки, логин, `hasLogin`, `vkLinked`. Без хэша пароля и без vk id |
-| PUT `/api/admin/users/:id` | admin | те же поля, что у `PUT /api/me/settings` |
+| PUT `/api/admin/users/:id` | admin | те же поля, что у `PUT /api/me/settings`, и `sampoTotal` — показанное число сампо. Разница прибавляется к числу за текущий месяц или вычитается из него, но не больше, чем сампо в этом месяце. На достижения не влияет |
+| PUT `/api/admin/users/:id/achievements` | admin | `{ achievementIds }` — какие ачивки есть у пользователя. Можно выдать и забрать несколько. Скрытая «Коварный карбюратор» не входит в общий список рейтинга, пока её не выдали |
 | POST `/api/admin/users/:id/password` | admin | задать или сменить логин и пароль чужого профиля |
 | DELETE `/api/admin/users/:id` | admin | удалить чужой профиль. Свой и администраторский удалить нельзя |
 | POST `/api/admin/slots` | admin | один слот или серия |

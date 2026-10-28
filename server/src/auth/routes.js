@@ -13,7 +13,7 @@ import {
 } from "./sessions.js";
 import { closeSession, closeUser } from "../notifications/live.js";
 import { createPasswordUser, setLoginPassword } from "../domain/credentials.js";
-import { adminProfile, deleteOtherProfile, deleteProfile, requireExistingUser, saveProfile, searchAccounts } from "../domain/profile.js";
+import { adminProfile, deleteOtherProfile, deleteProfile, parseSampoTotal, requireExistingUser, saveProfile, searchAccounts, setSampoTotal, setUserAchievements } from "../domain/profile.js";
 import { requireAdmin, requireDancer, requireUser } from "./access.js";
 import { signAccessToken, verifyAccessToken, REFRESH_TTL_MS } from "./tokens.js";
 import {
@@ -273,8 +273,21 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
     requireAdmin(current);
     const user = await requireExistingUser(sql, request.params.id);
     if (user.id === current.id) throw new HttpError(400, "VALIDATION", "Свой профиль меняется в своих настройках");
+    const sampo = request.body && Object.hasOwn(request.body, "sampoTotal")
+      ? parseSampoTotal(request.body.sampoTotal)
+      : null;
+    if (sampo && !sampo.ok) throw new HttpError(400, "VALIDATION", sampo.message);
     await saveProfile(sql, user.id, request.body);
+    if (sampo?.ok) await setSampoTotal(sql, user.id, sampo.total);
     return adminProfile(sql, user.id);
+  });
+
+  app.put("/api/admin/users/:id/achievements", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    const user = await requireExistingUser(sql, request.params.id);
+    if (user.id === current.id) throw new HttpError(400, "VALIDATION", "Свой профиль меняется в своих настройках");
+    return setUserAchievements(sql, user.id, request.body?.achievementIds);
   });
 
   app.post("/api/admin/users/:id/password", async (request) => {
