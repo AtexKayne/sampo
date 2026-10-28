@@ -37,6 +37,9 @@ const LOOKS = {
   sloth: { metal: "bronze", field: ["#9be08f", "#1d5e3c"], center: [40, 30] },
   "grand-sloth": { metal: "gold", field: ["#6fd0a0", "#0d3f2f"], center: [40, 30] },
   "cunning-carburetor": { metal: "gold", field: ["#ffeaa6", "#e2a83c"], center: [44, 30] },
+  "go-getter": { metal: "gold", field: ["#c08bff", "#3d1580"], center: [50, 10] },
+  "superior-pie": { metal: "gold", field: ["#8fe0bb", "#1f6b52"], center: [44, 30] },
+  "ocean-of-success": { metal: "gold", field: ["#d8f6ff", "#5fb6ea"], center: [40, 30] },
 };
 
 function star(cx, cy, outer, inner, points = 5) {
@@ -204,6 +207,133 @@ function Capybara() {
       <path d="M28 37c3.4 1.4 6 3.6 7.4 6.4M44.2 32.6l1.6 1.4M43.4 37.2l1.8 1.2" fill="none" strokeWidth="0.9" />
       <path d="M18.4 34.4l-7.6-.4M18.6 35.4l-7.4 2.2M19.2 36.4l-6.4 4" fill="none" strokeWidth="0.6" />
     </g>
+  );
+}
+
+const PASTRY = "#e9a246";
+const PASTRY_LIGHT = "#fbd58a";
+const PASTRY_DARK = "#b8672a";
+
+const SKIN_BASE = "#d8956a";
+const SKIN_SHADOW = "#a8633f";
+const SKIN_LIGHT = "#efb98e";
+const SKIN_LINE = "#4a2716";
+const DENIM = "#34508a";
+const DENIM_SHADOW = "#22365f";
+const DENIM_LINE = "#121d36";
+const HAIR = "#1f140c";
+const LEATHER = "#3a2414";
+const SHIRT = "#1c1c21";
+const SHIRT_SHADOW = "#0d0d10";
+const SHIRT_LIGHT = "#4a4a55";
+const SHIRT_FOLD = "#34343c";
+const SHIRT_LINE = "#050507";
+
+function Macho() {
+  return (
+    <>
+      <path d="M32 6 17 58h30Z" fill="#fff" fillOpacity="0.1" stroke="none" />
+      <ellipse cx="30.4" cy="52.2" rx="12" ry="1.6" fill="#1a0838" fillOpacity="0.45" stroke="none" />
+      <Sparkle x={16} y={19} size={1} />
+      <Sparkle x={49.4} y={31} size={0.8} />
+      <g strokeWidth="0.7" strokeLinecap="round" strokeLinejoin="round">
+        <g stroke={DENIM_LINE}>
+          <path d="M26.6 35.4c-1.2 2.6-2.6 5.4-3.8 8-1 2.4-2 4.8-2.4 7.4l3.8.2c.4-2.4 1.4-4.6 2.6-6.6 1.4-2.4 3.2-5.4 4.6-7.8Z" fill={DENIM} />
+          <path d="M31.2 36.4c1.4 2.6 2.8 5.2 3.6 8 .6 2.2 1 4.4 1.4 6.6l3.8-.2c-.4-2.6-1-5.2-1.6-7.4-.8-2.8-1.8-5.6-2.6-8Z" fill={DENIM} />
+          <path d="M26.4 34.8H36l.4 2.2c-1.8 1-3.4 1.4-5.2 1.4s-3.4-.4-5-1.4Z" fill={DENIM} />
+          <path d="M37.2 38.4c.8 2 1.4 3.8 1.8 5.6.5 2.2.9 4.4 1.2 6.6l-1.6.1c-.4-2.4-.9-4.8-1.6-7-.5-1.8-1.1-3.4-1.8-5Z" fill={DENIM_SHADOW} stroke="none" />
+          <path d="M28.6 39.6c-1 1.6-1.8 3.4-2.4 5.2M24.8 45.6c.6.4 1.4.4 2 .2M33.6 41.8c.6 1 1 2 1.2 3M35.4 46.6c.8.2 1.6 0 2.2-.4" fill="none" stroke={DENIM_SHADOW} />
+          <path d="M31.2 36.6v1.8" fill="none" />
+        </g>
+        <path d="M19.2 52.6c0-1.4 1.2-2.2 3-2.2h1.6c.8 0 1.4.6 1.4 1.4v.8ZM36.2 52.6v-.8c0-.8.6-1.4 1.4-1.4h1.6c1.8 0 3 .8 3 2.2Z" fill={LEATHER} stroke="#1a0f08" />
+        <g stroke={SKIN_LINE}>
+          <path d="M18.6 29.4c-1.2 1.2-2.4 2.8-3.2 4.2l1.8 1.4c1.2-1.2 2.8-2.4 4.2-3.4Z" fill={SKIN_BASE} />
+          <path d="M23.4 23.2c-1.6.6-3 1.8-3.8 3.2-.6 1-.8 2-1 3l2.8 2.2c1.4-1.6 3.2-3.2 4.6-4.6Z" fill={SKIN_BASE} />
+          <path d="M21.4 31.6c1.4-1.6 3.2-3.2 4.6-4.6l-.6-.6c-1.6 1.4-3.2 3-4.6 4.4ZM17.2 35c1.2-1.2 2.8-2.4 4.2-3.4l-.4-.5c-1.4 1-3 2.2-4.2 3.4Z" fill={SKIN_SHADOW} stroke="none" />
+          <path d="M19.6 26.6c.8-1.2 1.8-2 3-2.6" fill="none" stroke={SKIN_LIGHT} strokeWidth="0.9" />
+          <path d="M14.2 35.4c0-1.2.8-2 1.8-2s1.8.8 1.8 2-.8 2-1.8 2-1.8-.8-1.8-2Z" fill={SKIN_BASE} />
+          <path d="M37 22.6c1.4-1.6 4-3.4 6.6-3.2l1 3c-1.8.8-3.6 2.2-5 3.8Z" fill={SKIN_BASE} />
+          <path d="M43.6 19.4c-1-1.4-1.8-2.6-2.2-3.8l2.4-.2c.6 2.2 1 4.4.8 7Z" fill={SKIN_BASE} />
+          <path d="M39.6 26.2c1.4-1.6 3.2-3 5-3.8l-.1-.6c-1.8.6-3.8 2-5.4 3.6ZM44.6 22.4c.2-2.6-.2-4.8-.8-7l-.7.1c.6 2.2.9 4.4.7 6.8Z" fill={SKIN_SHADOW} stroke="none" />
+          <path d="M38.6 22c1.2-1.2 2.8-2 4.4-2.2" fill="none" stroke={SKIN_LIGHT} strokeWidth="0.9" />
+          <path d="M40.8 14c0-1.4.8-2.2 1.8-2.2s1.8.8 1.8 2.2v1.2c0 .8-.6 1.2-1.8 1.2s-1.8-.4-1.8-1.2Z" fill={SKIN_BASE} />
+          <path d="M41.4 13.4v1.2M42.6 13.2v1.2M43.8 13.4v1.2" fill="none" stroke={SKIN_SHADOW} strokeWidth="0.5" />
+          <path d="M29.4 18.6h3.6l.8 4.4h-5.2Z" fill={SKIN_BASE} />
+          <path d="M32.4 18.8l.8 4.2h.6l-.8-4.4Z" fill={SKIN_SHADOW} stroke="none" />
+          <g stroke={SHIRT_LINE}>
+            <path d="M24.2 23.2c1.6-1 3.2-1.4 4.8-1.6q2.2 2 4.4 0c1.6.2 3.2.6 4.8 1.6 1.2 2.2.6 5.2-1 7.4-.8 1.4-1.2 3-1.2 5h-9.6c0-2-.4-3.6-1.2-5-1.6-2.2-2.2-5.2-1-7.4Z" fill={SHIRT} />
+            <path d="M37.6 24.6c.6 2.2-.2 4.4-1.4 6.2-.6 1.4-.8 2.8-.8 4.8h.6c0-2 .4-3.6 1.2-5 1.6-2.2 2.2-5.2 1-7.4Z" fill={SHIRT_SHADOW} stroke="none" />
+            <path d="M26.8 22.4c-1.8-1-4-.6-5.6 1-.6.8-1 1.6-1.4 2.6l3.4 3.2c.8-.8 1.8-1.4 3-1.8Z" fill={SHIRT} />
+            <path d="M35.6 22.4c1.8-1.2 3.6-1.8 4.8-1.8l2 3.2c-1.4.8-2.6 2-3.4 3.6l-2.6-.4Z" fill={SHIRT} />
+          </g>
+          <path d="M29 21.6q2.2 2 4.4 0" fill="none" stroke={SHIRT_LIGHT} strokeWidth="0.8" />
+          <path d="M25.6 24.4c1.4-.8 3-.9 4.4-.5M34.6 22.8c1.4.2 2.6.8 3.4 1.6M21.6 24.2c.8-.8 1.8-1.2 2.8-1.2" fill="none" stroke={SHIRT_LIGHT} strokeWidth="0.7" />
+          <path d="M25.8 27.4c1.6 1 3.6 1 5.2 0M31.4 27.4c1.6 1 3.6 1 5.2 0" fill="none" stroke={SHIRT_FOLD} strokeWidth="0.6" />
+          <path d="M29.2 30.4q2 .6 4 0M29.4 32.4q1.8.5 3.6 0M27 34.2c1.4.4 2.8.5 4.2.4M32.4 34.4c1.2 0 2.4-.2 3.4-.6M20.4 26.6l3 2.6M40.6 21.2l1.6 2.6" fill="none" stroke={SHIRT_FOLD} strokeWidth="0.5" />
+          <ellipse cx="27.9" cy="15.8" rx="0.7" ry="1.1" fill={SKIN_BASE} />
+          <ellipse cx="34.5" cy="15.8" rx="0.7" ry="1.1" fill={SKIN_SHADOW} />
+          <path d="M28 14.6c0-2.2 1.4-3.6 3.2-3.6s3.2 1.4 3.2 3.6v2.2c0 1.8-1.4 3.2-3.2 3.2S28 18.6 28 16.8Z" fill={SKIN_BASE} />
+          <path d="M33.6 15c.2 1.4.2 2.6-.2 3.6-.4.8-1.2 1.2-2.2 1.4 1.6.2 3.2-1.2 3.2-3.2v-2.2Z" fill={SKIN_SHADOW} stroke="none" />
+          <path d="M27.9 15.2c-.4-2.8 1-4.6 3.3-4.6s3.7 1.8 3.3 4.6l-.4-1.8c-.4-.6-1.6-.8-2.9-.8s-2.5.2-2.9.8Z" fill={HAIR} stroke={HAIR} strokeWidth="0.4" />
+          <path d="M29.2 14.6l1.4-.2M31.8 14.4l1.4.2" fill="none" stroke={HAIR} strokeWidth="0.6" />
+          <circle cx="29.9" cy="15.4" r="0.38" fill={HAIR} stroke="none" />
+          <circle cx="32.5" cy="15.4" r="0.38" fill={HAIR} stroke="none" />
+          <path d="M31.2 15.6l.4 1.6-.6.2" fill="none" stroke={SKIN_SHADOW} strokeWidth="0.5" />
+          <path d="M30.3 18.3h1.8" fill="none" stroke={SKIN_SHADOW} strokeWidth="0.55" />
+        </g>
+        <path d="M26.4 34.6h9.6v1.4h-9.6Z" fill={LEATHER} stroke="#1a0f08" strokeWidth="0.4" />
+        <rect x="30.4" y="34.4" width="1.6" height="1.8" rx="0.3" fill="#c9ccd2" stroke="#4a4f58" strokeWidth="0.35" />
+      </g>
+    </>
+  );
+}
+
+function Pirozhok({ paint }) {
+  return (
+    <g stroke={BROWN} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="32" cy="48.6" rx="17" ry="2.6" fill="#0b3d2e" fillOpacity="0.35" stroke="none" />
+      <path d="M12 39.6c0-7.4 8.8-12.6 20-12.6s20 5.2 20 12.6c0 5.8-8.4 8.6-20 8.6s-20-2.8-20-8.6Z" fill={PASTRY} />
+      <path d="M15.4 43.4c3.8 2 9.6 3 16.6 3s12.8-1 16.6-3c-1.6 2.4-7.6 4-16.6 4s-15-1.6-16.6-4Z" fill={PASTRY_DARK} stroke="none" />
+      <path d="M15.4 35.4c1.2-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.6-1.4 3.6 0 1-1.4 2.4-1.4 3.4 0" fill="none" strokeWidth="1.1" />
+      <path d="M18.6 31.6c3.4-1.6 7.4-2.4 11.6-2.4" stroke={PASTRY_LIGHT} strokeWidth="1.6" fill="none" />
+      <path d="M20 40.6c1 .6 2 .6 3 0M41 40.6c1 .6 2 .6 3 0" stroke={PASTRY_DARK} strokeWidth="1" fill="none" />
+      <Crown x={33.6} y={23.4} scale={1.3} paint={paint} />
+      <Sparkle x={47.4} y={20.4} size={0.9} />
+      <Sparkle x={18.4} y={22.6} size={0.6} />
+    </g>
+  );
+}
+
+const WHALE = "#22497d";
+const WHALE_DEEP = "#132f55";
+const WHALE_THROAT = "#5b88c8";
+const WHALE_PLEAT = "#2c548e";
+const WHALE_MARK = "#cfe0f5";
+const SEA_INK = "#0d2440";
+
+function Whale() {
+  return (
+    <>
+      <circle cx="17" cy="20" r="1.3" fill="#fff" fillOpacity="0.7" stroke="none" />
+      <circle cx="21.4" cy="15.6" r="0.9" fill="#fff" fillOpacity="0.7" stroke="none" />
+      <circle cx="14.6" cy="15" r="0.6" fill="#fff" fillOpacity="0.7" stroke="none" />
+      <Sparkle x={52} y={31} size={0.8} />
+      <g transform="translate(6.6 11.2) scale(0.078)" stroke={SEA_INK} strokeWidth="14" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M466 176C440 150 395 122 350 114c-18-3-22 10-12 22 22 24 64 32 106 24 12-30 32-70 55-92 13-12 23-2 21 18-2 32-14 64-32 86Z" fill={WHALE} />
+        <path d="M310 420c30 20 70 50 95 80 10 12 25 5 20-10-10-30-25-60-40-80Z" fill={WHALE_DEEP} />
+        <path d="M50 250c60-14 150-5 250 35 60 20 105 22 130 2 22-18 30-55 22-110l-4-12h44c22 60 20 135-20 190-40 50-110 65-170 85-40 14-80 18-120 6-60-18-110-76-128-136-6-20-6-38-2-50Z" fill={WHALE} />
+        <path d="M470 330c-30 45-90 70-170 100 30-35 100-60 170-100Z" fill={WHALE_DEEP} stroke="none" />
+        <path d="M52 258c58 0 108 22 143 62 30 35 60 80 95 118-40 10-80 8-110-2-60-18-110-76-128-136-5-18-4-32 0-42Z" fill={WHALE_THROAT} stroke="none" />
+        <path d="M62 256c58 2 108 28 138 68" stroke="#a9c6ee" strokeWidth="10" fill="none" />
+        <path d="M78 290l14 10M118 300l14 10M100 322l14 10M150 330l14 10M128 352l14 10M180 362l14 10M95 352l12 10M158 384l14 10M135 386l12 9M200 398l14 10M232 420l12 9M180 412l12 8" stroke={WHALE_PLEAT} strokeWidth="8" fill="none" />
+        <path d="M52 300c18 60 68 118 128 136 40 12 80 8 120-6" fill="none" />
+        <ellipse cx="212" cy="350" rx="30" ry="22" fill={WHALE_DEEP} stroke="none" />
+        <circle cx="206" cy="348" r="9" fill="#fff" stroke="none" />
+        <circle cx="209" cy="350" r="5" fill={SEA_INK} stroke="none" />
+        <ellipse cx="350" cy="328" rx="52" ry="9" transform="rotate(8 350 328)" fill="#5b86c4" stroke="none" />
+        <path d="M182 272h18M212 270h22M248 278l20 4M192 290h16M224 291l18 2M258 301l18 4M290 312l14 4M242 314l14 3M390 148l18 3M420 153h16M482 122l6-14M492 102l6-12M473 142l5-10" stroke={WHALE_MARK} strokeWidth="7" fill="none" />
+      </g>
+    </>
   );
 }
 
@@ -668,6 +798,9 @@ const SCENES = {
   sloth: (paint) => <Sloth paint={paint} />,
   "grand-sloth": (paint) => <Sloth grand paint={paint} />,
   "cunning-carburetor": <Capybara />,
+  "go-getter": <Macho />,
+  "superior-pie": (paint) => <Pirozhok paint={paint} />,
+  "ocean-of-success": <Whale />,
 };
 
 export function AchievementIcon({ name, size = 108 }) {

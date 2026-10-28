@@ -32,6 +32,9 @@ export const ACHIEVEMENTS = [
   { id: "sloth", title: "Ленивец", detail: "Ни одного сампо за неделю" },
   { id: "grand-sloth", title: "Королевский ленивец", detail: "Ни одного сампо за месяц" },
   { id: "cunning-carburetor", title: "Коварный карбюратор", detail: "Скрытая ачивка в единственном экземпляре", hidden: true },
+  { id: "go-getter", title: "Целеустремлеха", detail: "Скрытая ачивка в единственном экземпляре", hidden: true },
+  { id: "superior-pie", title: "Пирожок с превосходством", detail: "Скрытая ачивка в единственном экземпляре", hidden: true },
+  { id: "ocean-of-success", title: "В море успеха", detail: "Скрытая ачивка в единственном экземпляре", hidden: true },
 ];
 
 function parts(date) {

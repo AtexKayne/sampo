@@ -29,8 +29,10 @@ test("the catalogue has at least twenty achievements and none are earned without
   }]);
   assert.equal(fromText.find((item) => item.id === "monday").earned, true);
   assert.equal(fromText.find((item) => item.id === "early").earned, true);
-  assert.equal(fromText.find((item) => item.id === "cunning-carburetor").hidden, true);
-  assert.equal(fromText.find((item) => item.id === "cunning-carburetor").earned, false);
+  for (const id of ["cunning-carburetor", "go-getter", "superior-pie", "ocean-of-success"]) {
+    assert.equal(fromText.find((item) => item.id === id).hidden, true);
+    assert.equal(fromText.find((item) => item.id === id).earned, false);
+  }
 });
 
 test("visit counts, a full week and a dense month open their achievements", () => {
