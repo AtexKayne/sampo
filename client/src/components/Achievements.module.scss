@@ -60,11 +60,16 @@
 .badgeOn .icon {
   opacity: 1;
   filter: drop-shadow(0 8px 12px color-mix(in srgb, var(--ink) 26%, transparent));
-  transition: transform 0.25s ease;
 }
 
-.badgeOn:hover .icon {
-  transform: translateY(-3px) rotate(-5deg) scale(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .badgeOn .icon {
+    transition: transform 0.25s ease;
+  }
+
+  .badgeOn:hover .icon {
+    transform: translateY(-3px) rotate(-5deg) scale(1.05);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

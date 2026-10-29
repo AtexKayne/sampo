@@ -5,6 +5,7 @@ import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
 import { api, logout } from "../api/client.js";
 import { disablePhonePush, enablePhonePush, iosNeedsHomeScreen, preparePush, readPhonePush } from "../notifications/push.js";
 import { AchievementIcon } from "../components/AchievementIcon.jsx";
+import { FloatField } from "../components/FloatField.jsx";
 import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
@@ -357,15 +358,14 @@ function ProfileSettings({ userId }) {
           submitAll();
         }}
       >
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Имя</span>
+      <FloatField className={styles.field} label="Имя">
         <input
           className={styles.input}
           value={draft?.displayName ?? ""}
           disabled={!draft || busy}
           onChange={(event) => setDraft((current) => (current ? { ...current, displayName: event.target.value } : current))}
         />
-      </label>
+      </FloatField>
       {editing && saved ? (
         <div className={styles.stack}>
           <SampoCountEditor
@@ -383,7 +383,6 @@ function ProfileSettings({ userId }) {
       ) : null}
       </form>
       <div className={styles.settings}>
-      <h2 className={styles.settingsTitle}>Дополнительные настройки</h2>
       {editing && !saved ? null : (
         <LoginCredentials
           account={editing ? { login: saved.login, hasLogin: saved.hasLogin } : null}
@@ -401,10 +400,7 @@ function ProfileSettings({ userId }) {
       {draft ? (
         <div className={styles.groups}>
           <section className={styles.group} aria-labelledby="dance-level-title">
-            <div className={styles.caption}>
-              <h3 className={styles.groupTitle} id="dance-level-title">Уровень</h3>
-              <p className={styles.groupHint}>Ваш уровень танцевания</p>
-            </div>
+            <SectionHelp titleId="dance-level-title" title="Уровень" text="Ваш уровень танцевания. Указанный уровень будет отображаться в вашем профиле и виден другим танцорам." />
             <div className={styles.choices} role="radiogroup" aria-labelledby="dance-level-title">
               <LevelOption
                 name="dance-level"
@@ -426,10 +422,11 @@ function ProfileSettings({ userId }) {
             </div>
           </section>
           <section className={styles.group} aria-labelledby="blocked-levels-title">
-            <div className={styles.caption}>
-              <h3 className={styles.groupTitle} id="blocked-levels-title">Блок по уровню</h3>
-              <p className={styles.groupHint}>Танцоры, указавшие выбранный уровень, не смогут отправлять вам приглашения</p>
-            </div>
+            <SectionHelp
+              titleId="blocked-levels-title"
+              title="Блок по уровню"
+              text="Танцоры, указавшие выбранный уровень, не смогут отправлять вам приглашения"
+            />
             <div className={styles.choices} role="group" aria-labelledby="blocked-levels-title">
               {DANCE_LEVELS.map((code) => (
                 <LevelOption
@@ -445,36 +442,45 @@ function ProfileSettings({ userId }) {
           </section>
           <section className={styles.group} aria-labelledby="invite-list-title">
             <div className={styles.groupHead}>
-              <h3 className={styles.groupTitle} id="invite-list-title">Списки</h3>
-              <div className={styles.caption}>
-            <div className={styles.choices} role="radiogroup" aria-labelledby="invite-list-title">
-              <LevelOption
-                name="invite-list"
-                label="Чёрный список"
-                checked={draft.listMode !== "white"}
-                disabled={busy}
-                onChange={() => setListMode("black")}
+              <SectionHelp
+                titleId="invite-list-title"
+                title="Списки"
+                text={[
+                  "Чёрный список: эти танцоры не смогут отправлять вам приглашения.",
+                  "Белый список: приглашения смогут отправлять только эти танцоры. Если список пуст, приглашать не сможет никто.",
+                ]}
               />
-              <LevelOption
-                name="invite-list"
-                label="Белый список"
-                checked={draft.listMode === "white"}
-                disabled={busy}
-                onChange={() => setListMode("white")}
-              />
+              <div className={styles.inboxSwitch} role="tablist" aria-labelledby="invite-list-title">
+                <button
+                  className={draft.listMode !== "white" ? styles.inboxTabOn : styles.inboxTab}
+                  type="button"
+                  role="tab"
+                  aria-selected={draft.listMode !== "white"}
+                  disabled={busy}
+                  onClick={() => setListMode("black")}
+                >
+                  <span>Чёрный список</span>
+                  <span className={styles.inboxMark}>{draft.blacklist.length}</span>
+                </button>
+                <button
+                  className={draft.listMode === "white" ? styles.inboxTabOn : styles.inboxTab}
+                  type="button"
+                  role="tab"
+                  aria-selected={draft.listMode === "white"}
+                  disabled={busy}
+                  onClick={() => setListMode("white")}
+                >
+                  <span>Белый список</span>
+                  <span className={styles.inboxMark}>{draft.whitelist.length}</span>
+                </button>
               </div>
-              <p className={styles.groupHint}>
-                {draft.listMode === "white"
-                  ? "Приглашения смогут отправлять только эти танцоры"
-                  : "Эти танцоры не смогут отправлять вам приглашения"}
-              </p>
-            </div>
             </div>
             <div className={styles.stack}>
+            <div className={styles.inviteSearch}>
+            <FloatField label="Имя танцора">
             <input
               className={styles.input}
               value={query}
-              placeholder="Имя танцора"
               aria-label="Поиск танцора по имени"
               autoComplete="off"
               disabled={busy}
@@ -483,52 +489,49 @@ function ProfileSettings({ userId }) {
                 if (event.key === "Enter") event.preventDefault();
               }}
             />
+            </FloatField>
             {trimmed ? (
-              needle !== trimmed || dancers.isLoading ? (
-                <p className={styles.groupHint}>Загрузка</p>
-              ) : dancers.isError ? (
-                <p className={styles.error}>{dancers.error.message}</p>
-              ) : dancers.data.users.length === 0 ? (
-                <p className={styles.groupHint}>Никого нет</p>
-              ) : (
-                <ul className={`${styles.list} ${styles.results}`}>
-                  {dancers.data.users.map((person) => (
-                    <li className={styles.person} key={person.id}>
-                      <Link className={styles.personLink} to={`/dancers/${person.id}`}>{personLabel(person)}</Link>
-                      <button
-                        className={styles.button}
-                        type="button"
-                        disabled={busy || listed.has(person.id)}
-                        onClick={() => addPerson(person)}
-                      >
-                        {listed.has(person.id) ? "В списке" : "Добавить"}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )
+              <div className={styles.inviteDrop}>
+                {needle !== trimmed || dancers.isLoading ? (
+                  <p className={styles.groupHint}>Загрузка</p>
+                ) : dancers.isError ? (
+                  <p className={styles.error}>{dancers.error.message}</p>
+                ) : dancers.data.users.length === 0 ? (
+                  <p className={styles.groupHint}>Никого нет</p>
+                ) : (
+                  <InvitePeopleTable
+                    people={dancers.data.users}
+                    label="Результаты поиска"
+                    listed={listed}
+                    busy={busy}
+                    compact
+                    onAction={addPerson}
+                    actionLabel="Добавить"
+                    doneLabel="В списке"
+                  />
+                )}
+              </div>
             ) : null}
+            </div>
             {activeList.length === 0 && !trimmed ? (
               <p className={styles.groupHint}>
                 {draft.listMode === "white" ? "Пока список пуст, приглашения не сможет отправить никто" : "Пока никого нет"}
               </p>
             ) : null}
             {activeList.length > 0 ? (
-              <ul className={styles.list} aria-label={draft.listMode === "white" ? "Белый список" : "Чёрный список"}>
-                {activeList.map((person) => (
-                  <li className={styles.person} key={person.id}>
-                    <span>{personLabel(person)}</span>
-                    <button className={styles.button} type="button" disabled={busy} onClick={() => removePerson(person.id)}>
-                      Убрать
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <InvitePeopleTable
+                people={activeList}
+                label={draft.listMode === "white" ? "Белый список" : "Чёрный список"}
+                busy={busy}
+                head
+                onAction={(person) => removePerson(person.id)}
+                actionLabel="Убрать"
+              />
             ) : null}
             </div>
           </section>
           <section className={styles.group} aria-labelledby="notify-title">
-            <h3 className={styles.groupTitle} id="notify-title">Уведомления</h3>
+            <h2 className={styles.groupTitle} id="notify-title">Уведомления</h2>
             <div className={styles.checks}>
               <Check
                 label="Присылать уведомления о приглашениях"
@@ -570,7 +573,7 @@ function ProfileSettings({ userId }) {
             {editing ? null : <PhonePush />}
           </section>
           <section className={styles.group} aria-labelledby="share-title">
-            <h3 className={styles.groupTitle} id="share-title">Свободное время</h3>
+            <h2 className={styles.groupTitle} id="share-title">Свободное время</h2>
             <Check
               label="Делиться информацией о ближайших свободных слотах"
               checked={draft.shareAvailability}
@@ -645,6 +648,113 @@ function ProfileSettings({ userId }) {
   );
 }
 
+const DESKTOP_HOVER = "(min-width: 800px) and (hover: hover) and (pointer: fine)";
+const TIP_DELAY_MS = 120;
+
+function useDesktopHover() {
+  const [desktop, setDesktop] = useState(() => window.matchMedia(DESKTOP_HOVER).matches);
+  useEffect(() => {
+    const media = window.matchMedia(DESKTOP_HOVER);
+    const onChange = () => setDesktop(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  return desktop;
+}
+
+function helpLines(text) {
+  return (Array.isArray(text) ? text : [text]).filter(Boolean);
+}
+
+function SectionHelp({ titleId, title, text }) {
+  const desktop = useDesktopHover();
+  const [open, setOpen] = useState(false);
+  const [tip, setTip] = useState(false);
+  const timer = useRef(null);
+  const helpId = `${titleId}-help`;
+  const tipId = `${titleId}-tip`;
+  const lines = helpLines(text);
+
+  useEffect(() => () => clearTimeout(timer.current), []);
+  useEffect(() => {
+    if (desktop) return;
+    clearTimeout(timer.current);
+    setTip(false);
+  }, [desktop]);
+
+  function showTip() {
+    if (!desktop) return;
+    clearTimeout(timer.current);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) {
+      setTip(true);
+      return;
+    }
+    timer.current = setTimeout(() => setTip(true), TIP_DELAY_MS);
+  }
+
+  function hideTip() {
+    clearTimeout(timer.current);
+    setTip(false);
+  }
+
+  return (
+    <div className={styles.titleRow}>
+      <h2 className={styles.groupTitle} id={titleId}>{title}</h2>
+      <span className={styles.helpWrap}>
+        <button
+          className={styles.help}
+          type="button"
+          aria-label={`Подсказка: ${title}`}
+          aria-describedby={tip ? tipId : undefined}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== "mouse") return;
+            showTip();
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType !== "mouse") return;
+            hideTip();
+          }}
+          onFocus={showTip}
+          onBlur={hideTip}
+          onClick={() => {
+            if (desktop) return;
+            setOpen(true);
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.6" />
+            <path d="M9.4 9.2a2.7 2.7 0 1 1 4.3 2.2c-.8.5-1.2 1-1.2 1.9V14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            <circle cx="12" cy="17.2" r=".9" fill="currentColor" />
+          </svg>
+        </button>
+        {desktop && tip ? (
+          <div className={styles.helpPopover} id={tipId} role="tooltip">
+            {lines.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        ) : null}
+      </span>
+      {!desktop && open ? (
+        <Sheet onClose={() => setOpen(false)} labelledBy={helpId}>
+          <div className={styles.dialogHead}>
+            <h2 className={styles.dialogTitle} id={helpId}>{title}</h2>
+            <button className={styles.close} type="button" aria-label="Закрыть" onClick={() => setOpen(false)}>
+              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+                <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+          {lines.map((line) => (
+            <p className={styles.dialogText} key={line}>{line}</p>
+          ))}
+        </Sheet>
+      ) : null}
+    </div>
+  );
+}
+
 function LoginCredentials({ account, disabled, error, notice, resetKey, onDraft, onEdit }) {
   const session = useSession();
   const savedLogin = account ? account.login || "" : session.user?.login || "";
@@ -669,16 +779,14 @@ function LoginCredentials({ account, disabled, error, notice, resetKey, onDraft,
 
   return (
     <section className={styles.group} aria-labelledby="credentials-title">
-      <div className={styles.caption}>
-        <h3 className={styles.groupTitle} id="credentials-title">Вход по логину</h3>
-        <p className={styles.groupHint}>
-          {hasLogin
-            ? "Эти логин и пароль подходят для входа. Чтобы сменить пароль, введите новый: пустые поля пароль не меняют."
-            : "Задайте логин и пароль, чтобы входить без ВКонтакте."}
-        </p>
-      </div>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>Логин</span>
+      <SectionHelp
+        titleId="credentials-title"
+        title="Вход по логину"
+        text={hasLogin
+          ? "Эти логин и пароль подходят для входа. Чтобы сменить пароль, введите новый: пустые поля пароль не меняют."
+          : "Задайте логин и пароль, чтобы входить без ВКонтакте."}
+      />
+      <FloatField className={styles.field} label="Логин">
         <input
           className={styles.input}
           value={loginName}
@@ -692,9 +800,8 @@ function LoginCredentials({ account, disabled, error, notice, resetKey, onDraft,
             setLoginName(event.target.value);
           }}
         />
-      </label>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>{hasLogin ? "Новый пароль" : "Пароль"}</span>
+      </FloatField>
+      <FloatField className={styles.field} label={hasLogin ? "Новый пароль" : "Пароль"}>
         <input
           className={styles.input}
           type="password"
@@ -707,9 +814,8 @@ function LoginCredentials({ account, disabled, error, notice, resetKey, onDraft,
             setPassword(event.target.value);
           }}
         />
-      </label>
-      <label className={styles.field}>
-        <span className={styles.fieldLabel}>{hasLogin ? "Новый пароль ещё раз" : "Пароль ещё раз"}</span>
+      </FloatField>
+      <FloatField className={styles.field} label={hasLogin ? "Новый пароль ещё раз" : "Пароль ещё раз"}>
         <input
           className={styles.input}
           type="password"
@@ -722,7 +828,7 @@ function LoginCredentials({ account, disabled, error, notice, resetKey, onDraft,
             setConfirm(event.target.value);
           }}
         />
-      </label>
+      </FloatField>
       {error ? <p className={styles.error}>{error}</p> : null}
       {notice ? <p className={styles.saved}>{notice}</p> : null}
     </section>
@@ -772,10 +878,10 @@ function AdminUserSearch({ creating = false, onCreatingChange }) {
         <p className={styles.groupHint}>Откройте профиль, чтобы изменить или удалить его.</p>
       </div>
       {notice ? <p className={styles.saved}>{notice}</p> : null}
+      <FloatField label="Имя или логин">
       <input
         className={styles.input}
         value={query}
-        placeholder="Имя или логин"
         aria-label="Поиск пользователя"
         autoComplete="off"
         onChange={(event) => setQuery(event.target.value)}
@@ -783,6 +889,7 @@ function AdminUserSearch({ creating = false, onCreatingChange }) {
           if (event.key === "Enter") event.preventDefault();
         }}
       />
+      </FloatField>
       {accounts.isError ? <p className={styles.error}>{accounts.error.message}</p> : null}
       <div className={styles.userTableCard}>
         <div className={styles.userTableWrap}>
@@ -914,8 +1021,7 @@ function CreateUserDialog({ onClose, onCreated }) {
           </button>
         </div>
         <p className={styles.dialogText}>Регистрация по логину и паролю. Войти можно сразу после создания.</p>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Имя</span>
+        <FloatField className={styles.field} label="Имя">
           <input
             className={styles.input}
             value={displayName}
@@ -924,9 +1030,8 @@ function CreateUserDialog({ onClose, onCreated }) {
             disabled={save.isPending}
             onChange={(event) => setDisplayName(event.target.value)}
           />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Логин</span>
+        </FloatField>
+        <FloatField className={styles.field} label="Логин">
           <input
             className={styles.input}
             value={loginName}
@@ -936,9 +1041,8 @@ function CreateUserDialog({ onClose, onCreated }) {
             disabled={save.isPending}
             onChange={(event) => setLoginName(event.target.value)}
           />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Пароль</span>
+        </FloatField>
+        <FloatField className={styles.field} label="Пароль">
           <input
             className={styles.input}
             type="password"
@@ -947,9 +1051,8 @@ function CreateUserDialog({ onClose, onCreated }) {
             disabled={save.isPending}
             onChange={(event) => setPassword(event.target.value)}
           />
-        </label>
-        <label className={styles.field}>
-          <span className={styles.fieldLabel}>Пароль ещё раз</span>
+        </FloatField>
+        <FloatField className={styles.field} label="Пароль ещё раз">
           <input
             className={styles.input}
             type="password"
@@ -958,7 +1061,7 @@ function CreateUserDialog({ onClose, onCreated }) {
             disabled={save.isPending}
             onChange={(event) => setConfirm(event.target.value)}
           />
-        </label>
+        </FloatField>
         {error ? <p className={styles.error}>{error}</p> : null}
         <div className={styles.row}>
           <button className={styles.primary} type="submit" disabled={!canSave}>
@@ -1023,9 +1126,8 @@ function SampoCountEditor({ saved, disabled, onSaved }) {
   return (
     <div className={styles.sampoEdit}>
       <div className={styles.sampoRow}>
-        <span className={styles.fieldLabel}>Количество сампо</span>
-        <span className={styles.sampoSlot}>
-          {open ? (
+        {open ? (
+          <FloatField className={styles.sampoField} label="Количество сампо">
             <input
               className={`${styles.input} ${styles.sampoInput}`}
               inputMode="numeric"
@@ -1040,10 +1142,15 @@ function SampoCountEditor({ saved, disabled, onSaved }) {
                 setError("");
               }}
             />
-          ) : (
-            <span className={styles.sampoValue}>{shown}</span>
-          )}
-        </span>
+          </FloatField>
+        ) : (
+          <>
+            <span className={styles.fieldLabel}>Количество сампо</span>
+            <span className={styles.sampoSlot}>
+              <span className={styles.sampoValue}>{shown}</span>
+            </span>
+          </>
+        )}
         <button
           className={styles.button}
           type="button"
@@ -1228,7 +1335,7 @@ function PhonePush() {
       </p>
       {iosBrowser ? (
         <p className={styles.groupHint}>
-          На iPhone откройте иконку «Сампо» на экране «Домой» и включите уведомления уже там. В Safari они не доходят.
+          На iPhone откройте иконку «Сампо» на экране «Домой» и включите уведомления уже там.
         </p>
       ) : null}
       {state === "denied" ? (
@@ -1271,8 +1378,45 @@ function Radio({ name, label, checked, disabled, onChange }) {
   );
 }
 
-function personLabel(person) {
-  return person.danceLevel ? `${person.displayName} · ${person.danceLevel}` : person.displayName;
+function InvitePeopleTable({ people, label, listed, busy, compact, head, onAction, actionLabel, doneLabel }) {
+  return (
+    <div className={compact ? undefined : styles.inviteCard}>
+      <table className={styles.inviteTable} aria-label={label}>
+        {head ? (
+          <thead>
+            <tr>
+              <th scope="col">Имя</th>
+              <th scope="col"><span className={styles.inviteActionHead}>Действие</span></th>
+            </tr>
+          </thead>
+        ) : null}
+        <tbody>
+          {people.map((person) => {
+            const done = Boolean(listed?.has(person.id));
+            return (
+              <tr key={person.id}>
+                <td>
+                  <Link className={styles.inviteName} to={`/dancers/${person.id}`}>
+                    {person.danceLevel ? `${person.displayName} (${person.danceLevel})` : person.displayName}
+                  </Link>
+                </td>
+                <td>
+                  <button
+                    className={styles.button}
+                    type="button"
+                    disabled={busy || done}
+                    onClick={() => onAction(person)}
+                  >
+                    {done ? doneLabel : actionLabel}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function byName(left, right) {

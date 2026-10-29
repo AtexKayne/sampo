@@ -61,9 +61,20 @@ button:disabled {
   outline: none;
 }
 
-:focus-visible {
+a:focus-visible {
   outline: 2px solid var(--gold);
   outline-offset: 2px;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[role="combobox"]:focus-visible,
+[role="option"]:focus-visible,
+[role="tab"]:focus-visible {
+  outline: none;
 }
 
 input[type="checkbox"]:not([class]),

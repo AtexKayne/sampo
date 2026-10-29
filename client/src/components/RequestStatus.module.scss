@@ -10,6 +10,24 @@
   background: var(--bg);
 }
 
+.labeled {
+  width: auto;
+  min-height: 32px;
+  gap: 6px;
+  padding: 0 10px 0 8px;
+}
+
+.labeled svg {
+  display: block;
+  flex: none;
+}
+
+.text {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .wait {
   color: var(--warn);
   background: color-mix(in srgb, var(--warn) 16%, var(--surface));

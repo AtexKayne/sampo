@@ -1,5 +1,7 @@
 .title {
-  margin: 28px 0 0;
+  width: 100%;
+  max-width: 640px;
+  margin: 28px auto 0;
   font-size: 40px;
   font-weight: 500;
   line-height: 1;
@@ -7,8 +9,9 @@
 
 .lead,
 .status {
-  margin: 12px 0 0;
-  max-width: 40rem;
+  width: 100%;
+  max-width: 640px;
+  margin: 12px auto 0;
   color: var(--muted);
   line-height: 1.45;
 }
@@ -16,8 +19,9 @@
 .list {
   display: grid;
   gap: 8px;
-  max-width: 40rem;
-  margin-top: 28px;
+  width: 100%;
+  max-width: 640px;
+  margin: 28px auto 0;
 }
 
 .item {

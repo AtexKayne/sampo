@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
+import { FloatField } from "../components/FloatField.jsx";
 import { RequestStatus } from "../components/RequestStatus.jsx";
 import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
@@ -9,17 +10,28 @@ import { useSession } from "../session/SessionProvider.jsx";
 import { formatDayTitle, formatSlotTime } from "../time/zone.js";
 import styles from "./user.module.scss";
 
+function visibleRequests(data) {
+  return (data?.requests ?? []).filter((item) => item.status !== "cancelled");
+}
+
 export function RequestsPage() {
   const session = useSession();
   const queryClient = useQueryClient();
   const [box, setBox] = useState("incoming");
   const [pendingLogout, setPendingLogout] = useState(false);
   const [error, setError] = useState("");
-  const requestsQuery = useQuery({
-    queryKey: ["requests", box],
-    queryFn: () => api(`/api/requests?box=${box}`),
-    enabled: session.status === "ready" && Boolean(session.user),
+  const ready = session.status === "ready" && Boolean(session.user);
+  const incomingQuery = useQuery({
+    queryKey: ["requests", "incoming"],
+    queryFn: () => api("/api/requests?box=incoming"),
+    enabled: ready,
   });
+  const outgoingQuery = useQuery({
+    queryKey: ["requests", "outgoing"],
+    queryFn: () => api("/api/requests?box=outgoing"),
+    enabled: ready,
+  });
+  const requestsQuery = box === "incoming" ? incomingQuery : outgoingQuery;
   const run = useMutation({
     mutationFn: ({ path, method, body }) => api(path, { method, body }),
     onSuccess: async () => {
@@ -45,45 +57,67 @@ export function RequestsPage() {
     }
   }
 
-  const requests = (requestsQuery.data?.requests ?? []).filter((item) => item.status !== "cancelled");
+  const incoming = visibleRequests(incomingQuery.data);
+  const outgoing = visibleRequests(outgoingQuery.data);
+  const requests = box === "incoming" ? incoming : outgoing;
+  const incomingPending = incoming.filter((item) => item.status === "pending").length;
 
   return (
     <Shell user={session.user} onLogout={onLogout} pending={pendingLogout}>
       <h1 className={styles.title}>Запросы</h1>
+      <p className={styles.inboxLead}>Приглашения в пару: входящие вам и те, что отправили вы.</p>
       <div className={styles.profile}>
-        <div className={styles.choices} role="tablist" aria-label="Запросы">
-          <button className={box === "incoming" ? styles.choiceOn : styles.choice} type="button" role="tab" aria-selected={box === "incoming"} onClick={() => setBox("incoming")}>
-            Мне
+        <div className={styles.inboxSwitch} role="tablist" aria-label="Запросы">
+          <button className={box === "incoming" ? styles.inboxTabOn : styles.inboxTab} type="button" role="tab" aria-selected={box === "incoming"} onClick={() => setBox("incoming")}>
+            <span>Мне</span>
+            <span className={incomingPending ? styles.inboxMarkOn : styles.inboxMark}>{incoming.length}</span>
           </button>
-          <button className={box === "outgoing" ? styles.choiceOn : styles.choice} type="button" role="tab" aria-selected={box === "outgoing"} onClick={() => setBox("outgoing")}>
-            Мои
+          <button className={box === "outgoing" ? styles.inboxTabOn : styles.inboxTab} type="button" role="tab" aria-selected={box === "outgoing"} onClick={() => setBox("outgoing")}>
+            <span>Мои</span>
+            <span className={styles.inboxMark}>{outgoing.length}</span>
           </button>
         </div>
-        <section className={styles.group} aria-labelledby="requests-list-title">
-          <h2 className={styles.groupTitle} id="requests-list-title">
-            {box === "incoming" ? "Входящие" : "Исходящие"}
-          </h2>
+        <section className={styles.inbox} aria-label={box === "incoming" ? "Входящие" : "Исходящие"}>
           {error ? <p className={styles.error}>{error}</p> : null}
           {requestsQuery.isLoading ? <p className={styles.groupHint}>Загрузка</p> : null}
-          {requestsQuery.isSuccess && requests.length === 0 ? <p className={styles.groupHint}>Запросов нет</p> : null}
+          {requestsQuery.isSuccess && requests.length === 0 ? (
+            <div className={styles.requestEmpty}>
+              <svg className={styles.requestEmptyIcon} viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+                <rect x="7" y="12" width="34" height="24" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
+                <path d="M8 14 24 26 40 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+              </svg>
+              <h2 className={styles.requestEmptyTitle}>{box === "incoming" ? "Входящих пока нет" : "Вы ещё никого не позвали"}</h2>
+              <p className={styles.requestEmptyText}>
+                {box === "incoming"
+                  ? "Когда кто-то пригласит вас в пару, запрос появится здесь — его можно будет подтвердить или отклонить."
+                  : "Откройте слот в календаре и нажмите «Пригласить». Пока партнёр не ответит, запрос можно отозвать."}
+              </p>
+              <Link className={styles.button} to="/calendar">
+                Открыть календарь
+              </Link>
+            </div>
+          ) : null}
           {requests.length > 0 ? (
-            <ul className={styles.list}>
+            <ul className={styles.requestList}>
               {requests.map((item) => (
-                <li className={styles.request} key={item.id}>
-                  <div className={styles.requestMain}>
-                    <RequestStatus status={item.status} />
-                    <div className={styles.caption}>
-                      <Link className={styles.personLink} to={`/dancers/${item.otherId}`}>
-                        {item.otherName}
-                      </Link>
-                      <p className={styles.groupHint}>
-                        <Link className={styles.personLink} to={`/requests/${item.id}`}>
-                          {formatDayTitle(new Date(item.startsAt))}, {formatSlotTime(item.startsAt, item.endsAt)}, {item.place}
-                        </Link>
-                      </p>
-                    </div>
+                <li className={[styles.requestCard, item.status === "pending" ? styles.requestWait : "", item.status === "accepted" ? styles.requestOk : ""].filter(Boolean).join(" ")} key={item.id}>
+                  <div className={styles.requestBody}>
+                    <RequestStatus status={item.status} labeled />
+                    <Link className={styles.requestName} to={`/dancers/${item.otherId}`}>
+                      {item.otherName}
+                    </Link>
+                    <RequestActions aside item={item} pending={run.isPending} onRun={(path, body) => run.mutateAsync({ path, method: "POST", body })} />
+                    <Link className={styles.requestWhen} to={`/requests/${item.id}`}>
+                      {formatDayTitle(new Date(item.startsAt))}
+                      <span aria-hidden="true"> · </span>
+                      {formatSlotTime(item.startsAt, item.endsAt)}
+                      <span aria-hidden="true"> · </span>
+                      {item.place}
+                    </Link>
                   </div>
-                  <RequestActions item={item} pending={run.isPending} onRun={(path, body) => run.mutateAsync({ path, method: "POST", body })} />
+                  <div className={styles.requestActions}>
+                    <RequestActions hideWithdraw item={item} pending={run.isPending} onRun={(path, body) => run.mutateAsync({ path, method: "POST", body })} />
+                  </div>
                 </li>
               ))}
             </ul>
@@ -94,7 +128,7 @@ export function RequestsPage() {
   );
 }
 
-export function RequestActions({ item, pending, onRun }) {
+export function RequestActions({ item, pending, onRun, aside = false, hideWithdraw = false }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [localError, setLocalError] = useState("");
@@ -121,6 +155,22 @@ export function RequestActions({ item, pending, onRun }) {
     }
   }
 
+  const withdraw = item.status === "pending" && item.direction !== "incoming";
+
+  if (aside) {
+    if (!withdraw) return null;
+    return (
+      <button
+        className={`${styles.button} ${styles.requestAside}`}
+        type="button"
+        disabled={pending}
+        onClick={() => onRun(`/api/requests/${item.id}/cancel`).catch(() => {})}
+      >
+        Отозвать
+      </button>
+    );
+  }
+
   return (
     <>
       {item.status === "pending" && item.direction === "incoming" ? (
@@ -133,7 +183,7 @@ export function RequestActions({ item, pending, onRun }) {
           </button>
         </div>
       ) : null}
-      {item.status === "pending" && item.direction !== "incoming" ? (
+      {withdraw && !hideWithdraw ? (
         <button className={styles.button} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/cancel`).catch(() => {})}>
           Отозвать
         </button>
@@ -167,15 +217,14 @@ export function RequestActions({ item, pending, onRun }) {
             </button>
           </div>
           <p className={styles.dialogText}>Пара будет снята. Записи на этот слот тоже снимутся.</p>
-          <label className={styles.field}>
-            <span className={styles.fieldLabel}>Причина</span>
+          <FloatField className={styles.field} label="Причина">
             <textarea
               className={styles.reason}
               value={reason}
               maxLength={300}
               onChange={(event) => setReason(event.target.value)}
             />
-          </label>
+          </FloatField>
           {localError ? <p className={styles.error}>{localError}</p> : null}
           <div className={styles.row}>
             <button className={`${styles.button} ${styles.danger}`} type="button" disabled={pending} onClick={confirmCancel}>

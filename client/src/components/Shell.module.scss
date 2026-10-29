@@ -13,7 +13,14 @@
 
 .main {
   flex: 1 1 auto;
+  width: min(100%, var(--page));
   min-width: 0;
+  margin-inline: auto;
+}
+
+.wide .main {
+  width: 100%;
+  max-width: none;
 }
 
 .fill {

@@ -1,0 +1,92 @@
+.field {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.control {
+  width: 100%;
+}
+
+.hint {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 13px;
+  right: var(--float-end, 13px);
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 400;
+  letter-spacing: normal;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transform-origin: left center;
+  transition: top 180ms ease, transform 180ms ease, font-size 180ms ease;
+}
+
+.field:has(textarea) .hint {
+  top: 14px;
+  transform: none;
+}
+
+.field:has(input[type="number"]) {
+  --float-end: 28px;
+}
+
+.field:is(:focus-within, :has(input:not(:placeholder-shown)), :has(textarea:not(:placeholder-shown))) .hint,
+.field:not(:has(input)):not(:has(textarea)) .hint {
+  top: 7px;
+  font-size: 11px;
+  transform: none;
+}
+
+.field:has(input:-webkit-autofill) .hint {
+  top: 7px;
+  font-size: 11px;
+  transform: none;
+}
+
+.field:is(:focus-within, :has(input:not(:placeholder-shown))) input {
+  padding-top: 18px;
+  padding-bottom: 4px;
+}
+
+.field:has(input:-webkit-autofill) input {
+  padding-top: 18px;
+  padding-bottom: 4px;
+}
+
+.field:is(:focus-within, :has(textarea:not(:placeholder-shown))) textarea {
+  padding-top: 26px;
+}
+
+.field:not(:has(input)):not(:has(textarea)) button {
+  min-height: 56px;
+  padding-top: 18px;
+}
+
+.field input {
+  min-height: 56px;
+}
+
+.field input,
+.field textarea {
+  transition: padding 180ms ease;
+}
+
+.field:has(:disabled) .hint {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hint,
+  .field input,
+  .field textarea {
+    transition: none;
+  }
+}

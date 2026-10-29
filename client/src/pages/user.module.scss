@@ -1,7 +1,9 @@
 @use "../styles/press" as press;
 
 .title {
-  margin: 28px 0 0;
+  width: 100%;
+  max-width: 640px;
+  margin: 28px auto 0;
   font-size: 40px;
   font-weight: 500;
   line-height: 1;
@@ -16,9 +18,12 @@
 }
 
 .back {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  width: 100%;
+  max-width: 640px;
   min-height: 44px;
+  margin-inline: auto;
   color: var(--ink);
   text-decoration: none;
   @include press.control;
@@ -33,13 +38,19 @@
 .panel {
   display: grid;
   gap: 12px;
-  max-width: 520px;
-  margin-top: 16px;
+  width: 100%;
+  max-width: 640px;
+  margin: 16px auto 0;
 }
 
 .panel {
   margin-top: 0;
   gap: 20px;
+}
+
+.slotDialog {
+  max-width: none;
+  margin: 0;
 }
 
 .cluster {
@@ -58,6 +69,61 @@
 .section .error,
 .section .note {
   margin: 0;
+}
+
+.slotHead {
+  display: grid;
+  gap: 8px;
+}
+
+.slotHead .title {
+  max-width: none;
+  margin: 0;
+}
+
+.slotHead .lead {
+  margin: 0;
+}
+
+.slotHead .note {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.slotPair {
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--ok) 32%, var(--line));
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.slotMeta {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.slotSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.inviteBox {
+  padding: 14px 16px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 
 .panelTitle {
@@ -193,7 +259,8 @@
   }
 }
 
-button.close:active:not(:disabled) {
+button.close:active:not(:disabled),
+button.help:active:not(:disabled) {
   transform: none;
 }
 
@@ -320,6 +387,11 @@ button.close:active:not(:disabled) {
   border-radius: var(--radius);
 }
 
+.button:focus-visible,
+.primary:focus-visible {
+  outline: none;
+}
+
 .button,
 .primary {
   display: inline-flex;
@@ -376,12 +448,33 @@ button.close:active:not(:disabled) {
     background: color-mix(in srgb, var(--ok) 86%, black);
   }
 
-  .close:hover:not(:disabled) svg {
+  .close:hover:not(:disabled) svg,
+  .help:hover svg {
     transform: scale(1.12);
+  }
+
+  .help:hover {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+
+  @media (min-width: 800px) {
+    .help {
+      cursor: help;
+    }
   }
 
   .choice:hover:not(:disabled):not(:has(:disabled)) {
     border-color: var(--ink);
+  }
+
+  .inboxTab:hover {
+    color: var(--ink);
+  }
+
+  .requestName:hover,
+  .requestWhen:hover {
+    color: var(--gold);
   }
 
   .comboToggle:hover:not(:disabled) {
@@ -389,17 +482,21 @@ button.close:active:not(:disabled) {
   }
 }
 
-.close:active:not(:disabled) svg {
+.close:active:not(:disabled) svg,
+.help:active svg {
   transform: scale(0.92);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .close svg {
+  .close svg,
+  .help svg {
     transition: none;
   }
 
   .close:hover:not(:disabled) svg,
-  .close:active:not(:disabled) svg {
+  .close:active:not(:disabled) svg,
+  .help:hover svg,
+  .help:active svg {
     transform: none;
   }
 }
@@ -463,6 +560,194 @@ button.close:active:not(:disabled) {
   gap: 8px;
   padding: 12px 0;
   border-bottom: 1px solid var(--line);
+}
+
+.inboxLead {
+  width: 100%;
+  max-width: 640px;
+  margin: 12px auto 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.inboxSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.inboxTab,
+.inboxTabOn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  @include press.control;
+}
+
+.inboxTabOn {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(18, 18, 18, 0.06);
+}
+
+.inboxMark,
+.inboxMarkOn {
+  min-width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, var(--surface));
+  color: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.inboxTabOn .inboxMark {
+  background: var(--bg);
+}
+
+.inboxMarkOn {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.inbox {
+  display: grid;
+  gap: 12px;
+}
+
+.requestList {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.requestCard {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.requestWait {
+  border-color: color-mix(in srgb, var(--warn) 38%, var(--line));
+}
+
+.requestOk {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+}
+
+.requestBody {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  align-items: start;
+  min-width: 0;
+}
+
+.requestBody > :first-child {
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+
+.requestName {
+  grid-column: 2;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.requestAside {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+  align-self: start;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.requestWhen {
+  grid-column: 2;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.requestActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.requestActions .row {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.requestActions .button,
+.requestActions .primary {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
+.requestEmpty {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  padding: 28px 20px;
+  border: 1px dashed color-mix(in srgb, var(--gold) 42%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--gold) 8%, var(--surface));
+}
+
+.requestEmptyIcon {
+  color: var(--gold);
+  margin-bottom: 4px;
+}
+
+.requestEmptyTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.requestEmptyText {
+  margin: 0 0 8px;
+  color: var(--muted);
+  line-height: 1.45;
 }
 
 .requestMain {
@@ -575,6 +860,7 @@ button.close:active:not(:disabled) {
 
 .comboField {
   position: relative;
+  --float-end: 44px;
 }
 
 .comboField .input {
@@ -585,8 +871,9 @@ button.close:active:not(:disabled) {
   position: absolute;
   top: 0;
   right: 0;
+  bottom: 0;
   width: 44px;
-  height: 44px;
+  height: auto;
   border: 0;
   background: transparent;
   color: var(--ink);
@@ -712,12 +999,6 @@ button.close:active:not(:disabled) {
   color: var(--on-accent);
 }
 
-.choice:focus-within,
-.choiceOn:focus-within {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
-}
-
 .choice:has(:disabled),
 .choiceOn:has(:disabled) {
   cursor: default;
@@ -754,12 +1035,17 @@ input.radio {
 .profile,
 .profileForm {
   display: grid;
-  gap: 32px;
 }
 
 .profile {
-  max-width: 520px;
-  margin-top: 16px;
+  gap: 16px;
+  width: 100%;
+  max-width: 640px;
+  margin: 16px auto 0;
+}
+
+.profileForm {
+  gap: 32px;
 }
 
 .profileHead {
@@ -767,11 +1053,21 @@ input.radio {
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  max-width: 520px;
-  margin-top: 28px;
+  width: 100%;
+  max-width: 640px;
+  margin: 28px auto 0;
 }
 
-.profileHead .title {
+.profileHead .title,
+.pageHead .title,
+.profile .title {
+  max-width: none;
+  margin-right: 0;
+  margin-left: 0;
+}
+
+.profileHead .title,
+.profile .title {
   min-width: 0;
   margin: 0;
 }
@@ -797,9 +1093,10 @@ input.radio {
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
+  width: 100%;
   max-width: 920px;
   min-width: 0;
-  margin-top: 28px;
+  margin: 28px auto 0;
 }
 
 .pageHead .title {
@@ -851,7 +1148,9 @@ input.radio {
     backdrop-filter: blur(16px);
 
     .saveButton {
-      width: min(520px, 100%);
+      display: block;
+      width: min(640px, 100%);
+      margin-inline: auto;
     }
     transform: translateY(calc(100% + 8px));
     visibility: hidden;
@@ -888,6 +1187,7 @@ input.radio {
   width: 100%;
   max-width: 920px;
   min-width: 0;
+  margin-inline: auto;
 }
 
 .adminPage {
@@ -1034,6 +1334,115 @@ input.radio {
   white-space: nowrap;
 }
 
+.inviteSearch {
+  position: relative;
+  z-index: 5;
+}
+
+.inviteDrop {
+  --table-line: color-mix(in srgb, var(--ink) 16%, var(--line));
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: min(220px, 50vh);
+  overflow: auto;
+  border: 1px solid var(--table-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+
+  .groupHint,
+  .error {
+    padding: 12px;
+  }
+}
+
+.inviteCard {
+  --table-line: color-mix(in srgb, var(--ink) 16%, var(--line));
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--table-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.inviteTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inviteTable th,
+.inviteTable td {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--table-line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.inviteTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.inviteTable th {
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.inviteTable td:first-child {
+  width: 100%;
+}
+
+.inviteTable th:last-child,
+.inviteTable td:last-child {
+  width: 1%;
+  text-align: right;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .inviteTable tbody tr:hover {
+    background: color-mix(in srgb, var(--bg) 65%, var(--surface));
+  }
+}
+
+.inviteName {
+  display: block;
+  overflow: hidden;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .inviteName:hover {
+    text-decoration: underline;
+  }
+}
+
+.inviteActionHead {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.inviteTable .button {
+  min-height: 36px;
+  padding: 0 12px;
+}
+
 .userLogin {
   color: var(--muted);
 }
@@ -1085,10 +1494,6 @@ input.radio {
   white-space: nowrap;
 }
 
-.profile .title {
-  margin: 0;
-}
-
 .field,
 .settings,
 .group,
@@ -1121,6 +1526,68 @@ input.radio {
   gap: 4px;
 }
 
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.helpWrap {
+  position: relative;
+  z-index: 4;
+  display: inline-flex;
+}
+
+.helpPopover {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 6px);
+  left: 0;
+  display: grid;
+  gap: 8px;
+  width: max-content;
+  max-width: min(320px, calc(100vw - 32px));
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.4;
+  text-align: left;
+  white-space: normal;
+  pointer-events: none;
+
+  p {
+    margin: 0;
+  }
+}
+
+.help {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+
+  svg {
+    transition: transform 160ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+}
+
 .fieldLabel,
 .groupHint {
   margin: 0;
@@ -1128,18 +1595,15 @@ input.radio {
   line-height: 1.4;
 }
 
-.settingsTitle,
 .groupTitle {
   margin: 0;
+  font-size: 18px;
   font-weight: 600;
 }
 
-.settingsTitle {
+.settings .groupTitle {
   font-size: 22px;
-}
-
-.groupTitle {
-  font-size: 18px;
+  line-height: 1.2;
 }
 
 .visits {
@@ -1187,8 +1651,8 @@ input.radio {
   display: grid;
   gap: 12px;
   width: 100%;
-  max-width: 800px;
-  margin-top: 32px;
+  max-width: 640px;
+  margin: 32px auto 0;
   box-sizing: border-box;
 }
 
@@ -1426,6 +1890,11 @@ input.radio {
   flex: none;
 }
 
+.sampoField {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
 .sampoSlot {
   display: flex;
   flex: none;
@@ -1445,6 +1914,10 @@ input.radio {
 .sampoInput {
   width: 100%;
   text-align: center;
+}
+
+.sampoField .sampoInput {
+  text-align: left;
 }
 
 .sampoRow .button {

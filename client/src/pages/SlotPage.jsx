@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, Navigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
+import { FloatField } from "../components/FloatField.jsx";
 import { RequestStatus } from "../components/RequestStatus.jsx";
 import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
@@ -73,74 +74,153 @@ export function SlotPanel({ id, onClose }) {
     }
   }
 
+  const compact = Boolean(onClose);
+  const requestItems = requests.map((item) => {
+    const actions = (
+      <>
+        {item.direction === "incoming" && item.status === "pending" ? (
+          compact ? (
+            <>
+              <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
+                Подтвердить
+              </button>
+              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
+                Отказать
+              </button>
+            </>
+          ) : (
+            <div className={styles.row}>
+              <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
+                Подтвердить
+              </button>
+              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
+                Отказать
+              </button>
+            </div>
+          )
+        ) : null}
+        {compact && item.direction === "outgoing" && item.status === "pending" ? (
+          <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/cancel`, method: "POST" })}>
+            Отозвать
+          </button>
+        ) : null}
+        {item.status === "accepted" && slot.myPair && !started && item.otherId === slot.myPair.partnerId ? (
+          <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/pairs/${slot.myPair.id}/cancel`, method: "POST" })}>
+            <span className={styles.inviteLabelFull}>Отменить пару</span>
+            <span className={styles.inviteLabelShort}>Отменить</span>
+          </button>
+        ) : null}
+      </>
+    );
+    if (compact) {
+      return (
+        <li className={styles.person} key={item.id}>
+          <span className={styles.requestMain}>
+            <RequestStatus status={item.status} />
+            <span>
+              {item.direction === "incoming" ? "Вам" : "Вы"}:{" "}
+              <Link className={styles.personLink} to={`/dancers/${item.otherId}`}>
+                {item.otherName}
+              </Link>
+            </span>
+          </span>
+          <span className={styles.row}>{actions}</span>
+        </li>
+      );
+    }
+    return (
+      <li className={[styles.requestCard, item.status === "pending" ? styles.requestWait : "", item.status === "accepted" ? styles.requestOk : ""].filter(Boolean).join(" ")} key={item.id}>
+        <div className={styles.requestBody}>
+          <RequestStatus status={item.status} labeled />
+          <Link className={styles.requestName} to={`/dancers/${item.otherId}`}>
+            {item.otherName}
+          </Link>
+          {item.direction === "outgoing" && item.status === "pending" ? (
+            <button className={`${styles.button} ${styles.requestAside}`} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/cancel`, method: "POST" })}>
+              Отозвать
+            </button>
+          ) : null}
+          <p className={styles.requestWhen}>{item.direction === "incoming" ? "Приглашение вам" : "Вы пригласили"}</p>
+        </div>
+        {((item.direction === "incoming" && item.status === "pending") ||
+          (item.status === "accepted" && slot.myPair && !started && item.otherId === slot.myPair.partnerId)) ? (
+          <div className={styles.requestActions}>{actions}</div>
+        ) : null}
+      </li>
+    );
+  });
   const requestsSection = dancer && slot ? (
-    <section className={[styles.section, onClose ? styles.slotRequests : ""].filter(Boolean).join(" ")}>
-      <h2 className={styles.lead}>Запросы</h2>
+    <section className={[compact ? styles.section : styles.inbox, compact ? styles.slotRequests : ""].filter(Boolean).join(" ")}>
+      <h2 className={compact ? styles.lead : styles.slotSectionTitle}>
+        Запросы
+        {!compact && requests.length ? <span className={styles.inboxMark}>{requests.length}</span> : null}
+      </h2>
       {requests.length ? (
-        <ul className={styles.list}>
-          {requests.map((item) => (
-            <li className={styles.person} key={item.id}>
-              <span className={styles.requestMain}>
-                <RequestStatus status={item.status} />
-                <span>
-                  {item.direction === "incoming" ? "Вам" : "Вы"}:{" "}
-                  <Link className={styles.personLink} to={`/dancers/${item.otherId}`}>
-                    {item.otherName}
-                  </Link>
-                </span>
-              </span>
-              <span className={styles.row}>
-                {item.direction === "incoming" && item.status === "pending" ? (
-                  <>
-                    <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
-                      Подтвердить
-                    </button>
-                    <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
-                      Отказать
-                    </button>
-                  </>
-                ) : null}
-                {item.direction === "outgoing" && item.status === "pending" ? (
-                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/cancel`, method: "POST" })}>
-                    Отозвать
-                  </button>
-                ) : null}
-                {item.status === "accepted" && slot.myPair && !started && item.otherId === slot.myPair.partnerId ? (
-                  <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/pairs/${slot.myPair.id}/cancel`, method: "POST" })}>
-                    <span className={styles.inviteLabelFull}>Отменить пару</span>
-                    <span className={styles.inviteLabelShort}>Отменить</span>
-                  </button>
-                ) : null}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
+        <ul className={compact ? styles.list : styles.requestList}>{requestItems}</ul>
+      ) : compact ? (
         <p className={styles.hint}>Запросов на этот слот нет</p>
+      ) : (
+        <div className={styles.requestEmpty}>
+          <svg className={styles.requestEmptyIcon} viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+            <rect x="7" y="12" width="34" height="24" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
+            <path d="M8 14 24 26 40 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+          </svg>
+          <h3 className={styles.requestEmptyTitle}>Запросов пока нет</h3>
+          <p className={styles.requestEmptyText}>Когда вы кого-то позовёте или вам пришлют приглашение, оно появится здесь.</p>
+        </div>
       )}
     </section>
   ) : null;
+  const freePeople = freeQuery.data?.users ?? [];
+  const invitePicker = (
+    <InvitePicker
+      people={freePeople}
+      pending={run.isPending}
+      blocked={Boolean(slot?.inviteBlocked)}
+      locked={Boolean(slot?.myAttendance || slot?.myPair)}
+      compact={compact}
+      onInvite={(userId) => run.mutateAsync({ path: `/api/slots/${id}/requests`, method: "POST", body: { toUserId: userId } })}
+    />
+  );
   const inviteSection = dancer && slot && open ? (
-    <section className={styles.section}>
-      <h2 className={styles.lead}>Можно пригласить</h2>
-      {slot.inviteBlocked ? (
-        <p className={[styles.hint, slot.inviteBlocked === "У вас уже есть пара на это время" ? styles.invitePairHint : ""].filter(Boolean).join(" ")}>
-          {slot.inviteBlocked}
-        </p>
-      ) : null}
-      {freeQuery.isLoading ? <p className={styles.hint}>Загрузка</p> : null}
-      {freeQuery.isError ? <p className={styles.error}>{freeQuery.error.message}</p> : null}
-      {freeQuery.isSuccess && freeQuery.data.users.length === 0 ? <p className={styles.hint}>Никого нет</p> : null}
-      {freeQuery.isSuccess && freeQuery.data.users.length > 0 ? (
-        <InvitePicker
-          people={freeQuery.data.users}
-          pending={run.isPending}
-          blocked={Boolean(slot.inviteBlocked)}
-          locked={Boolean(slot.myAttendance || slot.myPair)}
-          compact={Boolean(onClose)}
-          onInvite={(userId) => run.mutateAsync({ path: `/api/slots/${id}/requests`, method: "POST", body: { toUserId: userId } })}
-        />
-      ) : null}
+    <section className={compact ? styles.section : styles.inbox}>
+      <h2 className={compact ? styles.lead : styles.slotSectionTitle}>Можно пригласить</h2>
+      {compact ? (
+        <>
+          {slot.inviteBlocked ? (
+            <p className={[styles.hint, slot.inviteBlocked === "У вас уже есть пара на это время" ? styles.invitePairHint : ""].filter(Boolean).join(" ")}>
+              {slot.inviteBlocked}
+            </p>
+          ) : null}
+          {freeQuery.isLoading ? <p className={styles.hint}>Загрузка</p> : null}
+          {freeQuery.isError ? <p className={styles.error}>{freeQuery.error.message}</p> : null}
+          {freeQuery.isSuccess && freePeople.length === 0 ? <p className={styles.hint}>Никого нет</p> : null}
+          {freeQuery.isSuccess && freePeople.length > 0 ? invitePicker : null}
+        </>
+      ) : slot.inviteBlocked ? (
+        <div className={styles.requestEmpty}>
+          <h3 className={styles.requestEmptyTitle}>Пригласить нельзя</h3>
+          <p className={styles.requestEmptyText}>{slot.inviteBlocked}</p>
+        </div>
+      ) : (
+        <>
+          {freeQuery.isLoading ? <p className={styles.groupHint}>Загрузка</p> : null}
+          {freeQuery.isError ? <p className={styles.error}>{freeQuery.error.message}</p> : null}
+          {freeQuery.isSuccess && freePeople.length === 0 ? (
+            <div className={styles.requestEmpty}>
+              <svg className={styles.requestEmptyIcon} viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
+                <circle cx="18" cy="18" r="7" fill="none" stroke="currentColor" strokeWidth="2" />
+                <path d="M8 34c1.6-6 5.4-9 10-9s8.4 3 10 9" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <circle cx="32" cy="18" r="6" fill="none" stroke="currentColor" strokeWidth="2" />
+                <path d="M28 34c.8-4 3.2-6.5 6.5-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              </svg>
+              <h3 className={styles.requestEmptyTitle}>Пока никого нет</h3>
+              <p className={styles.requestEmptyText}>На этот слот никто не отметил свободное время — или танцоры скрыли его.</p>
+            </div>
+          ) : null}
+          {freeQuery.isSuccess && freePeople.length > 0 ? <div className={styles.inviteBox}>{invitePicker}</div> : null}
+        </>
+      )}
     </section>
   ) : null;
 
@@ -151,29 +231,24 @@ export function SlotPanel({ id, onClose }) {
       {slot ? (
         <article className={[styles.panel, onClose ? styles.slotDialog : ""].filter(Boolean).join(" ")}>
           <div className={styles.cluster}>
-            <header className={onClose ? styles.dialogShell : styles.section}>
+            <header className={onClose ? styles.dialogShell : styles.slotHead}>
               <div className={onClose ? styles.dialogHead : undefined}>
-                <h2 className={onClose ? styles.dialogTitle : styles.panelTitle} id="slot-dialog-title">
-                  {onClose ? (
-                    <>
-                      <Link className={styles.dialogLink} to={`/slots/${id}`} target="_blank" rel="noopener noreferrer" title="Открыть страницу слота">
-                        <span>{formatDayTitle(new Date(slot.startsAt))}</span>
-                        <svg className={styles.dialogLinkIcon} viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                          <path d="M14 5h5v5M19 5l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                          <path d="M17 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </Link>
-                      <span className={styles.dialogTitlePlain}>{formatDayTitle(new Date(slot.startsAt))}</span>
-                    </>
-                  ) : (
-                    <span>{formatDayTitle(new Date(slot.startsAt))}</span>
-                  )}
-                  {onClose ? null : (
-                    <span className={styles.panelMeta}>
-                      {formatSlotTime(slot.startsAt, slot.endsAt)}, {slot.place}
-                    </span>
-                  )}
-                </h2>
+                {onClose ? (
+                  <h2 className={styles.dialogTitle} id="slot-dialog-title">
+                    <Link className={styles.dialogLink} to={`/slots/${id}`} target="_blank" rel="noopener noreferrer" title="Открыть страницу слота">
+                      <span>{slotHeading(new Date(slot.startsAt))}</span>
+                      <svg className={styles.dialogLinkIcon} viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                        <path d="M14 5h5v5M19 5l-8 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M17 13v5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </Link>
+                    <span className={styles.dialogTitlePlain}>{slotHeading(new Date(slot.startsAt))}</span>
+                  </h2>
+                ) : (
+                  <h1 className={styles.title} id="slot-dialog-title">
+                    {slotHeading(new Date(slot.startsAt))}
+                  </h1>
+                )}
                 {onClose ? (
                   <button className={styles.close} type="button" aria-label="Закрыть" onClick={onClose}>
                     <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
@@ -190,6 +265,11 @@ export function SlotPanel({ id, onClose }) {
                 </div>
               ) : (
                 <>
+                  <p className={styles.slotMeta}>
+                    {formatSlotTime(slot.startsAt, slot.endsAt)}
+                    <span aria-hidden="true"> · </span>
+                    {slot.place}
+                  </p>
                   {slot.status === "cancelled" ? <p className={styles.lead}>Отменён</p> : null}
                   {slot.myPair ? <PairLine pair={slot.myPair} /> : null}
                   <SlotDetails slot={slot} viewerId={session.user.id} />
@@ -515,6 +595,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
   return (
     <div className={styles.combo} ref={rootRef}>
       <div className={styles.comboField} ref={fieldRef}>
+        <FloatField label="Имя">
         <input
           ref={inputRef}
           className={styles.input}
@@ -526,7 +607,6 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
           aria-label="Поиск по имени"
           disabled={locked}
           value={query}
-          placeholder="Имя"
           onChange={(event) => {
             if (locked) return;
             setQuery(event.target.value);
@@ -538,6 +618,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
           }}
           onKeyDown={onKeyDown}
         />
+        </FloatField>
         <button
           className={styles.comboToggle}
           type="button"
@@ -642,6 +723,11 @@ function visibleRequests(requests) {
   return (requests ?? []).filter((item) => item.status !== "cancelled");
 }
 
+function slotHeading(date) {
+  const text = formatDayTitle(date);
+  return text ? text[0].toLocaleUpperCase("ru") + text.slice(1) : text;
+}
+
 function SlotDetails({ slot, viewerId }) {
   if (!slot.description && !slot.responsible) return null;
   const responsible = slot.responsible;
@@ -662,7 +748,7 @@ function SlotDetails({ slot, viewerId }) {
 
 function PairLine({ pair }) {
   return (
-    <p className={styles.lead}>
+    <p className={styles.slotPair}>
       Пара с{" "}
       <Link className={styles.personLink} to={`/dancers/${pair.partnerId}`}>
         {pair.partnerName}

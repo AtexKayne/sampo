@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { Link, Navigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
+import { FloatField } from "../components/FloatField.jsx";
 import { Sheet } from "../components/Sheet.jsx";
 import { Shell } from "../components/Shell.jsx";
 import { TimeGrid } from "../components/TimeGrid.jsx";
@@ -372,7 +373,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const canEditSlot = Boolean(editing) && editing.status === "open" && !startedSlot;
 
   return (
-    <Shell user={session.user} onLogout={onLogout} pending={pending}>
+    <Shell user={session.user} onLogout={onLogout} pending={pending} wide>
       <div className={styles.head}>
         <h1 className={styles.title}>{heading}</h1>
         {dancer ? (
@@ -571,12 +572,10 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           <p className={styles.selectionLabel}>
             {formatDayTitle(selectedDay)}, {formatMinutes(selection.startMin)}–{formatMinutes(selection.endMin)}
           </p>
-          <label className={styles.field}>
-            <span className={styles.label}>Зал</span>
+          <FloatField className={styles.field} label="Зал">
             <input className={styles.input} required value={place} onChange={(event) => setPlace(event.target.value)} />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.label}>Вместимость</span>
+          </FloatField>
+          <FloatField className={styles.field} label="Вместимость">
             <input
               className={styles.input}
               type="number"
@@ -586,11 +585,10 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
               value={capacity}
               onChange={(event) => setCapacity(event.target.value)}
             />
-          </label>
+          </FloatField>
           <DescriptionField value={description} onChange={setDescription} />
           <ResponsibleField value={responsible} onChange={setResponsible} />
-          <label className={styles.field}>
-            <span className={styles.label}>Ещё столько же недель</span>
+          <FloatField className={styles.field} label="Ещё столько же недель">
             <input
               className={styles.input}
               type="number"
@@ -600,7 +598,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
               value={repeatWeekly}
               onChange={(event) => setRepeatWeekly(event.target.value)}
             />
-          </label>
+          </FloatField>
           {formError ? <p className={styles.error}>{formError}</p> : null}
           <div className={styles.actions}>
             <button className={styles.primary} type="submit" disabled={!selection.ok || createSlot.isPending}>
@@ -641,8 +639,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                   });
                 }}
               >
-                <label className={styles.field}>
-                  <span className={styles.label}>Зал</span>
+                <FloatField className={styles.field} label="Зал">
                   <input
                     className={styles.input}
                     required
@@ -650,9 +647,8 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                     disabled={!canEditSlot}
                     onChange={(event) => setEditPlace(event.target.value)}
                   />
-                </label>
-                <label className={styles.field}>
-                  <span className={styles.label}>Вместимость</span>
+                </FloatField>
+                <FloatField className={styles.field} label="Вместимость">
                   <input
                     className={styles.input}
                     type="number"
@@ -663,7 +659,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                     disabled={!canEditSlot}
                     onChange={(event) => setEditCapacity(event.target.value)}
                   />
-                </label>
+                </FloatField>
                 <DescriptionField value={editDescription} disabled={!canEditSlot} onChange={setEditDescription} />
                 <ResponsibleField value={editResponsible} disabled={!canEditSlot} onChange={setEditResponsible} />
                 {startedSlot ? <p className={styles.error}>Нельзя изменить начавшийся слот</p> : null}
@@ -835,7 +831,7 @@ function DescriptionField({ value, onChange, disabled = false }) {
 
   return (
     <div className={styles.field}>
-      <span className={styles.label}>Описание</span>
+      <FloatField label="Описание">
       <textarea
         className={styles.area}
         maxLength={1000}
@@ -843,6 +839,7 @@ function DescriptionField({ value, onChange, disabled = false }) {
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />
+      </FloatField>
       {hints.length > 0 ? (
         <ul className={styles.chips}>
           {hints.map((text) => (
@@ -874,7 +871,7 @@ function ResponsibleField({ value, onChange, disabled = false }) {
 
   return (
     <div className={styles.field}>
-      <span className={styles.label}>Ответственный за сампо</span>
+      {value ? <span className={styles.label}>Ответственный за сампо</span> : null}
       {value ? (
         <div className={styles.picked}>
           <span>{value.displayName}</span>
@@ -884,10 +881,10 @@ function ResponsibleField({ value, onChange, disabled = false }) {
         </div>
       ) : (
       <>
+      <FloatField label="Ответственный за сампо">
       <input
         className={styles.input}
         value={query}
-        placeholder="Имя"
         aria-label="Поиск ответственного по имени"
         autoComplete="off"
         disabled={disabled}
@@ -896,6 +893,7 @@ function ResponsibleField({ value, onChange, disabled = false }) {
           if (event.key === "Enter") event.preventDefault();
         }}
       />
+      </FloatField>
       {trimmed && !disabled ? (
         needle !== trimmed || dancers.isLoading ? (
           <p className={styles.hint}>Загрузка</p>
@@ -1087,6 +1085,7 @@ function TimeSelect({ label, value, options, onChange }) {
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-label={`${label}, ${formatMinutes(selected)}`}
         onClick={() => {
           if (open) {
             setOpen(false);
@@ -1232,24 +1231,22 @@ function WindowEditDialog({ window, day, confirming, error, pending, onClose, on
           <ModalClose onClick={onClose} />
         </div>
         <div className={styles.timeFields}>
-          <label className={styles.field}>
-            <span className={styles.label}>Начало</span>
+          <FloatField className={styles.field} label="Начало">
             <TimeSelect
               label="Начало"
               value={startMin}
               options={timeChoices(GRID_START_MINUTES, GRID_END_MINUTES - GRID_STEP_MINUTES)}
               onChange={changeStart}
             />
-          </label>
-          <label className={styles.field}>
-            <span className={styles.label}>Конец</span>
+          </FloatField>
+          <FloatField className={styles.field} label="Конец">
             <TimeSelect
               label="Конец"
               value={endMin}
               options={timeChoices(startMin + GRID_STEP_MINUTES, GRID_END_MINUTES)}
               onChange={setEndMin}
             />
-          </label>
+          </FloatField>
         </div>
         <fieldset className={styles.choices}>
           <legend className={styles.label}>Повтор</legend>

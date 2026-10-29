@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { login } from "../api/client.js";
+import { FloatField } from "../components/FloatField.jsx";
 import { SiteFooter } from "../components/SiteFooter.jsx";
 import { useSession } from "../session/SessionProvider.jsx";
 import styles from "./AuthPage.module.scss";
@@ -55,8 +56,7 @@ export function AuthPage() {
       <section className={styles.panel}>
         <div className={styles.card}>
           <form className={styles.form} onSubmit={onSubmit}>
-            <label className={styles.field}>
-              <span className={styles.label}>Логин</span>
+            <FloatField className={styles.field} label="Логин">
               <input
                 className={styles.input}
                 value={loginName}
@@ -65,9 +65,8 @@ export function AuthPage() {
                 spellCheck="false"
                 onChange={(event) => setLoginName(event.target.value)}
               />
-            </label>
-            <label className={styles.field}>
-              <span className={styles.label}>Пароль</span>
+            </FloatField>
+            <FloatField className={styles.field} label="Пароль">
               <input
                 className={styles.input}
                 type="password"
@@ -75,7 +74,7 @@ export function AuthPage() {
                 autoComplete="current-password"
                 onChange={(event) => setPassword(event.target.value)}
               />
-            </label>
+            </FloatField>
             {error ? <p className={styles.error}>{error}</p> : null}
             <button className={styles.button} type="submit" disabled={pending}>
               Войти

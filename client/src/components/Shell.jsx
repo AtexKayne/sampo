@@ -7,7 +7,7 @@ import { useNotifications } from "../notifications/NotificationsProvider.jsx";
 import { SiteFooter } from "./SiteFooter.jsx";
 import styles from "./Shell.module.scss";
 
-export function Shell({ user, onLogout, pending, fill = false, children }) {
+export function Shell({ user, onLogout, pending, fill = false, wide = false, children }) {
   const [menu, setMenu] = useState(null);
   const location = useLocation();
   const navigate = useNavigate();
@@ -49,7 +49,7 @@ export function Shell({ user, onLogout, pending, fill = false, children }) {
   }
 
   return (
-    <div className={[styles.shell, user ? "" : styles.guest, fill ? styles.fill : ""].filter(Boolean).join(" ")}>
+    <div className={[styles.shell, user ? "" : styles.guest, fill ? styles.fill : "", wide ? styles.wide : ""].filter(Boolean).join(" ")}>
       <header className={styles.header}>
         <Link className={styles.brand} to="/calendar">
           <span className={styles.brandSite}>vparaplane</span>

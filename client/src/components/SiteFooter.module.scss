@@ -5,12 +5,20 @@
   align-items: baseline;
   gap: 4px 16px;
   width: 100%;
-  margin-top: 28px;
+  max-width: var(--page);
+  margin: 28px auto 0;
   padding-top: 16px;
   border-top: 1px solid var(--line);
   color: var(--muted);
   font-size: 13px;
   line-height: 1.4;
+}
+
+@media (min-width: 800px) {
+  .footer {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
 .copy {
