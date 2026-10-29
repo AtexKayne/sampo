@@ -130,6 +130,8 @@ function ProfileSettings({ userId }) {
   const [pickingAchievements, setPickingAchievements] = useState(false);
   const [query, setQuery] = useState("");
   const [needle, setNeedle] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef(null);
   const settingsQuery = useQuery({
     queryKey: settingsKey,
     queryFn: () => api(settingsPath),
@@ -143,6 +145,14 @@ function ProfileSettings({ userId }) {
     const timer = setTimeout(() => setNeedle(query.trim()), 200);
     return () => clearTimeout(timer);
   }, [query]);
+  useEffect(() => {
+    function onPointerDown(event) {
+      if (searchRef.current?.contains(event.target)) return;
+      setSearchOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
   const dancers = useQuery({
     queryKey: ["dancers", needle],
     queryFn: () => api(`/api/dancers?q=${encodeURIComponent(needle)}`),
@@ -455,28 +465,32 @@ function ProfileSettings({ userId }) {
                   className={draft.listMode !== "white" ? styles.inboxTabOn : styles.inboxTab}
                   type="button"
                   role="tab"
+                  aria-label="Чёрный список"
                   aria-selected={draft.listMode !== "white"}
                   disabled={busy}
                   onClick={() => setListMode("black")}
                 >
-                  <span>Чёрный список</span>
+                  <span className={styles.listTabLong}>Чёрный список</span>
+                  <span className={styles.listTabShort}>Чёрный</span>
                   <span className={styles.inboxMark}>{draft.blacklist.length}</span>
                 </button>
                 <button
                   className={draft.listMode === "white" ? styles.inboxTabOn : styles.inboxTab}
                   type="button"
                   role="tab"
+                  aria-label="Белый список"
                   aria-selected={draft.listMode === "white"}
                   disabled={busy}
                   onClick={() => setListMode("white")}
                 >
-                  <span>Белый список</span>
+                  <span className={styles.listTabLong}>Белый список</span>
+                  <span className={styles.listTabShort}>Белый</span>
                   <span className={styles.inboxMark}>{draft.whitelist.length}</span>
                 </button>
               </div>
             </div>
             <div className={styles.stack}>
-            <div className={styles.inviteSearch}>
+            <div className={styles.inviteSearch} ref={searchRef}>
             <FloatField label="Имя танцора">
             <input
               className={styles.input}
@@ -484,13 +498,20 @@ function ProfileSettings({ userId }) {
               aria-label="Поиск танцора по имени"
               autoComplete="off"
               disabled={busy}
-              onChange={(event) => setQuery(event.target.value)}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setSearchOpen(true);
+              }}
+              onFocus={() => {
+                if (query.trim()) setSearchOpen(true);
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") event.preventDefault();
+                if (event.key === "Escape") setSearchOpen(false);
               }}
             />
             </FloatField>
-            {trimmed ? (
+            {searchOpen && trimmed ? (
               <div className={styles.inviteDrop}>
                 {needle !== trimmed || dancers.isLoading ? (
                   <p className={styles.groupHint}>Загрузка</p>
@@ -513,7 +534,7 @@ function ProfileSettings({ userId }) {
               </div>
             ) : null}
             </div>
-            {activeList.length === 0 && !trimmed ? (
+            {activeList.length === 0 ? (
               <p className={styles.groupHint}>
                 {draft.listMode === "white" ? "Пока список пуст, приглашения не сможет отправить никто" : "Пока никого нет"}
               </p>

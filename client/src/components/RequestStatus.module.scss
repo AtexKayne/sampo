@@ -42,3 +42,16 @@
   color: var(--danger);
   background: color-mix(in srgb, var(--danger) 12%, var(--surface));
 }
+
+@media (max-width: 799px) {
+  .labeled {
+    width: 32px;
+    min-height: 32px;
+    padding: 0;
+    gap: 0;
+  }
+
+  .text {
+    display: none;
+  }
+}

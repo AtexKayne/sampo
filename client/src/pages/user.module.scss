@@ -586,6 +586,7 @@ button.help:active:not(:disabled) {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-width: 0;
   min-height: 44px;
   padding: 0 12px;
   border: 0;
@@ -593,8 +594,29 @@ button.help:active:not(:disabled) {
   background: transparent;
   color: var(--muted);
   font: inherit;
+  white-space: nowrap;
   cursor: pointer;
   @include press.control;
+}
+
+.listTabShort {
+  display: none;
+}
+
+@media (max-width: 799px) {
+  .listTabLong {
+    display: none;
+  }
+
+  .listTabShort {
+    display: inline;
+  }
+
+  .groupHead .inboxTab,
+  .groupHead .inboxTabOn {
+    gap: 6px;
+    padding: 0 8px;
+  }
 }
 
 .inboxTabOn {
@@ -1336,7 +1358,7 @@ input.radio {
 
 .inviteSearch {
   position: relative;
-  z-index: 5;
+  z-index: 2;
 }
 
 .inviteDrop {
