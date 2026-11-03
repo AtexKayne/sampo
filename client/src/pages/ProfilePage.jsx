@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { DANCE_LEVELS } from "../../../shared/dance-levels.js";
@@ -1055,11 +1056,13 @@ function AdminAudienceLists() {
 function AudienceListDialog({ list, onClose }) {
   const queryClient = useQueryClient();
   const searchRef = useRef(null);
+  const dropRef = useRef(null);
   const [name, setName] = useState(list.name ?? "");
   const [members, setMembers] = useState(list.members ?? []);
   const [query, setQuery] = useState("");
   const [needle, setNeedle] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  const [place, setPlace] = useState(null);
   const [error, setError] = useState("");
   const listed = new Set(members.map((person) => person.id));
   const trimmed = query.trim();
@@ -1070,9 +1073,59 @@ function AudienceListDialog({ list, onClose }) {
     return () => clearTimeout(timer);
   }, [query]);
 
+  useLayoutEffect(() => {
+    if (!searchOpen) {
+      setPlace(null);
+      return undefined;
+    }
+    const field = searchRef.current;
+    if (!field) return undefined;
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;visibility:hidden";
+    document.body.appendChild(probe);
+    let frame = 0;
+
+    function updatePlace() {
+      const current = searchRef.current;
+      if (!current) return;
+      const next = menuPlace(current, probe, 280);
+      setPlace((prev) => (prev && samePlace(prev, next) ? prev : next));
+    }
+
+    function schedule() {
+      updatePlace();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updatePlace);
+    }
+
+    updatePlace();
+    const observer = new ResizeObserver(schedule);
+    let node = field;
+    while (node) {
+      observer.observe(node);
+      node = node.parentElement;
+    }
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", schedule);
+    viewport?.addEventListener("scroll", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      viewport?.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("scroll", schedule);
+      probe.remove();
+    };
+  }, [searchOpen]);
+
   useEffect(() => {
     function onPointerDown(event) {
-      if (searchRef.current?.contains(event.target)) return;
+      const target = event.target;
+      if (searchRef.current?.contains(target) || dropRef.current?.contains(target)) return;
       setSearchOpen(false);
     }
     document.addEventListener("pointerdown", onPointerDown);
@@ -1119,6 +1172,46 @@ function AudienceListDialog({ list, onClose }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose, busy]);
 
+  const drop = searchOpen && place
+    ? createPortal(
+        <div
+          className={`${styles.inviteDrop} ${styles.inviteFloat}`}
+          ref={dropRef}
+          style={{
+            left: place.left,
+            top: place.top,
+            width: place.width,
+            maxHeight: place.maxHeight,
+            transform: place.upward ? "translateY(-100%)" : undefined,
+          }}
+        >
+          {dancers.isLoading && !dancers.data ? (
+            <p className={styles.groupHint}>Загрузка</p>
+          ) : dancers.isError ? (
+            <p className={styles.error}>{dancers.error.message}</p>
+          ) : people.length === 0 ? (
+            <p className={styles.groupHint}>Никого нет</p>
+          ) : (
+            <InvitePeopleTable
+              people={people}
+              label="Результаты поиска"
+              listed={listed}
+              busy={busy}
+              compact
+              onAction={(person) => {
+                setMembers((current) => [...current, { id: person.id, displayName: person.displayName }].sort(byName));
+                setQuery("");
+                setSearchOpen(false);
+              }}
+              actionLabel="Добавить"
+              doneLabel="В списке"
+            />
+          )}
+        </div>,
+        document.body,
+      )
+    : null;
+
   return (
     <Sheet
       as="form"
@@ -1134,6 +1227,21 @@ function AudienceListDialog({ list, onClose }) {
           save.mutate();
         }
       }}
+      footer={
+        <>
+          {error ? <p className={styles.error}>{error}</p> : null}
+          <div className={styles.row}>
+            <button className={styles.primary} type="submit" disabled={!canSave}>
+              Сохранить
+            </button>
+            {creating ? null : (
+              <button className={`${styles.button} ${styles.danger}`} type="button" disabled={busy} onClick={() => remove.mutate()}>
+                Удалить список
+              </button>
+            )}
+          </div>
+        </>
+      }
     >
       <div className={styles.dialogHead}>
         <h2 className={styles.dialogTitle} id="audience-list-title">
@@ -1176,55 +1284,21 @@ function AudienceListDialog({ list, onClose }) {
             }}
           />
         </FloatField>
-        {searchOpen ? (
-          <div className={styles.inviteDrop}>
-            {dancers.isLoading && !dancers.data ? (
-              <p className={styles.groupHint}>Загрузка</p>
-            ) : dancers.isError ? (
-              <p className={styles.error}>{dancers.error.message}</p>
-            ) : people.length === 0 ? (
-              <p className={styles.groupHint}>Никого нет</p>
-            ) : (
-              <InvitePeopleTable
-                people={people}
-                label="Результаты поиска"
-                listed={listed}
-                busy={busy}
-                compact
-                onAction={(person) => {
-                  setMembers((current) => [...current, { id: person.id, displayName: person.displayName }].sort(byName));
-                  setQuery("");
-                  setSearchOpen(false);
-                }}
-                actionLabel="Добавить"
-                doneLabel="В списке"
-              />
-            )}
-          </div>
-        ) : null}
+        {drop}
       </div>
       {members.length === 0 ? <p className={styles.groupHint}>Пока никого нет</p> : null}
       {members.length > 0 ? (
-        <InvitePeopleTable
-          people={members}
-          label="Кто в списке"
-          busy={busy}
-          head
-          onAction={(person) => setMembers((current) => current.filter((item) => item.id !== person.id))}
-          actionLabel="Убрать"
-        />
+        <div className={styles.inviteScroll}>
+          <InvitePeopleTable
+            people={members}
+            label="Кто в списке"
+            busy={busy}
+            head
+            onAction={(person) => setMembers((current) => current.filter((item) => item.id !== person.id))}
+            actionLabel="Убрать"
+          />
+        </div>
       ) : null}
-      {error ? <p className={styles.error}>{error}</p> : null}
-      <div className={styles.row}>
-        <button className={styles.primary} type="submit" disabled={!canSave}>
-          Сохранить
-        </button>
-        {creating ? null : (
-          <button className={`${styles.button} ${styles.danger}`} type="button" disabled={busy} onClick={() => remove.mutate()}>
-            Удалить список
-          </button>
-        )}
-      </div>
     </Sheet>
   );
 }
@@ -1640,6 +1714,36 @@ function Radio({ name, label, checked, disabled, onChange }) {
       {label}
     </label>
   );
+}
+
+function samePlace(prev, next) {
+  return prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.maxHeight === next.maxHeight && prev.upward === next.upward;
+}
+
+function visualCover() {
+  const viewport = window.visualViewport;
+  if (!viewport) return { width: window.innerWidth, height: window.innerHeight };
+  return { width: viewport.width, height: viewport.height };
+}
+
+function menuPlace(field, probe, limit = 220) {
+  const rect = field.getBoundingClientRect();
+  const origin = probe.getBoundingClientRect();
+  const cover = visualCover();
+  const top = rect.top - origin.top;
+  const bottom = rect.bottom - origin.top;
+  const gap = 4;
+  const spaceBelow = cover.height - bottom - gap;
+  const spaceAbove = top - gap;
+  const upward = spaceBelow < 160 && spaceAbove > spaceBelow;
+  const anchor = upward ? top - gap : bottom + gap;
+  return {
+    left: Math.round(rect.left - origin.left),
+    top: Math.round(anchor),
+    width: Math.round(rect.width),
+    maxHeight: Math.round(Math.max(44, Math.min(limit, upward ? spaceAbove : spaceBelow))),
+    upward,
+  };
 }
 
 function InvitePeopleTable({ people, label, listed, busy, compact, head, onAction, actionLabel, doneLabel }) {

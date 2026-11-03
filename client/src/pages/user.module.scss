@@ -1409,6 +1409,7 @@ button.userLink {
   left: 0;
   max-height: min(220px, 50vh);
   overflow: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--table-line);
   border-radius: var(--radius);
   background: var(--surface);
@@ -1417,6 +1418,49 @@ button.userLink {
   .groupHint,
   .error {
     padding: 12px;
+  }
+}
+
+.inviteFloat {
+  position: fixed;
+  z-index: 30;
+  top: auto;
+  right: auto;
+  left: auto;
+}
+
+.inviteScroll {
+  --table-line: color-mix(in srgb, var(--ink) 16%, var(--line));
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 8rem;
+  max-height: min(52dvh, 28rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--table-line);
+  border-radius: var(--radius);
+  background: var(--surface);
+
+  .inviteCard {
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    background: transparent;
+  }
+
+  .inviteTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+
+  .inviteTable thead th:first-child {
+    border-top-left-radius: var(--radius);
+  }
+
+  .inviteTable thead th:last-child {
+    border-top-right-radius: var(--radius);
   }
 }
 
