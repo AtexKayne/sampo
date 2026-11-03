@@ -1471,10 +1471,17 @@ test("a new closed slot is announced only to its audience", async () => {
   const slotId = await makeSlot(4, "2026-12-17T14:00:00.000Z", "2026-12-17T16:00:00.000Z");
   await sql`UPDATE slots SET visibility = 'closed' WHERE id = ${slotId}`;
   await replaceSlotAudience(sql, [slotId], [inside]);
-  const [raw] = await sql`SELECT * FROM slots WHERE id = ${slotId}`;
-  await announceNewSlots(sql, [raw], new Date("2026-12-01T00:00:00.000Z"));
+  await announceNewSlots(
+    sql,
+    [{ id: slotId, startsAt: "2026-12-17T14:00:00.000Z", endsAt: "2026-12-17T16:00:00.000Z", place: "Hall", capacity: 4, status: "open" }],
+    new Date("2026-12-01T00:00:00.000Z"),
+  );
   const notes = await sql`
     SELECT user_id FROM notifications WHERE type = 'slot_opened' AND payload->>'slotId' = ${slotId}
   `;
   assert.deepEqual(notes.map((row) => row.user_id).sort(), [inside].sort());
+  const missed = await sql`
+    SELECT count(*)::int AS count FROM notifications WHERE user_id = ${outside} AND type = 'slot_opened'
+  `;
+  assert.equal(missed[0].count, 0);
 });

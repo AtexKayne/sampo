@@ -1568,9 +1568,26 @@ export async function deleteAdminSlot(sql, slotId, scope = "one", now = new Date
 }
 
 export async function announceNewSlots(sql, rows, now = new Date()) {
-  const fresh = rows.map(slotOf).filter((slot) => slot.status === "open" && slot.startsAt > now);
-  if (!fresh.length) return;
+  const ids = [...new Set(rows.map((row) => slotOf(row).id).filter(Boolean))];
+  if (!ids.length) return;
   await sql.begin(async (tx) => {
+    const fresh = (
+      await tx`
+        SELECT * FROM slots
+        WHERE id IN ${tx(ids)} AND status = 'open' AND starts_at > ${now}
+      `
+    ).map(slotOf);
+    if (!fresh.length) return;
+    const closedIds = fresh.filter((slot) => slot.visibility === "closed").map((slot) => slot.id);
+    const audienceRows = closedIds.length
+      ? await tx`SELECT slot_id, user_id FROM slot_audience WHERE slot_id IN ${tx(closedIds)}`
+      : [];
+    const audience = new Map();
+    for (const row of audienceRows) {
+      const list = audience.get(row.slot_id) ?? new Set();
+      list.add(row.user_id);
+      audience.set(row.slot_id, list);
+    }
     const listeners = await tx`
       SELECT id, notify_new_slots_scope
       FROM users
@@ -1579,7 +1596,7 @@ export async function announceNewSlots(sql, rows, now = new Date()) {
     for (const listener of listeners) {
       const windows = listener.notify_new_slots_scope === "all" ? null : await loadWindows(tx, listener.id);
       for (const slot of fresh) {
-        if (!(await slotVisibleTo(tx, listener.id, slot))) continue;
+        if (slot.visibility === "closed" && !audience.get(slot.id)?.has(listener.id)) continue;
         if (windows && !fullyResolvedFree(windows, slot.startsAt, slot.endsAt)) continue;
         await notify(tx, listener.id, "slot_opened", {
           text: "Появился новый слот сампо",
