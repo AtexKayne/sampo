@@ -65,7 +65,8 @@
   padding-top: 26px;
 }
 
-.field:not(:has(input)):not(:has(textarea)) button {
+.field:not(:has(input)):not(:has(textarea)) button,
+.field:not(:has(input)):not(:has(textarea)) select {
   min-height: 56px;
   padding-top: 18px;
 }

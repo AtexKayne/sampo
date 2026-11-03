@@ -19,6 +19,8 @@ import {
   deleteAdminSlot,
   freePeople,
   presentSlot,
+  getVisibleSlot,
+  listSlotsForUser,
   leave,
   listWindows,
   remindDue,
@@ -26,6 +28,7 @@ import {
   withdrawRequest,
 } from "./sampo.js";
 import { addToBlacklist, addToWhitelist, deleteProfile, profileSettings, ratingSummary, removeFromBlacklist, saveProfile, searchDancers, setBlockedLevels, setDanceLevel, setSampoTotal, setUserAchievements } from "./profile.js";
+import { createAudienceList, replaceSlotAudience, resolveAudienceForCreate, updateAudienceList } from "./audience.js";
 import { HttpError } from "../http/errors.js";
 
 dotenv.config();
@@ -35,6 +38,7 @@ await migrate(sql);
 
 const users = [];
 const slots = [];
+const lists = [];
 
 async function makeUser(name) {
   const id = crypto.randomUUID();
@@ -79,6 +83,7 @@ async function attendanceCount(userId, slotId) {
 
 test.after(async () => {
   if (slots.length) await sql`DELETE FROM slots WHERE id IN ${sql(slots)}`;
+  if (lists.length) await sql`DELETE FROM audience_lists WHERE id IN ${sql(lists)}`;
   if (users.length) await sql`DELETE FROM users WHERE id IN ${sql(users)}`;
   await sql.end({ timeout: 5 });
 });
@@ -1403,4 +1408,72 @@ test("the hidden carburetor can be granted to many people and stays off the rati
   await setUserAchievements(sql, second, ["cunning-carburetor"], now);
   assert.equal((await dancerProfile(sql, viewer, second)).achievements.find((item) => item.id === "cunning-carburetor").earned, true);
   assert.equal((await dancerProfile(sql, viewer, first)).achievements.find((item) => item.id === "cunning-carburetor").earned, true);
+});
+
+test("closed slots stay hidden until the person is on the audience", async () => {
+  const anna = await makeUser("Закрытая Анна");
+  const boris = await makeUser("Закрытый Борис");
+  const adminId = await makeUser("Закрытый админ");
+  await sql`UPDATE users SET app_role = 'admin' WHERE id = ${adminId}`;
+  const openId = await makeSlot(4, "2026-12-15T14:00:00.000Z", "2026-12-15T16:00:00.000Z");
+  const closedId = await makeSlot(4, "2026-12-15T16:00:00.000Z", "2026-12-15T18:00:00.000Z");
+  await sql`UPDATE slots SET visibility = 'closed' WHERE id = ${closedId}`;
+  await sql`INSERT INTO slot_audience (slot_id, user_id) VALUES (${closedId}, ${anna})`;
+  const from = new Date("2026-12-15T00:00:00.000Z");
+  const to = new Date("2026-12-16T00:00:00.000Z");
+  const annaSlots = await listSlotsForUser(sql, { id: anna, appRole: "user" }, from, to);
+  const borisSlots = await listSlotsForUser(sql, { id: boris, appRole: "user" }, from, to);
+  const adminSlots = await listSlotsForUser(sql, { id: adminId, appRole: "admin" }, from, to);
+  assert.equal(annaSlots.some((slot) => slot.id === closedId), true);
+  assert.equal(borisSlots.some((slot) => slot.id === closedId), false);
+  assert.equal(adminSlots.some((slot) => slot.id === closedId), true);
+  assert.equal(borisSlots.some((slot) => slot.id === openId), true);
+  const [raw] = await sql`SELECT * FROM slots WHERE id = ${closedId}`;
+  await assert.rejects(getVisibleSlot(sql, raw, boris), (error) => error instanceof HttpError && error.statusCode === 404);
+  const visible = await getVisibleSlot(sql, raw, anna);
+  assert.equal(visible.visibility, "closed");
+  assert.equal(visible.audience, undefined);
+  const asAdmin = await presentSlot(sql, raw, adminId);
+  assert.equal(asAdmin.audience.length, 1);
+  await assert.rejects(attend(sql, boris, closedId), (error) => error instanceof HttpError && error.statusCode === 404);
+  await attend(sql, anna, closedId);
+  await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${boris}, ${closedId})`;
+  await assert.rejects(
+    createRequest(sql, anna, closedId, boris),
+    (error) => error instanceof HttpError && error.code === "NOT_AVAILABLE",
+  );
+  await assert.rejects(
+    resolveAudienceForCreate(sql, { visibility: "closed" }),
+    (error) => error instanceof HttpError && error.statusCode === 400,
+  );
+});
+
+test("an audience preset is a template and does not rewrite existing slots", async () => {
+  const anna = await makeUser("Пресет Анна");
+  const boris = await makeUser("Пресет Борис");
+  const list = await createAudienceList(sql, `Группа ${anna.slice(0, 8)}`, [anna]);
+  lists.push(list.id);
+  const slotId = await makeSlot(4, "2026-12-16T14:00:00.000Z", "2026-12-16T16:00:00.000Z");
+  await sql`UPDATE slots SET visibility = 'closed', audience_list_id = ${list.id} WHERE id = ${slotId}`;
+  await replaceSlotAudience(sql, [slotId], [anna]);
+  await updateAudienceList(sql, list.id, { userIds: [boris] });
+  const [kept] = await sql`SELECT user_id FROM slot_audience WHERE slot_id = ${slotId}`;
+  assert.equal(kept.user_id, anna);
+  const [member] = await sql`SELECT user_id FROM audience_list_members WHERE list_id = ${list.id}`;
+  assert.equal(member.user_id, boris);
+});
+
+test("a new closed slot is announced only to its audience", async () => {
+  const inside = await makeUser("Слышит закрытое");
+  const outside = await makeUser("Не слышит закрытое");
+  await sql`UPDATE users SET notify_new_slots = true, notify_new_slots_scope = 'all' WHERE id IN ${sql([inside, outside])}`;
+  const slotId = await makeSlot(4, "2026-12-17T14:00:00.000Z", "2026-12-17T16:00:00.000Z");
+  await sql`UPDATE slots SET visibility = 'closed' WHERE id = ${slotId}`;
+  await replaceSlotAudience(sql, [slotId], [inside]);
+  const [raw] = await sql`SELECT * FROM slots WHERE id = ${slotId}`;
+  await announceNewSlots(sql, [raw], new Date("2026-12-01T00:00:00.000Z"));
+  const notes = await sql`
+    SELECT user_id FROM notifications WHERE type = 'slot_opened' AND payload->>'slotId' = ${slotId}
+  `;
+  assert.deepEqual(notes.map((row) => row.user_id).sort(), [inside].sort());
 });

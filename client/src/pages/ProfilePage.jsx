@@ -59,6 +59,7 @@ export function ProfilePage() {
           </div>
           <div className={styles.adminPage}>
             <AdminUserSearch creating={creatingUser} onCreatingChange={setCreatingUser} />
+            <AdminAudienceLists />
           </div>
         </div>
       </Shell>
@@ -983,6 +984,248 @@ function AdminUserSearch({ creating = false, onCreatingChange }) {
         />
       ) : null}
     </section>
+  );
+}
+
+function AdminAudienceLists() {
+  const [editing, setEditing] = useState(null);
+  const listsQuery = useQuery({
+    queryKey: ["audience-lists"],
+    queryFn: () => api("/api/admin/audience-lists"),
+  });
+  const lists = listsQuery.data?.lists ?? [];
+
+  return (
+    <section className={`${styles.group} ${styles.adminUsers}`} aria-labelledby="audience-lists-title">
+      <div className={styles.listHead}>
+        <div className={styles.caption}>
+          <h3 className={styles.groupTitle} id="audience-lists-title">
+            Списки закрытых слотов
+          </h3>
+          <p className={styles.groupHint}>Кого впускать на закрытое сампо. В календаре список можно подставить в слот.</p>
+        </div>
+        <button
+          className={styles.button}
+          type="button"
+          onClick={() => setEditing({ id: null, name: "", members: [] })}
+        >
+          Новый список
+        </button>
+      </div>
+      {listsQuery.isError ? <p className={styles.error}>{listsQuery.error.message}</p> : null}
+      <div className={styles.userTableCard}>
+        <div className={styles.userTableWrap}>
+          <table className={styles.userTable}>
+            <thead>
+              <tr>
+                <th scope="col">Название</th>
+                <th scope="col">Людей</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!listsQuery.data && listsQuery.isPending ? (
+                <tr className={styles.userTableNote}>
+                  <td colSpan={2}>Загрузка</td>
+                </tr>
+              ) : null}
+              {listsQuery.data && lists.length === 0 ? (
+                <tr className={styles.userTableNote}>
+                  <td colSpan={2}>Списков нет</td>
+                </tr>
+              ) : null}
+              {lists.map((list) => (
+                <tr key={list.id}>
+                  <td>
+                    <button className={styles.userLink} type="button" onClick={() => setEditing(list)}>
+                      {list.name}
+                    </button>
+                  </td>
+                  <td className={styles.userLevel}>{list.members.length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {editing ? <AudienceListDialog list={editing} onClose={() => setEditing(null)} /> : null}
+    </section>
+  );
+}
+
+function AudienceListDialog({ list, onClose }) {
+  const queryClient = useQueryClient();
+  const searchRef = useRef(null);
+  const [name, setName] = useState(list.name ?? "");
+  const [members, setMembers] = useState(list.members ?? []);
+  const [query, setQuery] = useState("");
+  const [needle, setNeedle] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [error, setError] = useState("");
+  const listed = new Set(members.map((person) => person.id));
+  const trimmed = query.trim();
+  const creating = !list.id;
+
+  useEffect(() => {
+    const timer = setTimeout(() => setNeedle(query.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  useEffect(() => {
+    function onPointerDown(event) {
+      if (searchRef.current?.contains(event.target)) return;
+      setSearchOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  const dancers = useQuery({
+    queryKey: ["dancers", "audience-lists", needle],
+    queryFn: () => api(`/api/dancers?includeSelf=1&q=${encodeURIComponent(needle)}`),
+    enabled: searchOpen,
+    placeholderData: (previous) => previous,
+  });
+
+  const save = useMutation({
+    mutationFn: () => {
+      const body = { name, userIds: members.map((person) => person.id) };
+      if (creating) return api("/api/admin/audience-lists", { method: "POST", body });
+      return api(`/api/admin/audience-lists/${list.id}`, { method: "PATCH", body });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["audience-lists"] });
+      onClose();
+    },
+    onError: (reason) => setError(reason.message),
+  });
+  const remove = useMutation({
+    mutationFn: () => api(`/api/admin/audience-lists/${list.id}`, { method: "DELETE" }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["audience-lists"] });
+      onClose();
+    },
+    onError: (reason) => setError(reason.message),
+  });
+
+  const busy = save.isPending || remove.isPending;
+  const canSave = !busy && name.trim();
+  const people = (dancers.data?.users ?? []).filter((person) => person.displayName.toLocaleLowerCase("ru").includes(trimmed.toLocaleLowerCase("ru")));
+
+  useEffect(() => {
+    function onKeyDown(event) {
+      if (event.key === "Escape" && !busy) onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose, busy]);
+
+  return (
+    <Sheet
+      as="form"
+      size="l"
+      labelledBy="audience-list-title"
+      onClose={() => {
+        if (!busy) onClose();
+      }}
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSave) {
+          setError("");
+          save.mutate();
+        }
+      }}
+    >
+      <div className={styles.dialogHead}>
+        <h2 className={styles.dialogTitle} id="audience-list-title">
+          {creating ? "Новый список" : "Список"}
+        </h2>
+        <button className={styles.close} type="button" aria-label="Закрыть" disabled={busy} onClick={onClose}>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      <p className={styles.dialogText}>Эти люди увидят закрытый слот, если подставить список в календаре.</p>
+      <FloatField className={styles.field} label="Название">
+        <input
+          className={styles.input}
+          value={name}
+          maxLength={80}
+          autoComplete="off"
+          autoFocus
+          disabled={busy}
+          onChange={(event) => setName(event.target.value)}
+        />
+      </FloatField>
+      <div className={styles.inviteSearch} ref={searchRef}>
+        <FloatField label="Имя танцора">
+          <input
+            className={styles.input}
+            value={query}
+            aria-label="Поиск танцора по имени"
+            autoComplete="off"
+            disabled={busy}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setSearchOpen(true);
+            }}
+            onFocus={() => setSearchOpen(true)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") event.preventDefault();
+              if (event.key === "Escape") setSearchOpen(false);
+            }}
+          />
+        </FloatField>
+        {searchOpen ? (
+          <div className={styles.inviteDrop}>
+            {dancers.isLoading && !dancers.data ? (
+              <p className={styles.groupHint}>Загрузка</p>
+            ) : dancers.isError ? (
+              <p className={styles.error}>{dancers.error.message}</p>
+            ) : people.length === 0 ? (
+              <p className={styles.groupHint}>Никого нет</p>
+            ) : (
+              <InvitePeopleTable
+                people={people}
+                label="Результаты поиска"
+                listed={listed}
+                busy={busy}
+                compact
+                onAction={(person) => {
+                  setMembers((current) => [...current, { id: person.id, displayName: person.displayName }].sort(byName));
+                  setQuery("");
+                  setSearchOpen(false);
+                }}
+                actionLabel="Добавить"
+                doneLabel="В списке"
+              />
+            )}
+          </div>
+        ) : null}
+      </div>
+      {members.length === 0 ? <p className={styles.groupHint}>Пока никого нет</p> : null}
+      {members.length > 0 ? (
+        <InvitePeopleTable
+          people={members}
+          label="Кто в списке"
+          busy={busy}
+          head
+          onAction={(person) => setMembers((current) => current.filter((item) => item.id !== person.id))}
+          actionLabel="Убрать"
+        />
+      ) : null}
+      {error ? <p className={styles.error}>{error}</p> : null}
+      <div className={styles.row}>
+        <button className={styles.primary} type="submit" disabled={!canSave}>
+          Сохранить
+        </button>
+        {creating ? null : (
+          <button className={`${styles.button} ${styles.danger}`} type="button" disabled={busy} onClick={() => remove.mutate()}>
+            Удалить список
+          </button>
+        )}
+      </div>
+    </Sheet>
   );
 }
 

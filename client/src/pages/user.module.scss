@@ -897,6 +897,7 @@ button.help:active:not(:disabled) {
   width: 44px;
   height: auto;
   border: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -1144,6 +1145,21 @@ input.radio {
   max-width: 100%;
 }
 
+@media (min-width: 800px) {
+  .pageHead {
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .pageHead .title {
+    width: auto;
+  }
+
+  .headActions {
+    flex: 0 0 auto;
+  }
+}
+
 .mobileLogout {
   display: none;
 }
@@ -1215,8 +1231,21 @@ input.radio {
 .adminPage {
   display: flex;
   flex-direction: column;
+  gap: 28px;
   min-width: 0;
   margin-top: 16px;
+}
+
+.listHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.listHead .button {
+  flex: none;
 }
 
 .createDialog {
@@ -1343,6 +1372,16 @@ input.radio {
   text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+button.userLink {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: inherit;
 }
 
 @media (hover: hover) and (pointer: fine) {

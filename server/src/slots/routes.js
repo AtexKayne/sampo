@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lt } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { slots, users } from "../db/schema.js";
 import { HttpError } from "../http/errors.js";
 import { requireAdmin, requireUser } from "../auth/access.js";
@@ -12,7 +12,25 @@ import {
   validateRepeat,
   validateResponsible,
 } from "./rules.js";
-import { announceNewSlots, assertCapacity, assertTimeEditable, cancelSlot, deleteAdminSlot, presentSlot, presentSlots } from "../domain/sampo.js";
+import {
+  announceNewSlots,
+  assertCapacity,
+  assertTimeEditable,
+  cancelSlot,
+  deleteAdminSlot,
+  getVisibleSlot,
+  listSlotsForUser,
+  presentSlot,
+} from "../domain/sampo.js";
+import {
+  createAudienceList,
+  deleteAudienceList,
+  listAudienceLists,
+  replaceSlotAudience,
+  resolveAudienceForCreate,
+  resolveAudienceForPatch,
+  updateAudienceList,
+} from "../domain/audience.js";
 import { listSlotDescriptions } from "./descriptions.js";
 
 function fail(result) {
@@ -29,6 +47,7 @@ export function toSlot(row) {
     description: row.description ?? null,
     responsibleUserId: row.responsibleUserId ?? null,
     status: row.status,
+    visibility: row.visibility === "closed" ? "closed" : "open",
     seriesId: row.seriesId,
     taken: 0,
     myAttendance: false,
@@ -70,17 +89,36 @@ export function registerSlotRoutes(app, { db, sql, config }) {
     const to = parseRange(request.query?.to, "конец интервала");
     if (to <= from) throw new HttpError(400, "VALIDATION", "Интервал календаря пустой");
     const user = await requireUser(request, db, config);
-    const rows = await db
-      .select()
-      .from(slots)
-      .where(and(gte(slots.startsAt, from), lt(slots.startsAt, to)))
-      .orderBy(asc(slots.startsAt));
-    return { slots: await presentSlots(sql, rows, user.id) };
+    return { slots: await listSlotsForUser(sql, user, from, to) };
   });
 
   app.get("/api/slots/:id", async (request) => {
     const user = await requireUser(request, db, config);
-    return presentSlot(sql, await loadSlot(db, request.params.id), user.id);
+    return getVisibleSlot(sql, await loadSlot(db, request.params.id), user.id);
+  });
+
+  app.get("/api/admin/audience-lists", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return { lists: await listAudienceLists(sql) };
+  });
+
+  app.post("/api/admin/audience-lists", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return createAudienceList(sql, request.body?.name, request.body?.userIds);
+  });
+
+  app.patch("/api/admin/audience-lists/:id", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return updateAudienceList(sql, request.params.id, request.body);
+  });
+
+  app.delete("/api/admin/audience-lists/:id", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return deleteAudienceList(sql, request.params.id);
   });
 
   app.get("/api/admin/slot-descriptions", async (request) => {
@@ -106,6 +144,7 @@ export function registerSlotRoutes(app, { db, sql, config }) {
     const description = validateDescription(request.body?.description);
     if (!description.ok) fail(description);
     const responsibleUserId = await resolveResponsible(db, request.body?.responsibleUserId);
+    const audience = await resolveAudienceForCreate(sql, request.body);
 
     const seriesId = repeat.repeatWeekly > 0 ? crypto.randomUUID() : null;
     const rows = Array.from({ length: repeat.repeatWeekly + 1 }, (_, week) => ({
@@ -117,12 +156,19 @@ export function registerSlotRoutes(app, { db, sql, config }) {
       description: description.description,
       responsibleUserId,
       status: "open",
+      visibility: audience.visibility,
+      audienceListId: audience.audienceListId,
       seriesId,
     }));
     const created = await db.insert(slots).values(rows).returning();
     created.sort((left, right) => left.startsAt - right.startsAt);
+    await replaceSlotAudience(
+      sql,
+      created.map((row) => row.id),
+      audience.userIds,
+    );
     await announceNewSlots(sql, created);
-    return { slots: created.map(toSlot) };
+    return { slots: await Promise.all(created.map((row) => presentSlot(sql, row, user.id))) };
   });
 
   app.patch("/api/admin/slots/:id", async (request) => {
@@ -141,6 +187,8 @@ export function registerSlotRoutes(app, { db, sql, config }) {
       responsibleUserId: slot.responsibleUserId,
       startsAt: slot.startsAt,
       endsAt: slot.endsAt,
+      visibility: slot.visibility,
+      audienceListId: slot.audienceListId,
     };
     if (request.body?.place !== undefined) {
       const place = validatePlace(request.body.place);
@@ -170,6 +218,16 @@ export function registerSlotRoutes(app, { db, sql, config }) {
       await assertTimeEditable(sql, slot.id);
       next.startsAt = startsAt;
       next.endsAt = endsAt;
+    }
+    if (
+      request.body?.visibility !== undefined ||
+      request.body?.audienceUserIds !== undefined ||
+      request.body?.audienceListId !== undefined
+    ) {
+      const audience = await resolveAudienceForPatch(sql, slot, request.body);
+      next.visibility = audience.visibility;
+      next.audienceListId = audience.audienceListId;
+      if (audience.replaceAudience) await replaceSlotAudience(sql, [slot.id], audience.userIds);
     }
 
     const [updated] = await db.update(slots).set(next).where(eq(slots.id, slot.id)).returning();

@@ -68,6 +68,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const [capacity, setCapacity] = useState("20");
   const [description, setDescription] = useState("");
   const [responsible, setResponsible] = useState(null);
+  const [visibility, setVisibility] = useState("open");
+  const [audience, setAudience] = useState([]);
+  const [audienceListId, setAudienceListId] = useState(null);
   const [repeatWeekly, setRepeatWeekly] = useState("0");
   const [formError, setFormError] = useState("");
   const [editing, setEditing] = useState(null);
@@ -75,6 +78,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const [editCapacity, setEditCapacity] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editResponsible, setEditResponsible] = useState(null);
+  const [editVisibility, setEditVisibility] = useState("open");
+  const [editAudience, setEditAudience] = useState([]);
+  const [editAudienceListId, setEditAudienceListId] = useState(null);
   const [editError, setEditError] = useState("");
   const [deletePrompt, setDeletePrompt] = useState(false);
   const [purpose, setPurpose] = useState("slot");
@@ -284,6 +290,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     setEditCapacity(String(slot.capacity));
     setEditDescription(slot.description ?? "");
     setEditResponsible(slot.responsible ?? null);
+    setEditVisibility(slot.visibility === "closed" ? "closed" : "open");
+    setEditAudience(slot.audience ?? []);
+    setEditAudienceListId(slot.audienceListId ?? null);
     setEditError("");
     setDeletePrompt(false);
   }
@@ -306,6 +315,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     setCapacity("20");
     setDescription("");
     setResponsible(null);
+    setVisibility("open");
+    setAudience([]);
+    setAudienceListId(null);
     setRepeatWeekly("0");
     setFormError("");
   }
@@ -343,6 +355,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       capacity: Number(capacity),
       description,
       responsibleUserId: responsible?.id ?? null,
+      visibility,
+      audienceListId: visibility === "closed" ? audienceListId : null,
+      audienceUserIds: visibility === "closed" ? audience.map((person) => person.id) : [],
       repeatWeekly: Number(repeatWeekly),
     });
   }
@@ -608,49 +623,72 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             <p className={styles.modalNote}>
               {formatMinutes(selection.startMin)}–{formatMinutes(selection.endMin)}
             </p>
+            <VisibilityTabs
+              value={visibility}
+              onChange={(next) => {
+                setFormError("");
+                setVisibility(next);
+              }}
+            />
           </header>
-          <form className={styles.adminFields} onSubmit={onSubmit}>
+          <form
+            className={styles.adminFields}
+            onSubmit={onSubmit}
+            onInput={() => setFormError("")}
+          >
             <FloatField className={styles.field} label="Зал">
               <input className={styles.input} required value={place} onChange={(event) => setPlace(event.target.value)} />
             </FloatField>
-            <FloatField className={styles.field} label="Вместимость">
-              <input
-                className={styles.input}
-                type="number"
-                min="1"
-                max="200"
-                required
-                value={capacity}
-                onChange={(event) => setCapacity(event.target.value)}
+            <div className={styles.fieldRow}>
+              <FloatField className={styles.field} label="Вместимость">
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="1"
+                  max="200"
+                  required
+                  value={capacity}
+                  onChange={(event) => setCapacity(event.target.value)}
+                />
+              </FloatField>
+              <FloatField className={styles.field} label="Ещё столько же недель">
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="0"
+                  max="12"
+                  required
+                  value={repeatWeekly}
+                  onChange={(event) => setRepeatWeekly(event.target.value)}
+                />
+              </FloatField>
+            </div>
+            <ResponsibleField
+              value={responsible}
+              onChange={(next) => {
+                setFormError("");
+                setResponsible(next);
+              }}
+            />
+            {visibility === "closed" ? (
+              <AudienceEditor
+                people={audience}
+                onPeople={(next) => {
+                  setFormError("");
+                  setAudience(next);
+                }}
+                listId={audienceListId}
+                onListId={(next) => {
+                  setFormError("");
+                  setAudienceListId(next);
+                }}
               />
-            </FloatField>
+            ) : null}
             <DescriptionField value={description} onChange={setDescription} />
-            <ResponsibleField value={responsible} onChange={setResponsible} />
-            <FloatField className={styles.field} label="Ещё столько же недель">
-              <input
-                className={styles.input}
-                type="number"
-                min="0"
-                max="12"
-                required
-                value={repeatWeekly}
-                onChange={(event) => setRepeatWeekly(event.target.value)}
-              />
-            </FloatField>
             {formError ? <p className={styles.error}>{formError}</p> : null}
             <div className={styles.actions}>
-              <button className={styles.primary} type="submit" disabled={!selection.ok || createSlot.isPending}>
+              <button className={`${styles.primary} ${styles.actionFill}`} type="submit" disabled={!selection.ok || createSlot.isPending}>
                 Создать слот
-              </button>
-              <button
-                className={styles.button}
-                type="button"
-                onClick={() => {
-                  setSelection(null);
-                  setFormError("");
-                }}
-              >
-                Сбросить
               </button>
             </div>
           </form>
@@ -680,6 +718,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             {canCreate && !endedSlot ? (
               <form
                 className={styles.adminFields}
+                onInput={() => setEditError("")}
                 onSubmit={(event) => {
                   event.preventDefault();
                   if (!canEditSlot) return;
@@ -691,10 +730,21 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                       capacity: Number(editCapacity),
                       description: editDescription,
                       responsibleUserId: editResponsible?.id ?? null,
+                      visibility: editVisibility,
+                      audienceListId: editVisibility === "closed" ? editAudienceListId : null,
+                      audienceUserIds: editVisibility === "closed" ? editAudience.map((person) => person.id) : [],
                     },
                   });
                 }}
               >
+                <VisibilityTabs
+                  value={editVisibility}
+                  disabled={!canEditSlot}
+                  onChange={(next) => {
+                    setEditError("");
+                    setEditVisibility(next);
+                  }}
+                />
                 <FloatField className={styles.field} label="Зал">
                   <input
                     className={styles.input}
@@ -716,8 +766,30 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
                     onChange={(event) => setEditCapacity(event.target.value)}
                   />
                 </FloatField>
+                <ResponsibleField
+                  value={editResponsible}
+                  disabled={!canEditSlot}
+                  onChange={(next) => {
+                    setEditError("");
+                    setEditResponsible(next);
+                  }}
+                />
+                {editVisibility === "closed" ? (
+                  <AudienceEditor
+                    people={editAudience}
+                    onPeople={(next) => {
+                      setEditError("");
+                      setEditAudience(next);
+                    }}
+                    listId={editAudienceListId}
+                    onListId={(next) => {
+                      setEditError("");
+                      setEditAudienceListId(next);
+                    }}
+                    disabled={!canEditSlot}
+                  />
+                ) : null}
                 <DescriptionField value={editDescription} disabled={!canEditSlot} onChange={setEditDescription} />
-                <ResponsibleField value={editResponsible} disabled={!canEditSlot} onChange={setEditResponsible} />
                 {startedSlot ? <p className={styles.error}>Нельзя изменить начавшийся слот</p> : null}
                 {deletePrompt ? (
                   <p className={styles.lead}>Слот повторён на другие недели. Удалить только его или все связанные? Уже начавшиеся останутся.</p>
@@ -788,6 +860,7 @@ function dayKeyOfSlot(slot) {
 function slotNotes(slot) {
   const notes = [];
   if (slot.status === "cancelled") notes.push("Отменён");
+  if (slot.visibility === "closed") notes.push("Закрытое");
   if (slot.myAttendance && !slot.myPair && !slot.withPartner) notes.push("Приду один");
   if (slot.unavailable) notes.push("Недоступен");
   if (slot.myPendingOutgoing) notes.push("Ждём ответ");
@@ -927,14 +1000,13 @@ function visualCover() {
   return { width: viewport.width, height: viewport.height };
 }
 
-function comboMenuPlace(field, probe) {
+function comboMenuPlace(field, probe, limit = 220) {
   const rect = field.getBoundingClientRect();
   const origin = probe.getBoundingClientRect();
   const cover = visualCover();
   const top = rect.top - origin.top;
   const bottom = rect.bottom - origin.top;
   const gap = 4;
-  const limit = 220;
   const spaceBelow = cover.height - bottom - gap;
   const spaceAbove = top - gap;
   const upward = spaceBelow < 160 && spaceAbove > spaceBelow;
@@ -1173,6 +1245,364 @@ function ResponsibleField({ value, onChange, disabled = false }) {
                   ))
                 : null}
               {!waiting && !dancers.isError && matches.length === 0 ? <li className={styles.comboEmpty}>Никого нет</li> : null}
+            </ul>,
+            document.body,
+          )
+        : null}
+    </div>
+  );
+}
+
+function VisibilityTabs({ value, onChange, disabled = false }) {
+  return (
+    <div className={styles.typeSwitch} role="tablist" aria-label="Тип слота">
+      <button
+        className={value === "open" ? styles.typeTabOn : styles.typeTab}
+        type="button"
+        role="tab"
+        aria-selected={value === "open"}
+        disabled={disabled}
+        onClick={() => onChange("open")}
+      >
+        Открытое
+      </button>
+      <button
+        className={value === "closed" ? styles.typeTabOn : styles.typeTab}
+        type="button"
+        role="tab"
+        aria-selected={value === "closed"}
+        disabled={disabled}
+        onClick={() => onChange("closed")}
+      >
+        Закрытое
+      </button>
+    </div>
+  );
+}
+
+function AudienceEditor({ people, onPeople, listId, onListId, disabled = false }) {
+  const listsQuery = useQuery({
+    queryKey: ["audience-lists"],
+    queryFn: () => api("/api/admin/audience-lists"),
+    enabled: !disabled,
+  });
+  const lists = listsQuery.data?.lists ?? [];
+
+  return (
+    <div className={styles.audience}>
+      <AudiencePicker
+        people={people}
+        lists={lists}
+        listId={listId}
+        disabled={disabled}
+        onPeople={onPeople}
+        onListId={onListId}
+        onPickList={(list) => {
+          onListId(list.id);
+          onPeople(list.members);
+        }}
+      />
+      {people.length > 0 ? (
+        <ul className={styles.chips}>
+          {people.map((person) => (
+            <li key={person.id} className={styles.chipItem}>
+              <button
+                className={styles.chip}
+                type="button"
+                disabled={disabled}
+                aria-label={`Убрать ${person.displayName}`}
+                onClick={() => onPeople(people.filter((item) => item.id !== person.id))}
+              >
+                <span className={styles.chipText}>{person.displayName}</span>
+                <svg className={styles.chipRemove} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true">
+                  <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
+
+function AudiencePicker({ people, lists, listId, onPeople, onListId, onPickList, disabled = false }) {
+  const menuId = useId();
+  const [query, setQuery] = useState("");
+  const [needle, setNeedle] = useState("");
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(-1);
+  const [place, setPlace] = useState(null);
+  const rootRef = useRef(null);
+  const fieldRef = useRef(null);
+  const menuRef = useRef(null);
+  const activeRef = useRef(null);
+  const chosen = new Set(people.map((person) => person.id));
+  const selected = lists.find((list) => list.id === listId) ?? null;
+  const browsing = Boolean(selected) && query.trim() === selected.name;
+  const selectedName = selected?.name ?? "";
+  const committedName = useRef("");
+  const peopleKey = people.map((person) => person.id).sort().join();
+  const memberKey = selected ? selected.members.map((person) => person.id).sort().join() : "";
+
+  useEffect(() => {
+    if (listId && selected && peopleKey !== memberKey) {
+      committedName.current = "";
+      setQuery("");
+      onListId(null);
+      return;
+    }
+    if (selectedName) {
+      committedName.current = selectedName;
+      setQuery(selectedName);
+      return;
+    }
+    setQuery((current) => (current === committedName.current ? "" : current));
+    committedName.current = "";
+  }, [listId, memberKey, onListId, peopleKey, selected, selectedName]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setNeedle(browsing ? "" : query.trim()), 200);
+    return () => clearTimeout(timer);
+  }, [browsing, query]);
+
+  const dancers = useQuery({
+    queryKey: ["dancers", "audience", needle],
+    queryFn: () => api(`/api/dancers?includeSelf=1&q=${encodeURIComponent(needle)}`),
+    enabled: !disabled && open,
+    placeholderData: (previous) => previous,
+  });
+  const names = (dancers.data?.users ?? []).filter((person) => matchesName(person.displayName, browsing ? "" : query) && !chosen.has(person.id));
+  const presets = lists.filter((list) => matchesName(list.name, browsing ? "" : query));
+  const items = [
+    ...presets.map((list) => ({ kind: "preset", id: list.id, list })),
+    ...names.map((person) => ({ kind: "person", id: person.id, person })),
+  ];
+  const activeIndex = active >= 0 && items.length > 0 ? Math.min(active, items.length - 1) : -1;
+  const waiting = open && !disabled && !dancers.data && (dancers.isLoading || needle !== query.trim());
+
+  useLayoutEffect(() => {
+    if (!open || disabled) return undefined;
+    const field = fieldRef.current;
+    if (!field) return undefined;
+    const probe = document.createElement("div");
+    probe.setAttribute("aria-hidden", "true");
+    probe.style.cssText = "position:fixed;top:0;left:0;width:0;height:0;pointer-events:none;visibility:hidden";
+    document.body.appendChild(probe);
+    let frame = 0;
+
+    function updatePlace() {
+      const current = fieldRef.current;
+      if (!current) return;
+      const next = comboMenuPlace(current, probe, 280);
+      setPlace((prev) => (prev && sameMenuPlace(prev, next) ? prev : next));
+    }
+
+    function schedule() {
+      updatePlace();
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(updatePlace);
+    }
+
+    updatePlace();
+    const observer = new ResizeObserver(schedule);
+    let node = field;
+    while (node) {
+      observer.observe(node);
+      node = node.parentElement;
+    }
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", schedule);
+    viewport?.addEventListener("scroll", schedule);
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      viewport?.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("scroll", schedule);
+      probe.remove();
+    };
+  }, [disabled, open]);
+
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  useEffect(() => {
+    function onPointerDown(event) {
+      const target = event.target;
+      if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      setOpen(false);
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    return () => document.removeEventListener("pointerdown", onPointerDown);
+  }, []);
+
+  useEffect(() => {
+    const item = activeRef.current;
+    const menu = menuRef.current;
+    if (!open || !item || !menu) return;
+    const top = item.offsetTop;
+    const bottom = top + item.offsetHeight;
+    if (top < menu.scrollTop) menu.scrollTop = top;
+    else if (bottom > menu.scrollTop + menu.clientHeight) menu.scrollTop = bottom - menu.clientHeight;
+  }, [activeIndex, open]);
+
+  function choose(item) {
+    if (item.kind === "preset") {
+      onPickList(item.list);
+      setQuery(item.list.name);
+      setOpen(false);
+      return;
+    }
+    onPeople([...people, { id: item.person.id, displayName: item.person.displayName }]);
+    setQuery("");
+  }
+
+  function onKeyDown(event) {
+    if (disabled) return;
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setOpen(true);
+      if (items.length === 0) return;
+      setActive(activeIndex < 0 ? 0 : Math.min(activeIndex + 1, items.length - 1));
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setOpen(true);
+      if (items.length === 0) return;
+      setActive(activeIndex < 0 ? items.length - 1 : Math.max(activeIndex - 1, 0));
+      return;
+    }
+    if (event.key === "Enter") {
+      event.preventDefault();
+      if (open && activeIndex >= 0) choose(items[activeIndex]);
+      return;
+    }
+    if (event.key === "Escape" && open) {
+      event.preventDefault();
+      event.stopPropagation();
+      setOpen(false);
+    }
+  }
+
+  const empty = !waiting && !dancers.isError && items.length === 0;
+
+  return (
+    <div className={styles.combo} ref={rootRef}>
+      <div className={styles.comboField} ref={fieldRef}>
+        <FloatField label="Кто видит слот">
+          <input
+            className={styles.input}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls={menuId}
+            aria-autocomplete="list"
+            autoComplete="off"
+            disabled={disabled}
+            value={query}
+            onChange={(event) => {
+              const next = event.target.value;
+              setQuery(next);
+              setOpen(true);
+              setActive(-1);
+              if (selected && next.trim() !== selected.name) onListId(null);
+            }}
+            onFocus={() => {
+              if (!disabled) setOpen(true);
+            }}
+            onKeyDown={onKeyDown}
+          />
+        </FloatField>
+        <button
+          className={styles.comboToggle}
+          type="button"
+          aria-label={open ? "Скрыть список" : "Показать список"}
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={() => {
+            if (!disabled) setOpen((current) => !current);
+          }}
+        >
+          ▾
+        </button>
+      </div>
+      {open && !disabled && place
+        ? createPortal(
+            <ul
+              className={styles.comboMenu}
+              id={menuId}
+              role="listbox"
+              ref={menuRef}
+              style={{
+                left: place.left,
+                top: place.top,
+                width: place.width,
+                maxHeight: place.maxHeight,
+                transform: place.upward ? "translateY(-100%)" : undefined,
+              }}
+            >
+              {presets.map((list, index) => (
+                <li
+                  className={[
+                    styles.comboOption,
+                    list.id === listId ? styles.comboOptionOn : "",
+                    index === activeIndex ? styles.comboOptionActive : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  key={`preset-${list.id}`}
+                  ref={index === activeIndex ? activeRef : null}
+                >
+                  <span className={styles.comboName}>{list.name}</span>
+                  <span className={styles.comboHint}>список</span>
+                  <button
+                    className={styles.button}
+                    type="button"
+                    aria-selected={list.id === listId}
+                    onMouseEnter={() => setActive(index)}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => choose({ kind: "preset", list })}
+                  >
+                    {list.id === listId ? "Выбран" : "Выбрать"}
+                  </button>
+                </li>
+              ))}
+              {presets.length > 0 && (waiting || names.length > 0 || dancers.isError || empty) ? (
+                <li className={styles.comboSep} aria-hidden="true" />
+              ) : null}
+              {waiting ? <li className={styles.comboEmpty}>Загрузка</li> : null}
+              {!waiting && dancers.isError ? <li className={styles.comboEmpty}>{dancers.error.message}</li> : null}
+              {!waiting && !dancers.isError
+                ? names.map((person, index) => {
+                    const itemIndex = presets.length + index;
+                    return (
+                      <li
+                        className={[styles.comboOption, itemIndex === activeIndex ? styles.comboOptionActive : ""]
+                          .filter(Boolean)
+                          .join(" ")}
+                        key={person.id}
+                        ref={itemIndex === activeIndex ? activeRef : null}
+                      >
+                        <span className={styles.comboName}>{person.displayName}</span>
+                        <button
+                          className={styles.button}
+                          type="button"
+                          onMouseEnter={() => setActive(itemIndex)}
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => choose({ kind: "person", person })}
+                        >
+                          Добавить
+                        </button>
+                      </li>
+                    );
+                  })
+                : null}
+              {empty ? <li className={styles.comboEmpty}>Никого нет</li> : null}
             </ul>,
             document.body,
           )

@@ -20,8 +20,81 @@ function slotOf(row) {
     description: row.description ?? null,
     responsibleUserId: row.responsibleUserId ?? row.responsible_user_id ?? null,
     status: row.status,
+    visibility: row.visibility === "closed" ? "closed" : "open",
+    audienceListId: row.audienceListId ?? row.audience_list_id ?? null,
     seriesId: row.seriesId ?? row.series_id ?? null,
   };
+}
+
+async function slotVisibleTo(sql, userId, slot) {
+  if (slot.visibility !== "closed") return true;
+  const [user] = await sql`SELECT app_role FROM users WHERE id = ${userId}`;
+  if (user?.app_role === "admin") return true;
+  const [allowed] = await sql`
+    SELECT 1 FROM slot_audience WHERE slot_id = ${slot.id} AND user_id = ${userId}
+  `;
+  if (allowed) return true;
+  const [going] = await sql`
+    SELECT 1 FROM attendances WHERE slot_id = ${slot.id} AND user_id = ${userId}
+  `;
+  if (going) return true;
+  const [paired] = await sql`
+    SELECT 1 FROM pairs
+    WHERE slot_id = ${slot.id} AND status = 'confirmed'
+      AND (user_low_id = ${userId} OR user_high_id = ${userId})
+  `;
+  if (paired) return true;
+  const [asked] = await sql`
+    SELECT 1 FROM sampo_requests
+    WHERE slot_id = ${slot.id} AND (from_user_id = ${userId} OR to_user_id = ${userId})
+  `;
+  return Boolean(asked);
+}
+
+async function assertCanAccessSlot(sql, userId, slot) {
+  if (!(await slotVisibleTo(sql, userId, slot))) fail(404, "NOT_FOUND", "Слот не найден");
+}
+
+export async function listSlotsForUser(sql, user, from, to) {
+  const rows =
+    user.appRole === "admin"
+      ? await sql`
+          SELECT * FROM slots
+          WHERE starts_at >= ${from} AND starts_at < ${to}
+          ORDER BY starts_at
+        `
+      : await sql`
+          SELECT s.* FROM slots s
+          WHERE s.starts_at >= ${from} AND s.starts_at < ${to}
+            AND (
+              s.visibility = 'open'
+              OR EXISTS (
+                SELECT 1 FROM slot_audience a
+                WHERE a.slot_id = s.id AND a.user_id = ${user.id}
+              )
+              OR EXISTS (
+                SELECT 1 FROM attendances x
+                WHERE x.slot_id = s.id AND x.user_id = ${user.id}
+              )
+              OR EXISTS (
+                SELECT 1 FROM pairs p
+                WHERE p.slot_id = s.id AND p.status = 'confirmed'
+                  AND (p.user_low_id = ${user.id} OR p.user_high_id = ${user.id})
+              )
+              OR EXISTS (
+                SELECT 1 FROM sampo_requests r
+                WHERE r.slot_id = s.id AND (r.from_user_id = ${user.id} OR r.to_user_id = ${user.id})
+              )
+            )
+          ORDER BY s.starts_at
+        `;
+  return presentSlots(sql, rows, user.id);
+}
+
+export async function getVisibleSlot(sql, raw, userId) {
+  const slot = slotOf(raw);
+  await assertCanAccessSlot(sql, userId, slot);
+  return presentSlot(sql, raw, userId);
 }
 
 function formatWhen(date) {
@@ -305,6 +378,7 @@ export async function attend(sql, userId, slotId, withPartner = false) {
     const [raw] = await tx`SELECT * FROM slots WHERE id = ${slotId} FOR UPDATE`;
     if (!raw) fail(404, "NOT_FOUND", "Слот не найден");
     const slot = slotOf(raw);
+    await assertCanAccessSlot(tx, userId, slot);
     if (slot.status !== "open") fail(409, "SLOT_NOT_OPEN", "Слот уже отменён");
     if (slot.startsAt <= new Date()) fail(409, "SLOT_STARTED", "Слот уже начался");
     const [existing] = await tx`SELECT guests FROM attendances WHERE user_id = ${userId} AND slot_id = ${slotId}`;
@@ -352,6 +426,7 @@ export async function leave(sql, userId, slotId) {
     const [raw] = await tx`SELECT * FROM slots WHERE id = ${slotId} FOR UPDATE`;
     if (!raw) fail(404, "NOT_FOUND", "Слот не найден");
     const slot = slotOf(raw);
+    await assertCanAccessSlot(tx, userId, slot);
     if (slot.startsAt <= new Date()) fail(409, "SLOT_STARTED", "Слот уже начался");
     const [pair] = await tx`
       SELECT 1 FROM pairs
@@ -369,6 +444,7 @@ export async function setAvailability(sql, userId, slotId, open) {
     const [raw] = await tx`SELECT * FROM slots WHERE id = ${slotId} FOR UPDATE`;
     if (!raw) fail(404, "NOT_FOUND", "Слот не найден");
     const slot = slotOf(raw);
+    await assertCanAccessSlot(tx, userId, slot);
     if (open) {
       if (slot.status !== "open" || slot.startsAt <= new Date()) {
         fail(409, "NOT_AVAILABLE", "На этот слот нельзя отметиться свободным");
@@ -1171,6 +1247,7 @@ export async function createRequest(sql, actorId, slotId, toUserId) {
     const [raw] = await tx`SELECT * FROM slots WHERE id = ${slotId} FOR UPDATE`;
     if (!raw) fail(404, "NOT_FOUND", "Слот не найден");
     const slot = slotOf(raw);
+    await assertCanAccessSlot(tx, actorId, slot);
     if (slot.status !== "open") fail(409, "SLOT_NOT_OPEN", "Слот уже отменён");
     if (slot.startsAt <= new Date()) fail(409, "SLOT_STARTED", "Слот уже начался");
     const [actor] = await tx`SELECT app_role FROM users WHERE id = ${actorId}`;
@@ -1178,6 +1255,10 @@ export async function createRequest(sql, actorId, slotId, toUserId) {
     const [target] = await tx`SELECT id, app_role FROM users WHERE id = ${toUserId}`;
     if (!target) fail(404, "NOT_FOUND", "Участник не найден");
     if (target.app_role === "admin") fail(409, "NOT_AVAILABLE", "Этого человека нельзя пригласить");
+    if (slot.visibility === "closed") {
+      const [allowed] = await tx`SELECT 1 FROM slot_audience WHERE slot_id = ${slotId} AND user_id = ${toUserId}`;
+      if (!allowed) fail(409, "NOT_AVAILABLE", "Этого человека нельзя пригласить");
+    }
     if (await invitationDenied(tx, actorId, toUserId)) fail(403, "INVITE_BLOCKED", "Этот человек не принимает ваши приглашения");
     if (await comingAlone(tx, toUserId, slotId)) fail(409, "NOT_AVAILABLE", "Этот человек придёт один");
     const targetConflict = await conflicting(tx, toUserId, slot);
@@ -1498,6 +1579,7 @@ export async function announceNewSlots(sql, rows, now = new Date()) {
     for (const listener of listeners) {
       const windows = listener.notify_new_slots_scope === "all" ? null : await loadWindows(tx, listener.id);
       for (const slot of fresh) {
+        if (!(await slotVisibleTo(tx, listener.id, slot))) continue;
         if (windows && !fullyResolvedFree(windows, slot.startsAt, slot.endsAt)) continue;
         await notify(tx, listener.id, "slot_opened", {
           text: "Появился новый слот сампо",
@@ -1644,7 +1726,9 @@ export async function presentSlots(sql, rawSlots, userId) {
   if (!slots.length) return [];
   const ids = slots.map((slot) => slot.id);
   const responsibleIds = [...new Set(slots.map((slot) => slot.responsibleUserId).filter(Boolean))];
-  const [attendanceRows, markRows, exceptionRows, windows, pairRows, requestRows, myAttendanceRows, myPairRows, responsibleRows] = await Promise.all([
+  const [viewer] = await sql`SELECT app_role FROM users WHERE id = ${userId}`;
+  const admin = viewer?.app_role === "admin";
+  const [attendanceRows, markRows, exceptionRows, windows, pairRows, requestRows, myAttendanceRows, myPairRows, responsibleRows, audienceRows] = await Promise.all([
     sql`SELECT slot_id, user_id, guests FROM attendances WHERE slot_id IN ${sql(ids)}`,
     sql`SELECT slot_id FROM availabilities WHERE user_id = ${userId} AND slot_id IN ${sql(ids)}`,
     sql`SELECT slot_id FROM availability_exceptions WHERE user_id = ${userId} AND slot_id IN ${sql(ids)}`,
@@ -1670,6 +1754,7 @@ export async function presentSlots(sql, rawSlots, userId) {
       WHERE p.status = 'confirmed' AND (p.user_low_id = ${userId} OR p.user_high_id = ${userId})
     `,
     responsibleIds.length ? sql`SELECT id, display_name FROM users WHERE id IN ${sql(responsibleIds)}` : [],
+    admin ? sql`SELECT slot_id, user_id FROM slot_audience WHERE slot_id IN ${sql(ids)}` : [],
   ]);
   const partnerIds = pairRows.map((row) => (row.user_low_id === userId ? row.user_high_id : row.user_low_id));
   const partners = partnerIds.length
@@ -1677,6 +1762,16 @@ export async function presentSlots(sql, rawSlots, userId) {
     : [];
   const partnerName = new Map(partners.map((row) => [row.id, row.display_name]));
   const responsibleName = new Map(responsibleRows.map((row) => [row.id, row.display_name]));
+  const audienceUserIds = [...new Set(audienceRows.map((row) => row.user_id))];
+  const audienceNames = audienceUserIds.length
+    ? new Map((await sql`SELECT id, display_name FROM users WHERE id IN ${sql(audienceUserIds)}`).map((row) => [row.id, row.display_name]))
+    : new Map();
+  const audienceBySlot = new Map();
+  for (const row of audienceRows) {
+    const list = audienceBySlot.get(row.slot_id) ?? [];
+    list.push({ id: row.user_id, displayName: audienceNames.get(row.user_id) ?? "" });
+    audienceBySlot.set(row.slot_id, list);
+  }
   const marks = new Set(markRows.map((row) => row.slot_id));
   const exceptions = new Set(exceptionRows.map((row) => row.slot_id));
   return slots.map((slot) => {
@@ -1708,6 +1803,11 @@ export async function presentSlots(sql, rawSlots, userId) {
         ? { id: slot.responsibleUserId, displayName: responsibleName.get(slot.responsibleUserId) }
         : null,
       status: slot.status,
+      visibility: slot.visibility,
+      audienceListId: admin ? slot.audienceListId : undefined,
+      audience: admin
+        ? (audienceBySlot.get(slot.id) ?? []).sort((left, right) => left.displayName.localeCompare(right.displayName, "ru"))
+        : undefined,
       seriesId: slot.seriesId,
       taken,
       myAttendance,
@@ -1798,6 +1898,7 @@ async function nearestFreeSlots(sql, userId, limit = 3) {
   for (const raw of rows) {
     if (free.length >= limit) break;
     const slot = slotOf(raw);
+    if (!(await slotVisibleTo(sql, userId, slot))) continue;
     const [going] = await sql`
       SELECT 1 FROM attendances WHERE user_id = ${userId} AND slot_id = ${slot.id}
     `;
@@ -1864,12 +1965,14 @@ export async function freePeople(sql, slotId, actorId, q) {
   if (!raw) fail(404, "NOT_FOUND", "Слот не найден");
   const slot = slotOf(raw);
   if (slot.status !== "open" || slot.startsAt <= new Date()) return [];
+  if (!(await slotVisibleTo(sql, actorId, slot))) return [];
   const query = String(q ?? "").trim().slice(0, 80);
   const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
   const [people, requestRows, aloneRows] = await Promise.all([
     sql`
       SELECT id, display_name FROM users
       WHERE id <> ${actorId} AND app_role <> 'admin' AND display_name ILIKE ${pattern}
+        ${slot.visibility === "closed" ? sql`AND EXISTS (SELECT 1 FROM slot_audience a WHERE a.slot_id = ${slotId} AND a.user_id = users.id)` : sql``}
       ORDER BY display_name
     `,
     sql`

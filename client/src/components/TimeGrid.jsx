@@ -17,6 +17,7 @@ import styles from "./TimeGrid.module.scss";
 function slotNotes(slot) {
   const notes = [];
   if (slot.status === "cancelled") notes.push("Отменён");
+  if (slot.visibility === "closed") notes.push("Закрытое");
   if (slot.myAttendance && !slot.myPair && !slot.withPartner) notes.push("Приду один");
   if (slot.unavailable) notes.push("Недоступен");
   if (slot.myPendingOutgoing) notes.push("Ждём ответ");

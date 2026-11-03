@@ -41,6 +41,8 @@ export const slots = pgTable("slots", {
   description: text("description"),
   responsibleUserId: uuid("responsible_user_id").references(() => users.id, { onDelete: "set null" }),
   status: text("status").notNull().default("open"),
+  visibility: text("visibility").notNull().default("open"),
+  audienceListId: uuid("audience_list_id"),
   seriesId: uuid("series_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });

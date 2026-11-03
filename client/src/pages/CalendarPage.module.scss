@@ -490,6 +490,7 @@ button.stripOn {
   width: 44px;
   height: auto;
   border: 0;
+  border-radius: 0 var(--radius) var(--radius) 0;
   background: transparent;
   color: var(--ink);
   cursor: pointer;
@@ -569,6 +570,7 @@ button.stripOn {
   display: flex;
   flex: 0 1 auto;
   align-items: center;
+  gap: 6px;
   min-width: 0;
   max-width: 100%;
   height: 28px;
@@ -589,6 +591,11 @@ button.stripOn {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.chipRemove {
+  flex: none;
+  display: block;
 }
 
 @media (hover: hover) and (pointer: fine) {
@@ -616,6 +623,10 @@ button.stripOn {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.actionFill {
+  width: 100%;
 }
 
 .fallback {
@@ -715,6 +726,50 @@ button.stripOn {
   line-height: 1.4;
 }
 
+.modalShell .typeSwitch {
+  margin: 0 16px 12px;
+}
+
+.typeSwitch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.typeTab,
+.typeTabOn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.typeTabOn {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(18, 18, 18, 0.06);
+}
+
+.typeTab:disabled,
+.typeTabOn:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .close {
   display: inline-flex;
   flex: none;
@@ -764,6 +819,17 @@ button.close:active:not(:disabled) {
   gap: 12px;
   min-width: 0;
   max-width: 100%;
+}
+
+.fieldRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  min-width: 0;
+
+  > * {
+    min-width: 0;
+  }
 }
 
 .modalTitle {
@@ -983,7 +1049,28 @@ button.close:active:not(:disabled) {
 .danger:disabled,
 .input:disabled,
 .area:disabled,
-.hit:disabled {
+.hit:disabled,
+select.input:disabled {
   cursor: default;
   opacity: 0.6;
+}
+
+.audience {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.comboHint {
+  flex: none;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.comboSep {
+  flex: none;
+  height: 1px;
+  margin: 4px 8px;
+  padding: 0;
+  background: var(--line);
 }
