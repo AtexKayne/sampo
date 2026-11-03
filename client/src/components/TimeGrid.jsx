@@ -151,7 +151,7 @@ function clearAccidentalSelection() {
   selection.removeAllRanges();
 }
 
-export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], selection, selectionLimits, interactive, now, onSelect, onOpenSlot, onOpenWindow, selectInsideFree = false, showAvailability = false }) {
+export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], selection, selectionLimits, interactive, now, onSelect, onOpenSlot, onOpenWindow, selectInsideFree = false, showAvailability = false, openPastSlots = false }) {
   const gridRef = useRef(null);
   const dragRef = useRef(null);
   const holdRef = useRef(null);
@@ -504,7 +504,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                 onPointerEnter: (event) => onSlotEnter(event, { slot, time, notes, pairName }),
                 onPointerLeave: onSlotLeave,
               };
-              if (passed) {
+              if (passed && !openPastSlots) {
                 return (
                   <div className={className} data-slot="true" key={slot.id} aria-label={label} style={boxStyle} {...hoverProps}>
                     {body}

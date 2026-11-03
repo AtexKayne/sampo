@@ -437,64 +437,6 @@ button.stripOn {
   opacity: 0.45;
 }
 
-.dock {
-  position: fixed;
-  z-index: 5;
-  right: 24px;
-  bottom: 80px;
-  display: grid;
-  gap: 12px;
-  width: min(420px, calc(100vw - 32px));
-  max-height: calc(100dvh - 120px);
-  margin: 0;
-  padding: 16px;
-  overflow: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--surface);
-  box-shadow: var(--shadow);
-}
-
-@media (max-width: 799px) {
-  .dock {
-    right: 0;
-    left: 0;
-    bottom: calc(6px + 52px + 6px + 1px + env(safe-area-inset-bottom, 0px));
-    width: 100%;
-    max-height: min(70dvh, calc(100dvh - 140px));
-    padding-top: 22px;
-    overflow: auto;
-    border-right: 0;
-    border-bottom: 0;
-    border-left: 0;
-    border-radius: 20px 20px 0 0;
-    box-shadow: 0 -16px 48px rgba(18, 18, 18, 0.16);
-  }
-
-  .dock::before {
-    content: "";
-    position: absolute;
-    top: 8px;
-    left: 50%;
-    width: 36px;
-    height: 4px;
-    border-radius: 999px;
-    background: #d4cfc6;
-    transform: translateX(-50%);
-  }
-}
-
-@media (min-width: 800px) {
-  .dock {
-    bottom: 24px;
-  }
-}
-
-.selectionLabel {
-  margin: 0;
-  font-weight: 600;
-}
-
 .field {
   display: flex;
   flex-direction: column;
@@ -525,45 +467,85 @@ button.stripOn {
   resize: vertical;
 }
 
-.picked {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.combo {
+  display: grid;
   gap: 8px;
-  min-height: 44px;
+  min-width: 0;
 }
 
-.hint {
-  margin: 0;
-  color: var(--muted);
+.comboField {
+  position: relative;
+  --float-end: 44px;
 }
 
-.hits {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg);
+.comboField .input {
+  padding-right: 44px;
 }
 
-.hit {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  min-height: 44px;
-  padding: 0 12px;
+.comboToggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 44px;
+  height: auto;
   border: 0;
-  border-bottom: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
-  font: inherit;
-  text-align: left;
   cursor: pointer;
 }
 
-.hits li:last-child .hit {
-  border-bottom: 0;
+.comboToggle:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.comboMenu {
+  position: fixed;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 4px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.comboOption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 4px 0 12px;
+  border-radius: 8px;
+  color: var(--ink);
+}
+
+.comboName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.comboOption .button {
+  flex: none;
+  min-height: 44px;
+}
+
+.comboEmpty {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  color: var(--muted);
 }
 
 .chips {
@@ -610,13 +592,24 @@ button.stripOn {
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .hit:hover:not(:disabled) {
-    background: var(--surface);
+  .comboToggle:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+
+  .comboOption:hover,
+  .comboOptionActive,
+  .comboOptionOn {
+    background: var(--bg);
   }
 
   .chip:hover {
     border-color: var(--ink);
   }
+}
+
+.comboOptionActive,
+.comboOptionOn {
+  background: var(--bg);
 }
 
 .actions {
@@ -632,11 +625,6 @@ button.stripOn {
 .error {
   margin: 12px 0 0;
   color: var(--danger);
-}
-
-.dock .lead,
-.dock .error {
-  margin: 0;
 }
 
 .backdrop {

@@ -16,7 +16,9 @@ import {
   setAvailability,
   deleteWindow,
   dancerProfile,
+  deleteAdminSlot,
   freePeople,
+  presentSlot,
   leave,
   listWindows,
   remindDue,
@@ -807,6 +809,8 @@ test("blocked levels and blacklisted names cannot send invitations", async () =>
 
   assert.deepEqual((await searchDancers(sql, host, "Харлам")).map((person) => person.id), [unset]);
   assert.deepEqual(await searchDancers(sql, unset, "Харлам"), []);
+  assert.deepEqual(await searchDancers(sql, host, ""), []);
+  assert.equal((await searchDancers(sql, host, "", { includeSelf: true })).some((person) => person.id === host), true);
   await assert.rejects(setDanceLevel(sql, host, "BG "), (error) => error instanceof HttpError && error.code === "VALIDATION");
   await assert.rejects(addToBlacklist(sql, host, host), (error) => error instanceof HttpError && error.code === "VALIDATION");
 });
@@ -1276,6 +1280,59 @@ test("an edited sampo total moves the current month and does not change achievem
     setSampoTotal(sql, user, 100_001, now),
     (error) => error instanceof HttpError && error.code === "VALIDATION",
   );
+});
+
+test("admin sees who attended a slot, a dancer does not", async () => {
+  const admin = await makeUser("Админ посещений");
+  await sql`UPDATE users SET app_role = 'admin' WHERE id = ${admin}`;
+  const dancer = await makeUser("Гость посещений");
+  const slotId = await makeSlot(4, "2026-10-05T10:00:00.000Z", "2026-10-05T12:00:00.000Z");
+  await sql`INSERT INTO attendances (user_id, slot_id, guests) VALUES (${dancer}, ${slotId}, 1)`;
+  const [raw] = await sql`SELECT * FROM slots WHERE id = ${slotId}`;
+  const adminView = await presentSlot(sql, raw, admin);
+  assert.equal(adminView.attendees.length, 1);
+  assert.equal(adminView.attendees[0].id, dancer);
+  assert.equal(adminView.attendees[0].displayName, "Гость посещений");
+  assert.equal(adminView.attendees[0].withPartner, true);
+  const dancerView = await presentSlot(sql, raw, dancer);
+  assert.equal(dancerView.attendees, undefined);
+});
+
+test("deleting a finished slot keeps sampo totals and earned achievements", async () => {
+  const user = await makeUser("Чистка слота");
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  const slotId = await makeSlot(4, "2026-10-05T10:00:00.000Z", "2026-10-05T12:00:00.000Z");
+  await sql`INSERT INTO attendances (user_id, slot_id, guests) VALUES (${user}, ${slotId}, 1)`;
+  const before = await ratingSummary(sql, user, now);
+  assert.equal(before.visits.total, 1);
+  assert.equal(before.visits.month, 1);
+  const earned = (items) => new Set(items.filter((item) => item.earned).map((item) => item.id));
+  assert.equal(earned(before.achievements).has("first-step"), true);
+  assert.equal(earned(before.achievements).has("first-pair"), true);
+  assert.equal(earned(before.achievements).has("monday"), true);
+
+  const result = await deleteAdminSlot(sql, slotId, "one", now);
+  assert.equal(result.deleted, 1);
+  const [gone] = await sql`SELECT id FROM slots WHERE id = ${slotId}`;
+  assert.equal(gone, undefined);
+
+  const after = await ratingSummary(sql, user, now);
+  assert.equal(after.visits.total, 1);
+  assert.equal(after.visits.month, 1);
+  assert.equal(earned(after.achievements).has("first-step"), true);
+  assert.equal(earned(after.achievements).has("first-pair"), true);
+  assert.equal(earned(after.achievements).has("monday"), true);
+});
+
+test("an in-progress slot cannot be deleted", async () => {
+  const live = await makeSlot(4, "2026-10-13T07:00:00.000Z", "2026-10-13T09:00:00.000Z");
+  const now = new Date("2026-10-13T08:00:00.000Z");
+  await assert.rejects(
+    deleteAdminSlot(sql, live, "one", now),
+    (error) => error instanceof HttpError && error.code === "SLOT_STARTED",
+  );
+  const [kept] = await sql`SELECT id FROM slots WHERE id = ${live}`;
+  assert.equal(kept.id, live);
 });
 
 test("admin can grant and revoke several achievements", async () => {

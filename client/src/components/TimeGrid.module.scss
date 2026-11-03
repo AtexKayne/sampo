@@ -234,7 +234,8 @@
 }
 
 @media (hover: hover) and (pointer: fine) {
-  .column .slot:not(.slotPast):hover {
+  .column .slot:not(.slotPast):hover,
+  .column .slotPast[role="button"]:hover {
     filter: brightness(0.97);
   }
 }
@@ -269,7 +270,7 @@
   touch-action: pan-y;
 }
 
-.slotPast {
+.slotPast:not([role="button"]) {
   cursor: default;
 }
 

@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, gte, lt } from "drizzle-orm";
+import { and, asc, eq, gte, lt } from "drizzle-orm";
 import { slots, users } from "../db/schema.js";
 import { HttpError } from "../http/errors.js";
 import { requireAdmin, requireUser } from "../auth/access.js";
@@ -12,7 +12,7 @@ import {
   validateRepeat,
   validateResponsible,
 } from "./rules.js";
-import { announceNewSlots, assertCapacity, assertTimeEditable, cancelSlot, presentSlot, presentSlots } from "../domain/sampo.js";
+import { announceNewSlots, assertCapacity, assertTimeEditable, cancelSlot, deleteAdminSlot, presentSlot, presentSlots } from "../domain/sampo.js";
 import { listSlotDescriptions } from "./descriptions.js";
 
 function fail(result) {
@@ -179,24 +179,8 @@ export function registerSlotRoutes(app, { db, sql, config }) {
   app.delete("/api/admin/slots/:id", async (request) => {
     const user = await requireUser(request, db, config);
     requireAdmin(user);
-    const slot = await loadSlot(db, request.params.id);
     const scope = request.query?.scope === "series" ? "series" : "one";
-    if (scope === "series") {
-      if (!slot.seriesId) throw new HttpError(400, "VALIDATION", "У слота нет связанных повторов");
-      const removed = await db
-        .delete(slots)
-        .where(and(eq(slots.seriesId, slot.seriesId), gt(slots.startsAt, new Date())))
-        .returning({ id: slots.id });
-      if (removed.length === 0) {
-        throw new HttpError(409, "SLOT_STARTED", "Нельзя удалить начавшийся слот");
-      }
-      return { ok: true, deleted: removed.length };
-    }
-    if (slot.startsAt.getTime() <= Date.now()) {
-      throw new HttpError(409, "SLOT_STARTED", "Нельзя удалить начавшийся слот");
-    }
-    await db.delete(slots).where(eq(slots.id, slot.id));
-    return { ok: true, deleted: 1 };
+    return deleteAdminSlot(sql, request.params.id, scope);
   });
 
   app.post("/api/admin/slots/:id/cancel", async (request) => {

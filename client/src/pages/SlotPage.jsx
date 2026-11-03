@@ -50,7 +50,10 @@ export function SlotPanel({ id, onClose }) {
   const slot = slotQuery.data;
   const requests = visibleRequests(slot?.requests);
   const started = slot ? new Date(slot.startsAt).getTime() <= Date.now() : false;
+  const ended = slot ? new Date(slot.endsAt).getTime() <= Date.now() : false;
   const open = slot?.status === "open" && !started;
+  const pastAdmin = Boolean(onClose) && !dancer && ended;
+  const attendees = slot?.attendees ?? [];
 
   useEffect(() => {
     if (!confirming) return undefined;
@@ -257,13 +260,14 @@ export function SlotPanel({ id, onClose }) {
                   </button>
                 ) : null}
               </div>
-              {onClose ? (
+              {onClose && !pastAdmin ? (
                 <div className={styles.dialogNotes}>
                   <p className={styles.panelMeta}>
                     {formatSlotTime(slot.startsAt, slot.endsAt)}, {slot.place}
                   </p>
                 </div>
-              ) : (
+              ) : null}
+              {!onClose ? (
                 <>
                   <p className={styles.slotMeta}>
                     {formatSlotTime(slot.startsAt, slot.endsAt)}
@@ -274,7 +278,7 @@ export function SlotPanel({ id, onClose }) {
                   {slot.myPair ? <PairLine pair={slot.myPair} /> : null}
                   <SlotDetails slot={slot} viewerId={session.user.id} />
                 </>
-              )}
+              ) : null}
             </header>
             {dancer ? (
             <div className={styles.section}>
@@ -334,6 +338,29 @@ export function SlotPanel({ id, onClose }) {
             </div>
             ) : null}
           </div>
+          {pastAdmin ? (
+            <section className={styles.section} aria-labelledby="slot-attendees-title">
+              <h2 className={styles.lead} id="slot-attendees-title">
+                Посетили
+              </h2>
+              {attendees.length === 0 ? (
+                <p className={styles.hint}>Никто не записался</p>
+              ) : (
+                <ul className={styles.list}>
+                  {attendees.map((person) => (
+                    <li className={styles.person} key={person.id}>
+                      <span>
+                        <Link className={styles.personLink} to={`/dancers/${person.id}`}>
+                          {person.displayName}
+                        </Link>
+                        {person.partnerName ? ` · пара с ${person.partnerName}` : person.withPartner ? " · с партнёром" : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
           {onClose ? inviteSection : requestsSection}
           {onClose ? requestsSection : inviteSection}
         </article>

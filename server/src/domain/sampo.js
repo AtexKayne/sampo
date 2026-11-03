@@ -1,6 +1,6 @@
 import { GRID_END_MINUTES } from "../../../shared/calendar-grid.js";
 import { HttpError } from "../http/errors.js";
-import { blockedTargets, invitationDenied, inviteListHides, listMembership, publicAchievements, visitCounts } from "./profile.js";
+import { blockedTargets, creditRemovedVisits, invitationDenied, inviteListHides, listMembership, publicAchievements, visitCounts } from "./profile.js";
 import { endsOnSameStudioDay, parseStudioLocal, studioDayKey, studioParts, studioWeekday } from "../slots/rules.js";
 
 const WEEKDAYS = ["", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
@@ -1456,6 +1456,36 @@ export async function cancelSlot(sql, slotId) {
   });
 }
 
+export async function deleteAdminSlot(sql, slotId, scope = "one", now = new Date()) {
+  return sql.begin(async (tx) => {
+    const [raw] = await tx`SELECT * FROM slots WHERE id = ${slotId} FOR UPDATE`;
+    if (!raw) fail(404, "NOT_FOUND", "Слот не найден");
+    const slot = slotOf(raw);
+    const live = slot.startsAt <= now && slot.endsAt > now;
+    let rows;
+    if (scope === "series") {
+      if (!slot.seriesId) fail(400, "VALIDATION", "У слота нет связанных повторов");
+      rows = await tx`
+        SELECT id, starts_at, ends_at
+        FROM slots
+        WHERE series_id = ${slot.seriesId}
+          AND (starts_at > ${now} OR (id = ${slot.id} AND ends_at <= ${now}))
+        FOR UPDATE
+      `;
+    } else if (live) {
+      fail(409, "SLOT_STARTED", "Нельзя удалить идущий слот");
+    } else {
+      rows = [raw];
+    }
+    const ids = rows.map((row) => row.id);
+    if (ids.length === 0) fail(409, "SLOT_STARTED", "Нельзя удалить идущий слот");
+    const keepAchievements = await creditRemovedVisits(tx, ids, now);
+    await tx`DELETE FROM slots WHERE id IN ${tx(ids)}`;
+    await keepAchievements();
+    return { ok: true, deleted: ids.length };
+  });
+}
+
 export async function announceNewSlots(sql, rows, now = new Date()) {
   const fresh = rows.map(slotOf).filter((slot) => slot.status === "open" && slot.startsAt > now);
   if (!fresh.length) return;
@@ -1696,6 +1726,38 @@ export async function presentSlots(sql, rawSlots, userId) {
   });
 }
 
+async function listSlotAttendees(sql, slotId) {
+  const rows = await sql`
+    SELECT
+      u.id,
+      u.display_name,
+      a.guests,
+      CASE
+        WHEN p.user_low_id = u.id THEN p.user_high_id
+        WHEN p.user_high_id = u.id THEN p.user_low_id
+      END AS partner_id
+    FROM attendances a
+    JOIN users u ON u.id = a.user_id
+    LEFT JOIN pairs p
+      ON p.slot_id = a.slot_id
+      AND p.status = 'confirmed'
+      AND (p.user_low_id = a.user_id OR p.user_high_id = a.user_id)
+    WHERE a.slot_id = ${slotId}
+    ORDER BY u.display_name, u.id
+  `;
+  const partnerIds = [...new Set(rows.map((row) => row.partner_id).filter(Boolean))];
+  const names = partnerIds.length
+    ? new Map((await sql`SELECT id, display_name FROM users WHERE id IN ${sql(partnerIds)}`).map((row) => [row.id, row.display_name]))
+    : new Map();
+  return rows.map((row) => ({
+    id: row.id,
+    displayName: row.display_name,
+    withPartner: Number(row.guests) > 0,
+    partnerId: row.partner_id ?? null,
+    partnerName: row.partner_id ? names.get(row.partner_id) ?? null : null,
+  }));
+}
+
 export async function presentSlot(sql, raw, userId) {
   const [slot] = await presentSlots(sql, [raw], userId);
   const requests = await sql`
@@ -1721,7 +1783,9 @@ export async function presentSlot(sql, raw, userId) {
     }
   }
   if (!inviteBlocked && slot.myAttendance) inviteBlocked = "Сначала отмените выбор";
-  return { ...slot, requests: views, inviteBlocked };
+  const [viewer] = await sql`SELECT app_role FROM users WHERE id = ${userId}`;
+  const attendees = viewer?.app_role === "admin" ? await listSlotAttendees(sql, slot.id) : undefined;
+  return { ...slot, requests: views, inviteBlocked, ...(attendees ? { attendees } : {}) };
 }
 
 async function nearestFreeSlots(sql, userId, limit = 3) {

@@ -434,6 +434,73 @@ export async function userAchievements(sql, userId, now = new Date()) {
   return applyAchievementOverrides(items, overrides);
 }
 
+function earnedIdsOf(items) {
+  return new Set(items.filter((item) => item.earned).map((item) => item.id));
+}
+
+async function displayedAchievements(sql, userId, now) {
+  const items = await earnedFromVisits(sql, userId, now);
+  const overrides = await achievementOverrides(sql, userId);
+  return applyAchievementOverrides(items, overrides);
+}
+
+export async function creditRemovedVisits(tx, slotIds, now = new Date()) {
+  if (!slotIds.length) return async () => {};
+  const visits = await tx`
+    SELECT a.user_id, s.starts_at
+    FROM attendances a
+    JOIN slots s ON s.id = a.slot_id
+    WHERE s.id IN ${tx(slotIds)}
+      AND s.status = 'open'
+      AND s.ends_at <= ${now}
+  `;
+  const userIds = [...new Set(visits.map((row) => row.user_id))];
+  const before = new Map();
+  for (const userId of userIds) {
+    before.set(userId, earnedIdsOf(await displayedAchievements(tx, userId, now)));
+  }
+  const byUser = new Map();
+  for (const visit of visits) {
+    const list = byUser.get(visit.user_id) ?? [];
+    list.push(visit);
+    byUser.set(visit.user_id, list);
+  }
+  for (const [userId, items] of byUser) {
+    const [user] = await tx`
+      SELECT sampo_adjust, sampo_months
+      FROM users
+      WHERE id = ${userId}
+      FOR UPDATE
+    `;
+    if (!user) continue;
+    const months = user.sampo_months && typeof user.sampo_months === "object" ? { ...user.sampo_months } : {};
+    let adjust = Number(user.sampo_adjust) || 0;
+    for (const visit of items) {
+      adjust += 1;
+      const key = studioMonthKey(new Date(visit.starts_at));
+      months[key] = monthAdjustOf(months, key) + 1;
+    }
+    await tx`
+      UPDATE users
+      SET sampo_adjust = ${adjust}, sampo_months = ${tx.json(months)}
+      WHERE id = ${userId}
+    `;
+  }
+  return async () => {
+    for (const userId of userIds) {
+      const after = earnedIdsOf(await displayedAchievements(tx, userId, now));
+      for (const id of before.get(userId) ?? []) {
+        if (after.has(id)) continue;
+        await tx`
+          INSERT INTO user_achievement_overrides (user_id, achievement_id, granted)
+          VALUES (${userId}, ${id}, true)
+          ON CONFLICT (user_id, achievement_id) DO UPDATE SET granted = true
+        `;
+      }
+    }
+  };
+}
+
 export async function publicAchievements(sql, userId, now = new Date()) {
   return visibleAchievements(await userAchievements(sql, userId, now), "earned");
 }
@@ -580,7 +647,16 @@ export async function setBlockedLevels(sql, userId, levels) {
 
 export async function searchDancers(sql, actorId, q, options = {}) {
   const query = String(q ?? "").trim().slice(0, 80);
-  if (!query) return [];
+  if (!query) {
+    if (!options.includeSelf) return [];
+    const rows = await sql`
+      SELECT id, display_name, dance_level FROM users
+      WHERE app_role <> 'admin'
+      ORDER BY display_name, id
+      LIMIT 100
+    `;
+    return rows.map(personOf);
+  }
   const pattern = `%${query.replace(/[\\%_]/g, "\\$&")}%`;
   const rows = options.includeSelf
     ? await sql`
