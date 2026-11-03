@@ -264,7 +264,7 @@ export function SlotPanel({ id, onClose }) {
                 <div className={styles.dialogNotes}>
                   <p className={styles.panelMeta}>
                     {formatSlotTime(slot.startsAt, slot.endsAt)}, {slot.place}
-                    {slot.visibility === "closed" ? " · Закрытое" : ""}
+                    {!dancer && slot.visibility === "closed" ? " · Закрытое" : ""}
                   </p>
                 </div>
               ) : null}
@@ -274,7 +274,7 @@ export function SlotPanel({ id, onClose }) {
                     {formatSlotTime(slot.startsAt, slot.endsAt)}
                     <span aria-hidden="true"> · </span>
                     {slot.place}
-                    {slot.visibility === "closed" ? (
+                    {!dancer && slot.visibility === "closed" ? (
                       <>
                         <span aria-hidden="true"> · </span>
                         Закрытое

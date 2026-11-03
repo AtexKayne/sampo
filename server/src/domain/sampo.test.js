@@ -1431,9 +1431,10 @@ test("closed slots stay hidden until the person is on the audience", async () =>
   const [raw] = await sql`SELECT * FROM slots WHERE id = ${closedId}`;
   await assert.rejects(getVisibleSlot(sql, raw, boris), (error) => error instanceof HttpError && error.statusCode === 404);
   const visible = await getVisibleSlot(sql, raw, anna);
-  assert.equal(visible.visibility, "closed");
+  assert.equal(visible.visibility, undefined);
   assert.equal(visible.audience, undefined);
   const asAdmin = await presentSlot(sql, raw, adminId);
+  assert.equal(asAdmin.visibility, "closed");
   assert.equal(asAdmin.audience.length, 1);
   await assert.rejects(attend(sql, boris, closedId), (error) => error instanceof HttpError && error.statusCode === 404);
   await attend(sql, anna, closedId);

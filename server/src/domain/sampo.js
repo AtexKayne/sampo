@@ -1803,7 +1803,7 @@ export async function presentSlots(sql, rawSlots, userId) {
         ? { id: slot.responsibleUserId, displayName: responsibleName.get(slot.responsibleUserId) }
         : null,
       status: slot.status,
-      visibility: slot.visibility,
+      visibility: admin ? slot.visibility : undefined,
       audienceListId: admin ? slot.audienceListId : undefined,
       audience: admin
         ? (audienceBySlot.get(slot.id) ?? []).sort((left, right) => left.displayName.localeCompare(right.displayName, "ru"))
