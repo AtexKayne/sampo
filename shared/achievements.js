@@ -131,12 +131,6 @@ function asDate(value) {
   return value instanceof Date ? value : new Date(value);
 }
 
-function weekStart(date) {
-  const point = parts(date);
-  const midnight = new Date(Date.UTC(point.year, point.month - 1, point.day) - TIME_ZONE_OFFSET_MS);
-  return new Date(midnight.getTime() - (weekday(date) - 1) * DAY_MS);
-}
-
 function monthStart(date) {
   const point = parts(date);
   return new Date(Date.UTC(point.year, point.month - 1, 1) - TIME_ZONE_OFFSET_MS);
@@ -147,13 +141,17 @@ function nextMonthStart(date) {
   return new Date(Date.UTC(point.year, point.month, 1) - TIME_ZONE_OFFSET_MS);
 }
 
-function hasIdleWeeks(visits, since, now) {
-  const occupied = new Set(visits.map((visit) => weekIndex(visit.startsAt)));
-  let start = weekStart(since);
-  if (start < since) start = new Date(start.getTime() + 7 * DAY_MS);
-  while (start.getTime() + 7 * DAY_MS <= now.getTime()) {
-    if (!occupied.has(weekIndex(start))) return true;
-    start = new Date(start.getTime() + 7 * DAY_MS);
+function hasIdleDays(visits, since, now, length) {
+  const occupied = new Set(visits.map((visit) => dayKey(visit.startsAt)));
+  const lastComplete = dayKey(now) - 1;
+  let run = 0;
+  for (let day = dayKey(since); day <= lastComplete; day += 1) {
+    if (occupied.has(day)) {
+      run = 0;
+      continue;
+    }
+    run += 1;
+    if (run >= length) return true;
   }
   return false;
 }
@@ -229,7 +227,7 @@ export function evaluateAchievements(visits, options = {}) {
   if (hasStepRun(keysWithMin(visits, (visit) => weekIndex(visit.startsAt), 3), 7, 3)) earned.add("three-weeks");
   if (hasStepRun(visits.map((visit) => monthIndex(visit.startsAt)), 1, 2)) earned.add("two-months");
   if (hasStepRun(visits.map((visit) => monthIndex(visit.startsAt)), 1, 6)) earned.add("dance-master");
-  if (since && now && hasIdleWeeks(visits, since, now)) earned.add("sloth");
+  if (since && now && hasIdleDays(visits, since, now, 7)) earned.add("sloth");
   if (since && now && hasIdleMonths(visits, since, now)) earned.add("grand-sloth");
   return ACHIEVEMENTS.map((item) => ({
     id: item.id,

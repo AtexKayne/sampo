@@ -134,6 +134,7 @@
   pointer-events: none;
 }
 
+.hoverCell,
 .hoverFree,
 .hoverBusy,
 .selectionFree,
@@ -147,9 +148,15 @@
   pointer-events: none;
 }
 
+.hoverCell,
 .hoverFree,
 .hoverBusy {
   height: var(--row);
+}
+
+.hoverCell {
+  border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent);
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
 }
 
 .hoverFree,
@@ -274,22 +281,35 @@
   cursor: default;
 }
 
-.popover {
+.popover,
+.cellTip {
   position: fixed;
   z-index: 5;
   width: max-content;
-  max-width: min(280px, calc(100vw - 16px));
-  padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow);
   color: var(--ink);
+  pointer-events: none;
+}
+
+.popover {
+  max-width: min(280px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border-radius: var(--radius);
   font-size: 13px;
   line-height: 1.35;
-  pointer-events: none;
   text-align: left;
   white-space: normal;
+}
+
+.cellTip {
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .popoverTitle,

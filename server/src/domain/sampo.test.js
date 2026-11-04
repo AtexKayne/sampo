@@ -25,6 +25,7 @@ import {
   listWindows,
   remindDue,
   updateWindow,
+  expireDue,
   withdrawRequest,
 } from "./sampo.js";
 import { addToBlacklist, addToWhitelist, deleteProfile, profileSettings, ratingSummary, removeFromBlacklist, saveProfile, searchDancers, setBlockedLevels, setDanceLevel, setSampoTotal, setUserAchievements } from "./profile.js";
@@ -139,11 +140,36 @@ test("decline, withdraw, capacity and overlap", async () => {
   const withdrawn = await withdrawRequest(sql, anna, outgoing.id);
   assert.equal(withdrawn.status, "cancelled");
   assert.equal(withdrawn.cancelReason, "withdrawn");
+  const [{ count: withdrawnNotes }] = await sql`
+    SELECT count(*)::int AS count FROM notifications WHERE user_id = ${boris} AND type = 'request_withdrawn'
+  `;
+  assert.equal(withdrawnNotes, 0);
 
   const first = await makeSlot(4, "2026-10-23T13:00:00.000Z", "2026-10-23T15:00:00.000Z");
   const second = await makeSlot(4, "2026-10-23T14:00:00.000Z", "2026-10-23T16:00:00.000Z");
   await attend(sql, anna, first);
   await assert.rejects(attend(sql, anna, second), (error) => error instanceof HttpError && error.code === "CONFLICT");
+});
+
+test("expiring a pending request does not notify anyone", async () => {
+  const anna = await makeUser("Зоя");
+  const boris = await makeUser("Илья");
+  const slotId = await makeSlot(4, "2026-12-01T14:00:00.000Z", "2026-12-01T16:00:00.000Z");
+  await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${boris}, ${slotId})`;
+  const request = await createRequest(sql, anna, slotId, boris);
+  await sql`
+    UPDATE slots
+    SET starts_at = '2026-10-01T14:00:00.000Z', ends_at = '2026-10-01T16:00:00.000Z'
+    WHERE id = ${slotId}
+  `;
+  await expireDue(sql);
+  const [{ status }] = await sql`SELECT status FROM sampo_requests WHERE id = ${request.id}`;
+  assert.equal(status, "expired");
+  const [{ count }] = await sql`
+    SELECT count(*)::int AS count FROM notifications
+    WHERE type = 'request_expired' AND user_id IN ${sql([anna, boris])}
+  `;
+  assert.equal(count, 0);
 });
 
 test("clearing notifications removes only that user's notices", async () => {

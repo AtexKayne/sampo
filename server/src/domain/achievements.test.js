@@ -158,29 +158,51 @@ test("streaks need neighbouring weeks and months", () => {
   assert.equal(earnedIds([0, 1, 2, 3, 4].map((month) => visit(new Date(Date.UTC(2026, month, 4, 5)).toISOString()))).has("dance-master"), false);
 });
 
-test("an empty finished week or month after registration is a sloth", () => {
+test("seven idle calendar days in a row are a sloth, not a finished Monday week", () => {
   const since = new Date("2026-08-31T19:00:00.000Z");
   const now = new Date("2026-10-13T08:00:00.000Z");
   const idle = earnedIds([], { since, now });
   assert.equal(idle.has("sloth"), true);
   assert.equal(idle.has("grand-sloth"), true);
-  const kept = earnedIds([
+
+  const weekly = [
     visit("2026-09-07T05:00:00.000Z"),
     visit("2026-09-14T05:00:00.000Z"),
     visit("2026-09-21T05:00:00.000Z"),
     visit("2026-09-28T05:00:00.000Z"),
     visit("2026-10-05T05:00:00.000Z"),
-  ], { since, now });
+    visit("2026-10-12T05:00:00.000Z"),
+  ];
+  const kept = earnedIds(weekly, { since, now });
   assert.equal(kept.has("sloth"), false);
   assert.equal(kept.has("grand-sloth"), false);
-  const skippedWeek = earnedIds([
-    visit("2026-09-07T05:00:00.000Z"),
-    visit("2026-09-21T05:00:00.000Z"),
-    visit("2026-09-28T05:00:00.000Z"),
-    visit("2026-10-05T05:00:00.000Z"),
-  ], { since, now });
-  assert.equal(skippedWeek.has("sloth"), true);
-  assert.equal(skippedWeek.has("grand-sloth"), false);
+
+  const missedMonday = earnedIds(weekly.slice(0, 5), { since, now });
+  assert.equal(missedMonday.has("sloth"), true);
+
+  const midWeek = { since: new Date("2026-09-08T19:00:00.000Z"), now: new Date("2026-09-17T08:00:00.000Z") };
+  const midWeekGap = earnedIds([
+    visit("2026-09-09T05:00:00.000Z"),
+    visit("2026-09-17T05:00:00.000Z"),
+  ], midWeek);
+  assert.equal(midWeekGap.has("sloth"), true);
+
+  const sixIdleDays = earnedIds([
+    visit("2026-09-09T05:00:00.000Z"),
+    visit("2026-09-16T05:00:00.000Z"),
+  ], { since: midWeek.since, now: new Date("2026-09-16T08:00:00.000Z") });
+  assert.equal(sixIdleDays.has("sloth"), false);
+
+  const afterSixDays = earnedIds([], {
+    since: new Date("2026-10-06T19:00:00.000Z"),
+    now: new Date("2026-10-13T08:00:00.000Z"),
+  });
+  assert.equal(afterSixDays.has("sloth"), false);
+  const afterSevenDays = earnedIds([], {
+    since: new Date("2026-10-05T19:00:00.000Z"),
+    now: new Date("2026-10-13T08:00:00.000Z"),
+  });
+  assert.equal(afterSevenDays.has("sloth"), true);
   assert.equal(earnedIds([], { since: now, now }).has("sloth"), false);
 });
 

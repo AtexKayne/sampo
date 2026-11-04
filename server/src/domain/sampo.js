@@ -223,8 +223,6 @@ const INVITE_NOTICE = new Set([
   "request_received",
   "request_accepted",
   "request_declined",
-  "request_withdrawn",
-  "request_expired",
   "request_superseded",
 ]);
 
@@ -407,17 +405,8 @@ async function withdrawSent(tx, userId, slot) {
     FOR UPDATE OF r
   `;
   if (!rows.length) return;
-  const name = await displayName(tx, userId);
   for (const row of rows) {
     await closeRequest(tx, row, "cancelled", "withdrawn");
-    const [target] = await tx`SELECT starts_at FROM slots WHERE id = ${row.slot_id}`;
-    await notify(tx, row.to_user_id, "request_withdrawn", {
-      text: `${name} отозвал запрос на сампо ${formatWhen(target.starts_at)}`,
-      requestId: row.id,
-      slotId: row.slot_id,
-      name,
-      startsAt: new Date(target.starts_at).toISOString(),
-    });
   }
 }
 
@@ -1330,10 +1319,6 @@ export async function acceptRequest(sql, actorId, requestId) {
     }
     if (slot.startsAt <= new Date()) {
       const updated = await closeRequest(tx, row, "expired", null);
-      const when = formatWhen(slot.startsAt);
-      const text = `Запрос на сампо ${when} истёк`;
-      await notify(tx, row.from_user_id, "request_expired", { text, requestId, slotId: slot.id, place: slot.place, startsAt: slot.startsAt.toISOString() });
-      await notify(tx, row.to_user_id, "request_expired", { text, requestId, slotId: slot.id, place: slot.place, startsAt: slot.startsAt.toISOString() });
       return requestView(tx, updated, actorId);
     }
     const [low, high] = orderedPair(row.from_user_id, row.to_user_id);
@@ -1422,15 +1407,6 @@ export async function withdrawRequest(sql, actorId, requestId) {
     if (row.from_user_id !== actorId) fail(403, "FORBIDDEN", "Недостаточно прав");
     if (row.status !== "pending") return requestView(tx, row, actorId);
     const updated = await closeRequest(tx, row, "cancelled", "withdrawn");
-    const [slot] = await tx`SELECT * FROM slots WHERE id = ${row.slot_id}`;
-    const name = await displayName(tx, actorId);
-    await notify(tx, row.to_user_id, "request_withdrawn", {
-      text: `${name} отозвал запрос на сампо ${formatWhen(slot.starts_at)}`,
-      requestId,
-      slotId: slot.id,
-      name,
-      startsAt: new Date(slot.starts_at).toISOString(),
-    });
     return requestView(tx, updated, actorId);
   });
 }
@@ -1675,11 +1651,7 @@ export async function expireDue(sql) {
       if (!request || request.status !== "pending") return;
       const [slot] = await tx`SELECT * FROM slots WHERE id = ${request.slot_id}`;
       if (new Date(slot.starts_at) > new Date()) return;
-      const updated = await closeRequest(tx, request, "expired", null);
-      const text = `Запрос на сампо ${formatWhen(slot.starts_at)} истёк`;
-      const payload = { text, requestId: updated.id, slotId: slot.id, place: slot.place, startsAt: new Date(slot.starts_at).toISOString() };
-      await notify(tx, request.from_user_id, "request_expired", payload);
-      await notify(tx, request.to_user_id, "request_expired", payload);
+      await closeRequest(tx, request, "expired", null);
     });
   }
 }

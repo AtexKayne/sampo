@@ -108,17 +108,44 @@ const HOLD_MS = 500;
 const POPOVER_DELAY_MS = 180;
 const POPOVER_GAP = 8;
 
-function popoverPosition(anchor, element) {
+function popoverPosition(anchor, element, options = {}) {
   const margin = 8;
   const width = element.offsetWidth;
   const height = element.offsetHeight;
-  let left = anchor.left;
+  let left = options.center && anchor.width != null ? anchor.left + (anchor.width - width) / 2 : anchor.left;
   if (left + width > window.innerWidth - margin) left = window.innerWidth - margin - width;
   if (left < margin) left = margin;
-  let top = anchor.bottom + POPOVER_GAP;
+  const below = anchor.bottom + POPOVER_GAP;
   const above = anchor.top - POPOVER_GAP - height;
-  if (top + height > window.innerHeight - margin && above >= margin) top = above;
+  let top = options.prefer === "above" ? above : below;
+  if (options.prefer === "above") {
+    if (top < margin && below + height <= window.innerHeight - margin) top = below;
+    if (top < margin) top = margin;
+  } else if (top + height > window.innerHeight - margin && above >= margin) {
+    top = above;
+  }
   return { left, top };
+}
+
+function cellAnchor(column, index) {
+  const rect = column.getBoundingClientRect();
+  const rowHeight = rect.height / GRID_ROW_COUNT;
+  const top = rect.top + index * rowHeight;
+  return { left: rect.left, width: rect.width, top, bottom: top + rowHeight };
+}
+
+function CellTimePopover({ time, tipRef, place }) {
+  return createPortal(
+    <div
+      className={styles.cellTip}
+      ref={tipRef}
+      role="tooltip"
+      style={{ left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? "visible" : "hidden" }}
+    >
+      {time}
+    </div>,
+    document.body,
+  );
 }
 
 function SlotPopover({ tip, tipRef, place }) {
@@ -158,9 +185,11 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   const holdRef = useRef(null);
   const tipTimer = useRef(null);
   const tipRef = useRef(null);
+  const cellTipRef = useRef(null);
   const [hover, setHover] = useState(null);
   const [tip, setTip] = useState(null);
   const [tipPlace, setTipPlace] = useState(null);
+  const [cellTipPlace, setCellTipPlace] = useState(null);
   const todayKey = studioDayKey(now);
   const nowMinutes = studioMinutes(now);
 
@@ -176,16 +205,29 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
     setTipPlace(popoverPosition(tip.anchor, tipRef.current));
   }, [tip]);
 
+  const cellTip = hover && !hover.onSlot && !tip ? hover : null;
+
+  useLayoutEffect(() => {
+    if (!cellTip || !cellTipRef.current) {
+      setCellTipPlace(null);
+      return;
+    }
+    setCellTipPlace(popoverPosition(cellTip.anchor, cellTipRef.current, { prefer: "above", center: true }));
+  }, [cellTip]);
+
   useEffect(() => {
-    if (!tip) return undefined;
-    const hide = () => setTip(null);
+    if (!tip && !cellTip) return undefined;
+    const hide = () => {
+      setTip(null);
+      setHover(null);
+    };
     window.addEventListener("scroll", hide, true);
     window.addEventListener("resize", hide);
     return () => {
       window.removeEventListener("scroll", hide, true);
       window.removeEventListener("resize", hide);
     };
-  }, [tip]);
+  }, [tip, cellTip]);
 
   function clearTipTimer() {
     if (!tipTimer.current) return;
@@ -228,21 +270,33 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
   }, []);
 
   function trackHover(event, day) {
+    if (event.pointerType !== "mouse" || dragRef.current) {
+      setHover((current) => (current ? null : current));
+      return;
+    }
     const key = studioDayKey(day);
     const index = indexFromY(event.currentTarget, event.clientY);
     const pastRows = pastRowCount(key, todayKey, nowMinutes);
-    const show =
+    const onSlot = Boolean(event.target.closest("[data-slot]"));
+    const highlight =
       interactive &&
       selectInsideFree &&
-      event.pointerType === "mouse" &&
-      !dragRef.current &&
       index >= pastRows &&
-      !event.target.closest("[data-slot]");
+      !onSlot;
+    const insideFree = highlight ? cellInsideFree(day, index, freeBlocks, busyBlocks) : false;
+    const anchor = cellAnchor(event.currentTarget, index);
     setHover((current) => {
-      if (!show) return current ? null : current;
-      const insideFree = cellInsideFree(day, index, freeBlocks, busyBlocks);
-      if (current && current.dayKey === key && current.index === index && current.insideFree === insideFree) return current;
-      return { dayKey: key, index, insideFree };
+      if (
+        current &&
+        current.dayKey === key &&
+        current.index === index &&
+        current.insideFree === insideFree &&
+        current.highlight === highlight &&
+        current.onSlot === onSlot
+      ) {
+        return current;
+      }
+      return { dayKey: key, index, insideFree, highlight, onSlot, anchor };
     });
   }
 
@@ -439,9 +493,9 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
               <div className={styles.selectable} style={{ top: `calc(var(--row) * ${pastRows})` }} />
             ) : null}
             {showAvailability ? freePlaced.map((block) => paintWindow(block, styles.free)) : null}
-            {hover?.dayKey === key ? (
+            {hover && !hover.onSlot && hover.dayKey === key ? (
               <div
-                className={hover.insideFree ? styles.hoverBusy : styles.hoverFree}
+                className={hover.highlight ? (hover.insideFree ? styles.hoverBusy : styles.hoverFree) : styles.hoverCell}
                 style={{ top: `calc(var(--row) * ${hover.index})` }}
               />
             ) : null}
@@ -543,6 +597,13 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
         );
       })}
       {tip ? <SlotPopover tip={tip} tipRef={tipRef} place={tipPlace} /> : null}
+      {cellTip ? (
+        <CellTimePopover
+          time={formatMinutes(GRID_START_MINUTES + cellTip.index * GRID_STEP_MINUTES)}
+          tipRef={cellTipRef}
+          place={cellTipPlace}
+        />
+      ) : null}
     </div>
   );
 }
