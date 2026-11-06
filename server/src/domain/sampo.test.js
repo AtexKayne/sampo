@@ -151,6 +151,29 @@ test("decline, withdraw, capacity and overlap", async () => {
   await assert.rejects(attend(sql, anna, second), (error) => error instanceof HttpError && error.code === "CONFLICT");
 });
 
+test("a slot shows one decline per pair and still allows another invite", async () => {
+  const host = await makeUser("Рома");
+  const guest = await makeUser("Лиза");
+  const slotId = await makeSlot(4, "2026-12-16T14:00:00.000Z", "2026-12-16T16:00:00.000Z");
+  await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${guest}, ${slotId})`;
+  const first = await createRequest(sql, host, slotId, guest);
+  await declineRequest(sql, guest, first.id);
+  const second = await createRequest(sql, host, slotId, guest);
+  await declineRequest(sql, guest, second.id);
+  const [raw] = await sql`SELECT * FROM slots WHERE id = ${slotId}`;
+  const view = await presentSlot(sql, raw, host);
+  assert.equal(view.requests.length, 1);
+  assert.equal(view.requests[0].status, "declined");
+  assert.equal(view.requests[0].otherId, guest);
+  const people = await freePeople(sql, slotId, host, "Лиза");
+  assert.equal(people.length, 1);
+  assert.equal(people[0].id, guest);
+  assert.equal(people[0].requestStatus, "declined");
+  assert.equal(people[0].canInvite, true);
+  const again = await createRequest(sql, host, slotId, guest);
+  assert.equal(again.status, "pending");
+});
+
 test("expiring a pending request does not notify anyone", async () => {
   const anna = await makeUser("Зоя");
   const boris = await makeUser("Илья");

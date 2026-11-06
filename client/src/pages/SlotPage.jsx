@@ -53,7 +53,7 @@ export function SlotPanel({ id, onClose }) {
   const ended = slot ? new Date(slot.endsAt).getTime() <= Date.now() : false;
   const open = slot?.status === "open" && !started;
   const pastAdmin = Boolean(onClose) && !dancer && ended;
-  const attendees = slot?.attendees ?? [];
+  const attendeeGroups = attendanceGroups(slot?.attendees);
 
   useEffect(() => {
     if (!confirming) return undefined;
@@ -345,23 +345,35 @@ export function SlotPanel({ id, onClose }) {
             </div>
             ) : null}
           </div>
-          {pastAdmin ? (
-            <section className={styles.section} aria-labelledby="slot-attendees-title">
-              <h2 className={styles.lead} id="slot-attendees-title">
-                Посетили
+          {!dancer && slot ? (
+            <section className={compact ? styles.section : styles.inbox} aria-labelledby="slot-attendees-title">
+              <h2 className={compact ? styles.lead : styles.slotSectionTitle} id="slot-attendees-title">
+                {ended ? "Посетили" : "Записались"}
               </h2>
-              {attendees.length === 0 ? (
-                <p className={styles.hint}>Никто не записался</p>
+              {attendeeGroups.length === 0 ? (
+                <p className={compact ? styles.hint : styles.groupHint}>Никто не записался</p>
               ) : (
                 <ul className={styles.list}>
-                  {attendees.map((person) => (
-                    <li className={styles.person} key={person.id}>
-                      <span>
-                        <Link className={styles.personLink} to={`/dancers/${person.id}`}>
-                          {person.displayName}
-                        </Link>
-                        {person.partnerName ? ` · пара с ${person.partnerName}` : person.withPartner ? " · с партнёром" : ""}
-                      </span>
+                  {attendeeGroups.map((group) => (
+                    <li className={styles.person} key={group.key}>
+                      {group.kind === "pair" ? (
+                        <span>
+                          <Link className={styles.personLink} to={`/dancers/${group.left.id}`}>
+                            {group.left.displayName}
+                          </Link>
+                          {" · "}
+                          <Link className={styles.personLink} to={`/dancers/${group.right.id}`}>
+                            {group.right.displayName}
+                          </Link>
+                        </span>
+                      ) : (
+                        <span>
+                          <Link className={styles.personLink} to={`/dancers/${group.person.id}`}>
+                            {group.person.displayName}
+                          </Link>
+                          {group.person.withPartner ? " · с партнёром" : ""}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -753,8 +765,36 @@ function roundedHole(x, y, width, height, radius) {
   ].join(" ");
 }
 
+function attendanceGroups(attendees) {
+  const seen = new Set();
+  const groups = [];
+  for (const person of attendees ?? []) {
+    if (person.partnerId) {
+      const key = [person.id, person.partnerId].sort().join(":");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const left = { id: person.id, displayName: person.displayName };
+      const right = { id: person.partnerId, displayName: person.partnerName || "партнёр" };
+      const ordered = [left, right].sort((a, b) => a.displayName.localeCompare(b.displayName, "ru") || a.id.localeCompare(b.id));
+      groups.push({ key, kind: "pair", left: ordered[0], right: ordered[1] });
+      continue;
+    }
+    groups.push({ key: person.id, kind: "solo", person });
+  }
+  return groups;
+}
+
 function visibleRequests(requests) {
-  return (requests ?? []).filter((item) => item.status !== "cancelled");
+  const seen = new Set();
+  const visible = [];
+  for (const item of requests ?? []) {
+    if (item.status === "cancelled") continue;
+    const key = `${item.direction}:${item.otherId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    visible.push(item);
+  }
+  return visible;
 }
 
 function slotHeading(date) {

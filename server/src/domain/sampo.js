@@ -1859,7 +1859,14 @@ export async function presentSlot(sql, raw, userId) {
     ORDER BY created_at DESC
   `;
   const views = [];
-  for (const row of requests) views.push(await requestView(sql, row, userId));
+  const seen = new Set();
+  for (const row of requests) {
+    if (row.status === "cancelled") continue;
+    const key = `${row.from_user_id}:${row.to_user_id}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    views.push(await requestView(sql, row, userId));
+  }
   const model = slotOf(raw);
   const conflict = await conflicting(sql, userId, model);
   let inviteBlocked = null;
