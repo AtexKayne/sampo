@@ -39,12 +39,13 @@ export function vkMessage(note, origin) {
     const where = slotWhere(payload);
     if (where && !text.includes(where)) lines.push(where);
   }
-  if (link) lines.push(`[${link}|посмотреть]`);
   const message = clip(lines.join("\n"));
+  const look = link ? linkButton(link) : null;
   if (note?.type === "request_received" && REQUEST_ID.test(requestId)) {
-    return { message, keyboard: requestKeyboard(requestId) };
+    return { message, keyboard: requestKeyboard(requestId, look), link };
   }
-  return { message, keyboard: null };
+  if (look) return { message, keyboard: JSON.stringify({ inline: true, buttons: [[look]] }), link };
+  return { message, keyboard: null, link };
 }
 
 export function registerVkRoutes(app, { sql, config }) {
@@ -142,7 +143,10 @@ async function deliverOne(sql, config, row, send) {
   } catch (error) {
     if (payload.keyboard && keyboardRejected(error)) {
       try {
-        await send({ ...payload, keyboard: null });
+        const fallback = message.link && !payload.message.includes(message.link)
+          ? `${payload.message}\n${message.link}`
+          : payload.message;
+        await send({ ...payload, keyboard: null, message: fallback });
         await finish(sql, row.id, "sent", "Кнопки ВК недоступны, отправлен текст");
         return true;
       } catch (retryError) {
@@ -204,14 +208,19 @@ function readPayload(value) {
   return { action: payload.action, requestId: String(payload.requestId) };
 }
 
-function requestKeyboard(requestId) {
-  return JSON.stringify({
-    inline: true,
-    buttons: [[
-      button("Подтвердить", "positive", { requestId, action: "accept" }),
-      button("Отказать", "negative", { requestId, action: "decline" }),
-    ]],
-  });
+function requestKeyboard(requestId, look) {
+  const rows = [[
+    button("Подтвердить", "positive", { requestId, action: "accept" }),
+    button("Отказать", "negative", { requestId, action: "decline" }),
+  ]];
+  if (look) rows.push([look]);
+  return JSON.stringify({ inline: true, buttons: rows });
+}
+
+function linkButton(url) {
+  return {
+    action: { type: "open_link", label: "Посмотреть", link: url },
+  };
 }
 
 function button(label, color, payload) {

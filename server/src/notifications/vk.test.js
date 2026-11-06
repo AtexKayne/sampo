@@ -67,15 +67,17 @@ test("an incoming request message carries confirm and decline buttons", () => {
     },
   }, "https://vparaplane.ru");
   const keyboard = JSON.parse(incoming.keyboard);
-  assert.equal(
-    incoming.message,
-    `У вас новое приглашение от Миша\n14 октября, 19:00, Зал\n[https://vparaplane.ru/requests/${requestId}|посмотреть]`,
-  );
+  assert.equal(incoming.message, "У вас новое приглашение от Миша\n14 октября, 19:00, Зал");
   assert.equal(keyboard.inline, true);
   assert.deepEqual(
     keyboard.buttons[0].map((item) => item.action.label),
     ["Подтвердить", "Отказать"],
   );
+  assert.deepEqual(keyboard.buttons[1][0].action, {
+    type: "open_link",
+    label: "Посмотреть",
+    link: `https://vparaplane.ru/requests/${requestId}`,
+  });
   assert.deepEqual(JSON.parse(keyboard.buttons[0][0].action.payload), { requestId, action: "accept" });
   assert.equal(vkRandomId(requestId), vkRandomId(requestId));
 
@@ -83,8 +85,12 @@ test("an incoming request message carries confirm and decline buttons", () => {
     type: "request_accepted",
     payload: { text: "Миша подтвердил сампо", requestId },
   }, "https://vparaplane.ru");
-  assert.equal(accepted.keyboard, null);
-  assert.equal(accepted.message, `Миша подтвердил сампо\n[https://vparaplane.ru/requests/${requestId}|посмотреть]`);
+  assert.equal(accepted.message, "Миша подтвердил сампо");
+  assert.deepEqual(JSON.parse(accepted.keyboard).buttons[0][0].action, {
+    type: "open_link",
+    label: "Посмотреть",
+    link: `https://vparaplane.ru/requests/${requestId}`,
+  });
 
   const slotId = crypto.randomUUID();
   const opened = vkMessage({
@@ -96,10 +102,12 @@ test("an incoming request message carries confirm and decline buttons", () => {
       startsAt: "2026-10-14T14:00:00.000Z",
     },
   }, "https://vparaplane.ru");
-  assert.equal(
-    opened.message,
-    `Появился новый слот сампо\n14 октября, 19:00, Зал 1\n[https://vparaplane.ru/slots/${slotId}|посмотреть]`,
-  );
+  assert.equal(opened.message, "Появился новый слот сампо\n14 октября, 19:00, Зал 1");
+  assert.deepEqual(JSON.parse(opened.keyboard).buttons[0][0].action, {
+    type: "open_link",
+    label: "Посмотреть",
+    link: `https://vparaplane.ru/slots/${slotId}`,
+  });
 });
 
 test("the community confirmation answers with the configured string", async () => {
