@@ -227,7 +227,10 @@ const INVITE_NOTICE = new Set([
 ]);
 
 async function notify(tx, userId, type, payload) {
-  const [user] = await tx`SELECT app_role, notify_invites, notify_new_slots, vk_user_id FROM users WHERE id = ${userId}`;
+  const [user] = await tx`
+    SELECT app_role, notify_invites, notify_new_slots, notify_channel, vk_user_id
+    FROM users WHERE id = ${userId}
+  `;
   if (user?.app_role === "admin") return;
   if (INVITE_NOTICE.has(type) && user?.notify_invites === false) return;
   if (type === "slot_opened" && user?.notify_new_slots !== true) return;
@@ -246,15 +249,16 @@ async function notify(tx, userId, type, payload) {
     },
   });
   if (Buffer.byteLength(event) <= 7500) await tx`SELECT pg_notify('sampo_notification', ${event})`;
-  const [subscription] = await tx`SELECT id FROM push_subscriptions WHERE user_id = ${userId} LIMIT 1`;
+  const vk = user?.notify_channel === "vk" && user?.vk_user_id != null;
+  const [subscription] = vk ? [] : await tx`SELECT id FROM push_subscriptions WHERE user_id = ${userId} LIMIT 1`;
   await tx`
     INSERT INTO notification_deliveries (id, notification_id, channel, status, last_error)
     VALUES (
       ${crypto.randomUUID()},
       ${id},
       'push',
-      ${subscription ? "pending" : "skipped"},
-      ${subscription ? null : "Нет подписки на уведомления"}
+      ${!vk && subscription ? "pending" : "skipped"},
+      ${vk ? "Выбраны сообщения ВК" : subscription ? null : "Нет подписки на уведомления"}
     )
   `;
   await tx`
@@ -263,8 +267,8 @@ async function notify(tx, userId, type, payload) {
       ${crypto.randomUUID()},
       ${id},
       'vk',
-      'skipped',
-      ${user?.vk_user_id == null ? "Нет привязки ВК" : "Сообщения ВК ещё не подключены"}
+      ${vk ? "pending" : "skipped"},
+      ${vk ? null : "Выбраны уведомления на телефон"}
     )
   `;
 }

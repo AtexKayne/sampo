@@ -117,6 +117,7 @@ test("admin can find and edit another profile, and cannot delete an admin", asyn
     notifyHourBefore: false,
     notifyNewSlots: false,
     notifyNewSlotsScope: "free",
+    notifyChannel: "push",
     shareAvailability: true,
   });
   const profile = await adminProfile(sql, created.id);

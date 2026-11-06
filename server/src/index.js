@@ -9,6 +9,7 @@ import { registerUserRoutes } from "./user/routes.js";
 import { expireDue, remindDue } from "./domain/sampo.js";
 import { listenForNotifications, registerNotificationStream } from "./notifications/live.js";
 import { deliverPendingPush, prepareVapid, registerPushRoutes } from "./notifications/push.js";
+import { deliverPendingVk, registerVkRoutes } from "./notifications/vk.js";
 import { createLoginLimiter } from "./auth/rate-limit.js";
 import { HttpError, errorBody } from "./http/errors.js";
 
@@ -27,6 +28,7 @@ registerSlotRoutes(app, { db, sql, config });
 registerUserRoutes(app, { db, sql, config });
 registerNotificationStream(app, { db, config });
 registerPushRoutes(app, { db, sql, config });
+registerVkRoutes(app, { sql, config });
 
 if (sql) {
   await listenForNotifications(sql, app.log);
@@ -34,6 +36,7 @@ if (sql) {
     expireDue(sql).catch((error) => app.log.error(error));
     remindDue(sql).catch((error) => app.log.error(error));
     deliverPendingPush(sql, config).catch((error) => app.log.error(error));
+    deliverPendingVk(sql, config).catch((error) => app.log.error(error));
   }, 15000);
 }
 

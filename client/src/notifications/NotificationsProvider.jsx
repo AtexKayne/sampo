@@ -45,8 +45,9 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     if (!dancer) return;
     preparePush();
+    if (session.user?.notifyChannel === "vk" && session.user?.vkLinked) return;
     askPushOnce();
-  }, [dancer]);
+  }, [dancer, session.user?.notifyChannel]);
 
   useEffect(() => {
     if (!dancer) return undefined;

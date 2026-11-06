@@ -175,6 +175,7 @@ function ProfileSettings({ userId }) {
           notifyHourBefore: profile.notifyHourBefore,
           notifyNewSlots: profile.notifyNewSlots,
           notifyNewSlotsScope: profile.notifyNewSlotsScope === "all" ? "all" : "free",
+          notifyChannel: profile.notifyChannel === "vk" ? "vk" : "push",
           shareAvailability: profile.shareAvailability,
         },
       }),
@@ -182,7 +183,7 @@ function ProfileSettings({ userId }) {
       setError("");
       setDraft(next);
       queryClient.setQueryData(settingsKey, next);
-      if (!editing) session.setUser({ ...session.user, displayName: next.displayName });
+      if (!editing) session.setUser({ ...session.user, displayName: next.displayName, notifyChannel: next.notifyChannel });
     },
     onError: (reason) => setError(reason.message),
   });
@@ -307,6 +308,10 @@ function ProfileSettings({ userId }) {
 
   function setSlotScope(notifyNewSlotsScope) {
     setDraft((current) => (current && current.notifyNewSlotsScope !== notifyNewSlotsScope ? { ...current, notifyNewSlotsScope } : current));
+  }
+
+  function setChannel(notifyChannel) {
+    setDraft((current) => (current && current.notifyChannel !== notifyChannel ? { ...current, notifyChannel } : current));
   }
 
   function closeDelete() {
@@ -555,6 +560,29 @@ function ProfileSettings({ userId }) {
           </section>
           <section className={styles.group} aria-labelledby="notify-title">
             <h2 className={styles.groupTitle} id="notify-title">Уведомления</h2>
+            {saved?.vkLinked ? (
+              <div className={styles.checks} role="radiogroup" aria-label="Куда присылать уведомления">
+                <Radio
+                  name="notify-channel"
+                  label="На телефон"
+                  checked={draft.notifyChannel !== "vk"}
+                  disabled={busy}
+                  onChange={() => setChannel("push")}
+                />
+                <Radio
+                  name="notify-channel"
+                  label="В личные сообщения ВК"
+                  checked={draft.notifyChannel === "vk"}
+                  disabled={busy}
+                  onChange={() => setChannel("vk")}
+                />
+              </div>
+            ) : null}
+            {saved?.vkLinked && draft.notifyChannel === "vk" ? (
+              <VkChannel />
+            ) : editing ? null : (
+              <PhonePush />
+            )}
             <div className={styles.checks}>
               <Check
                 label="Присылать уведомления о приглашениях"
@@ -593,7 +621,6 @@ function ProfileSettings({ userId }) {
                 </div>
               ) : null}
             </div>
-            {editing ? null : <PhonePush />}
           </section>
           <section className={styles.group} aria-labelledby="share-title">
             <h2 className={styles.groupTitle} id="share-title">Свободное время</h2>
@@ -1515,6 +1542,7 @@ function profileBody(profile, sampoTotal) {
     notifyHourBefore: profile.notifyHourBefore,
     notifyNewSlots: profile.notifyNewSlots,
     notifyNewSlotsScope: profile.notifyNewSlotsScope === "all" ? "all" : "free",
+    notifyChannel: profile.notifyChannel === "vk" ? "vk" : "push",
     shareAvailability: profile.shareAvailability,
     sampoTotal,
   };
@@ -1610,6 +1638,21 @@ function LevelOption({ name, label, checked, disabled, multiple, onChange }) {
       />
       {label}
     </label>
+  );
+}
+
+function VkChannel() {
+  return (
+    <div className={styles.stack}>
+      <p className={styles.groupHint}>
+        Сообщения приходят от сообщества VParaplane. Откройте диалог и разрешите сообщения, иначе ВК их не доставит.
+      </p>
+      <div className={styles.row}>
+        <a className={styles.button} href="https://vk.me/vparaplane" target="_blank" rel="noopener noreferrer">
+          Открыть диалог сообщества
+        </a>
+      </div>
+    </div>
   );
 }
 
@@ -1814,6 +1857,7 @@ function isDirty(draft, saved) {
   if (draft.notifyHourBefore !== saved.notifyHourBefore) return true;
   if (draft.notifyNewSlots !== saved.notifyNewSlots) return true;
   if ((draft.notifyNewSlotsScope === "all" ? "all" : "free") !== (saved.notifyNewSlotsScope === "all" ? "all" : "free")) return true;
+  if ((draft.notifyChannel === "vk" ? "vk" : "push") !== (saved.notifyChannel === "vk" ? "vk" : "push")) return true;
   if (draft.shareAvailability !== saved.shareAvailability) return true;
   if (!sameIds(draft.blockedLevels, saved.blockedLevels)) return true;
   if (!sameIds(draft.blacklist.map((person) => person.id), saved.blacklist.map((person) => person.id))) return true;

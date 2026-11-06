@@ -860,12 +860,15 @@ test("profile changes are stored together and a blank name keeps the previous pr
     notifyHourBefore: false,
     notifyNewSlots: true,
     notifyNewSlotsScope: "all",
+    notifyChannel: "vk",
     shareAvailability: true,
   });
   assert.equal(saved.notifyInvites, false);
   assert.equal(saved.notifyHourBefore, false);
   assert.equal(saved.notifyNewSlots, true);
   assert.equal(saved.notifyNewSlotsScope, "all");
+  assert.equal(saved.notifyChannel, "vk");
+  assert.equal(saved.vkLinked, false);
   assert.equal(saved.shareAvailability, true);
   assert.equal(saved.displayName, "Платон П.");
   assert.equal(saved.danceLevel, "S");
@@ -902,6 +905,7 @@ test("the active list decides who can send an invitation", async () => {
     notifyHourBefore: true,
     notifyNewSlots: false,
     notifyNewSlotsScope: "free",
+    notifyChannel: "push",
     shareAvailability: false,
   });
   assert.equal((await createRequest(sql, allowed, slotId, host)).status, "pending");
@@ -919,6 +923,7 @@ test("the active list decides who can send an invitation", async () => {
     notifyHourBefore: true,
     notifyNewSlots: false,
     notifyNewSlotsScope: "free",
+    notifyChannel: "push",
     shareAvailability: false,
   });
   const outsider = await makeUser("Фаина");
@@ -1074,6 +1079,7 @@ test("a new user starts with notification switches off", async () => {
   assert.equal(fresh.notifyHourBefore, false);
   assert.equal(fresh.notifyNewSlots, false);
   assert.equal(fresh.notifyNewSlotsScope, "free");
+  assert.equal(fresh.notifyChannel, "push");
 });
 
 test("new slot notices follow the free-window or all-slots choice", async () => {
@@ -1115,6 +1121,7 @@ test("new slot notices follow the free-window or all-slots choice", async () => 
       notifyHourBefore: false,
       notifyNewSlots: true,
       notifyNewSlotsScope: "weekly",
+      notifyChannel: "push",
       shareAvailability: false,
     }),
     (error) => error instanceof HttpError && error.code === "VALIDATION",
@@ -1276,6 +1283,7 @@ test("an edited sampo total moves the current month and does not change achievem
     notifyHourBefore: false,
     notifyNewSlots: false,
     notifyNewSlotsScope: "free",
+    notifyChannel: "push",
     shareAvailability: false,
     sampoTotal: 0,
   });

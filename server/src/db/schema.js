@@ -12,6 +12,7 @@ export const users = pgTable("users", {
   notifyHourBefore: boolean("notify_hour_before").notNull().default(false),
   notifyNewSlots: boolean("notify_new_slots").notNull().default(false),
   notifyNewSlotsScope: text("notify_new_slots_scope").notNull().default("free"),
+  notifyChannel: text("notify_channel").notNull().default("push"),
   shareAvailability: boolean("share_availability").notNull().default(false),
   sampoAdjust: integer("sampo_adjust").notNull().default(0),
   sampoMonths: jsonb("sampo_months").notNull().default({}),

@@ -68,6 +68,11 @@ function parseSlotScope(value) {
   return { ok: false, message: "Выберите, о каких новых слотах сообщать" };
 }
 
+function parseChannel(value) {
+  if (value === "push" || value === "vk") return { ok: true, channel: value };
+  return { ok: false, message: "Выберите, куда присылать уведомления" };
+}
+
 function studioMonthRange(now) {
   const parts = studioParts(now);
   const start = new Date(Date.UTC(parts.year, parts.month - 1, 1) - TIME_ZONE_OFFSET_MS);
@@ -547,7 +552,7 @@ export async function ratingSummary(sql, userId, now = new Date()) {
 export async function profileSettings(sql, userId, now = new Date()) {
   const [user] = await sql`
     SELECT display_name, dance_level, invite_list, notify_invites, notify_hour_before,
-           notify_new_slots, notify_new_slots_scope, share_availability
+           notify_new_slots, notify_new_slots_scope, notify_channel, share_availability, vk_user_id
     FROM users WHERE id = ${userId}
   `;
   const levels = await sql`SELECT level FROM invitation_blocks WHERE user_id = ${userId}`;
@@ -564,6 +569,8 @@ export async function profileSettings(sql, userId, now = new Date()) {
     notifyHourBefore: user?.notify_hour_before === true,
     notifyNewSlots: user?.notify_new_slots === true,
     notifyNewSlotsScope: user?.notify_new_slots_scope === "all" ? "all" : "free",
+    notifyChannel: user?.notify_channel === "vk" ? "vk" : "push",
+    vkLinked: user?.vk_user_id != null,
     shareAvailability: user?.share_availability === true,
     visits: await visitCounts(sql, userId, now),
   };
@@ -590,6 +597,8 @@ export async function saveProfile(sql, userId, body) {
   if (!notifyNewSlots.ok) fail(400, "VALIDATION", notifyNewSlots.message);
   const notifyNewSlotsScope = parseSlotScope(body?.notifyNewSlotsScope);
   if (!notifyNewSlotsScope.ok) fail(400, "VALIDATION", notifyNewSlotsScope.message);
+  const notifyChannel = parseChannel(body?.notifyChannel);
+  if (!notifyChannel.ok) fail(400, "VALIDATION", notifyChannel.message);
   const shareAvailability = parseFlag(body?.shareAvailability, "Укажите, делиться ли свободным временем");
   if (!shareAvailability.ok) fail(400, "VALIDATION", shareAvailability.message);
   const listed = [...new Set([...blacklist.ids, ...whitelist.ids])];
@@ -607,6 +616,7 @@ export async function saveProfile(sql, userId, body) {
           notify_hour_before = ${notifyHourBefore.value},
           notify_new_slots = ${notifyNewSlots.value},
           notify_new_slots_scope = ${notifyNewSlotsScope.scope},
+          notify_channel = ${notifyChannel.channel},
           share_availability = ${shareAvailability.value}
       WHERE id = ${userId}
     `;

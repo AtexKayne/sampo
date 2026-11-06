@@ -16,6 +16,7 @@ export function publicUser(row) {
     appRole: row.appRole,
     hasLogin: Boolean(row.login),
     vkLinked: row.vkUserId != null,
+    notifyChannel: row.notifyChannel === "vk" ? "vk" : "push",
   };
 }
 
