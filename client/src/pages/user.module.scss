@@ -995,6 +995,12 @@ button.help:active:not(:disabled) {
   gap: 8px;
 }
 
+@media (min-width: 800px) {
+  .channelChoice {
+    flex-wrap: nowrap;
+  }
+}
+
 .choice,
 .choiceOn {
   position: relative;

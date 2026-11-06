@@ -59,10 +59,18 @@ test("an incoming request message carries confirm and decline buttons", () => {
   const requestId = crypto.randomUUID();
   const incoming = vkMessage({
     type: "request_received",
-    payload: { text: "У вас новое приглашение от Миша", requestId },
+    payload: {
+      text: "У вас новое приглашение от Миша",
+      requestId,
+      place: "Зал",
+      startsAt: "2026-10-14T14:00:00.000Z",
+    },
   }, "https://vparaplane.ru");
   const keyboard = JSON.parse(incoming.keyboard);
-  assert.equal(incoming.message, "У вас новое приглашение от Миша");
+  assert.equal(
+    incoming.message,
+    `У вас новое приглашение от Миша\n14 октября, 19:00, Зал\n[https://vparaplane.ru/requests/${requestId}|посмотреть]`,
+  );
   assert.equal(keyboard.inline, true);
   assert.deepEqual(
     keyboard.buttons[0].map((item) => item.action.label),
@@ -76,7 +84,22 @@ test("an incoming request message carries confirm and decline buttons", () => {
     payload: { text: "Миша подтвердил сампо", requestId },
   }, "https://vparaplane.ru");
   assert.equal(accepted.keyboard, null);
-  assert.equal(accepted.message, `Миша подтвердил сампо\nhttps://vparaplane.ru/requests/${requestId}`);
+  assert.equal(accepted.message, `Миша подтвердил сампо\n[https://vparaplane.ru/requests/${requestId}|посмотреть]`);
+
+  const slotId = crypto.randomUUID();
+  const opened = vkMessage({
+    type: "slot_opened",
+    payload: {
+      text: "Появился новый слот сампо",
+      slotId,
+      place: "Зал 1",
+      startsAt: "2026-10-14T14:00:00.000Z",
+    },
+  }, "https://vparaplane.ru");
+  assert.equal(
+    opened.message,
+    `Появился новый слот сампо\n14 октября, 19:00, Зал 1\n[https://vparaplane.ru/slots/${slotId}|посмотреть]`,
+  );
 });
 
 test("the community confirmation answers with the configured string", async () => {
@@ -139,6 +162,32 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
   const [after] = await sql`SELECT status FROM notification_deliveries WHERE id = ${vk.id}`;
   assert.equal(after.status, "sent");
 
+  const blockedButtons = new Error("This is a chat bot feature, change this status in settings: Chat bot feature");
+  blockedButtons.code = 912;
+  const fallbackUser = await makeUser("Юля", { vkUserId: vkId(), channel: "vk", invites: true });
+  const fallbackSlot = await makeSlot("2026-12-18T14:00:00.000Z");
+  await sql`INSERT INTO availabilities (user_id, slot_id) VALUES (${fallbackUser}, ${fallbackSlot})`;
+  await createRequest(sql, host, fallbackSlot, fallbackUser);
+  const [fallback] = await sql`
+    SELECT d.id, d.notification_id
+    FROM notification_deliveries d
+    JOIN notifications n ON n.id = d.notification_id
+    WHERE n.user_id = ${fallbackUser} AND d.channel = 'vk'
+  `;
+  const fallbackSent = [];
+  await deliverPendingVk(sql, config, {
+    notificationIds: [fallback.notification_id],
+    send: (payload) => {
+      fallbackSent.push(payload);
+      if (payload.keyboard) throw blockedButtons;
+    },
+  });
+  assert.equal(fallbackSent.length, 2);
+  assert.equal(Boolean(fallbackSent[0].keyboard), true);
+  assert.equal(fallbackSent[1].keyboard, null);
+  const [fallbackRow] = await sql`SELECT status FROM notification_deliveries WHERE id = ${fallback.id}`;
+  assert.equal(fallbackRow.status, "sent");
+
   const denied = new Error("denied");
   denied.code = 901;
   const quiet = await makeUser("Ева", { vkUserId: vkId(), channel: "vk", invites: true });
@@ -166,13 +215,20 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
   assert.equal(failed.attempts, 1);
   assert.equal(failed.last_error, "Пользователь не разрешил сообщения сообщества");
 
+  const answers = [];
   const first = await handleVkCallback(sql, config, {
     type: "message_event",
     group_id: "242279722",
     secret: config.vkCallbackSecret,
-    object: { user_id: guestVk, payload: { requestId: request.id, action: "accept" } },
-  });
-  assert.equal(first.json.response.text, "Сампо подтверждено");
+    object: {
+      user_id: guestVk,
+      peer_id: guestVk,
+      event_id: "evt-1",
+      payload: { requestId: request.id, action: "accept" },
+    },
+  }, { answerEvent: (payload) => answers.push(payload) });
+  assert.equal(first.text, "ok");
+  assert.deepEqual(answers[0], { eventId: "evt-1", userId: guestVk, peerId: guestVk, text: "Сампо подтверждено" });
   const [{ pairs }] = await sql`SELECT count(*)::int AS pairs FROM pairs WHERE request_id = ${request.id}`;
   assert.equal(pairs, 1);
   const second = await handleVkCallback(sql, config, {
@@ -180,8 +236,8 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
     group_id: 242279722,
     secret: config.vkCallbackSecret,
     object: { user_id: guestVk, payload: JSON.stringify({ requestId: request.id, action: "accept" }) },
-  });
-  assert.equal(second.json.response.text, "Сампо подтверждено");
+  }, { answerEvent: () => {} });
+  assert.equal(second.text, "ok");
   const [{ pairs: still }] = await sql`SELECT count(*)::int AS pairs FROM pairs WHERE request_id = ${request.id}`;
   assert.equal(still, 1);
 
@@ -190,8 +246,8 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
     group_id: 242279722,
     secret: config.vkCallbackSecret,
     object: { user_id: vkId(), payload: { requestId: request.id, action: "decline" } },
-  });
-  assert.equal(stranger.json.response.text, "Запрос уже закрыт");
+  }, { answerEvent: () => {} });
+  assert.equal(stranger.text, "ok");
   const [{ status }] = await sql`SELECT status FROM sampo_requests WHERE id = ${request.id}`;
   assert.equal(status, "accepted");
 });

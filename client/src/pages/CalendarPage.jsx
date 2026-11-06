@@ -859,12 +859,12 @@ function dayKeyOfSlot(slot) {
 
 function slotNotes(slot) {
   const notes = [];
+  if (slot.myPendingIncomingCount > 0) notes.push("Вас пригласили");
   if (slot.status === "cancelled") notes.push("Отменён");
   if (slot.visibility === "closed") notes.push("Закрытое");
   if (slot.myAttendance && !slot.myPair && !slot.withPartner) notes.push("Приду один");
   if (slot.unavailable) notes.push("Недоступен");
   if (slot.myPendingOutgoing) notes.push("Ждём ответ");
-  if (slot.myPendingIncomingCount > 0) notes.push("Вас пригласили");
   if (slot.myPair?.partnerName) notes.push(`Пара с ${slot.myPair.partnerName}`);
   return notes;
 }
@@ -897,17 +897,27 @@ function SlotAgenda({ slots, markingAvailability, freeBlocks, onOpen }) {
           <ul className={styles.agendaList}>
             {group.slots.map((slot) => {
               const notes = slotNotes(slot);
+              const incoming = Number(slot.myPendingIncomingCount) || 0;
               const inFree = markingAvailability && slotOverlapsFree(slot, freeBlocks);
               const tone =
                 slot.status === "cancelled" ? styles.slotRowMuted : markingAvailability ? (inFree ? styles.slotRowFree : styles.slotRowBusy) : "";
               return (
                 <li key={slot.id}>
-                  <button className={[styles.slotRow, tone].filter(Boolean).join(" ")} type="button" onClick={() => onOpen(slot)}>
+                  <button
+                    className={[styles.slotRow, tone, incoming > 0 ? styles.slotRowIncoming : ""].filter(Boolean).join(" ")}
+                    type="button"
+                    onClick={() => onOpen(slot)}
+                  >
                     <span className={styles.slotRowMain}>
                       <span className={styles.slotRowTime}>{formatSlotTime(slot.startsAt, slot.endsAt)}</span>
                       <span>{slot.place}</span>
                     </span>
                     {notes.length > 0 ? <span className={styles.slotRowMeta}>{notes.join(" · ")}</span> : null}
+                    {incoming > 0 ? (
+                      <span className={styles.incoming} aria-hidden="true">
+                        {incoming}
+                      </span>
+                    ) : null}
                   </button>
                 </li>
               );

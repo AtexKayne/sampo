@@ -205,6 +205,7 @@
   text-decoration: none;
 }
 
+
 .slotStack {
   flex-direction: column;
   align-items: flex-start;
@@ -257,6 +258,30 @@
   border-color: var(--cal-busy);
   border-left-color: var(--cal-busy);
   background: var(--cal-busy-fill);
+}
+
+.slotIncoming {
+  padding-right: 22px;
+  border-left-color: var(--gold);
+}
+
+.incoming {
+  position: absolute;
+  top: 50%;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateY(-50%);
 }
 
 .slotCancelled,

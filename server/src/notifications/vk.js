@@ -1,9 +1,11 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { acceptRequest, declineRequest } from "../domain/sampo.js";
 import { HttpError } from "../http/errors.js";
+import { studioParts } from "../slots/rules.js";
+
+const MONTHS = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
 
 const API_VERSION = "5.199";
-const SEND_URL = "https://api.vk.ru/method/messages.send";
 const BACKOFF_MS = [15_000, 60_000, 5 * 60_000, 15 * 60_000];
 const PERMANENT_CODES = new Set([7, 15, 100, 900, 901, 902, 911, 912, 913, 914, 917, 936]);
 const REQUEST_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,11 +33,18 @@ export function vkMessage(note, origin) {
   const requestId = typeof payload.requestId === "string" ? payload.requestId : "";
   const slotId = typeof payload.slotId === "string" ? payload.slotId : "";
   const path = requestId ? `/requests/${requestId}` : slotId ? `/slots/${slotId}` : "/calendar";
-  if (note?.type === "request_received" && REQUEST_ID.test(requestId)) {
-    return { message: clip(text), keyboard: requestKeyboard(requestId) };
-  }
   const link = absoluteUrl(origin, path);
-  return { message: clip(link ? `${text}\n${link}` : text), keyboard: null };
+  const lines = [text];
+  if (note?.type === "slot_opened" || note?.type === "request_received") {
+    const where = slotWhere(payload);
+    if (where && !text.includes(where)) lines.push(where);
+  }
+  if (link) lines.push(`[${link}|посмотреть]`);
+  const message = clip(lines.join("\n"));
+  if (note?.type === "request_received" && REQUEST_ID.test(requestId)) {
+    return { message, keyboard: requestKeyboard(requestId) };
+  }
+  return { message, keyboard: null };
 }
 
 export function registerVkRoutes(app, { sql, config }) {
@@ -46,7 +55,7 @@ export function registerVkRoutes(app, { sql, config }) {
   });
 }
 
-export async function handleVkCallback(sql, config, body) {
+export async function handleVkCallback(sql, config, body, options = {}) {
   if (!vkCallbackReady(config)) return { status: 503, text: "unavailable" };
   const groupId = String(body?.group_id ?? "");
   if (groupId !== String(config.vkCommunityId).trim()) return { status: 403, text: "forbidden" };
@@ -54,8 +63,20 @@ export async function handleVkCallback(sql, config, body) {
   if (!sameSecret(body?.secret, config.vkCallbackSecret)) return { status: 403, text: "forbidden" };
   if (body?.type !== "message_event") return { status: 200, text: "ok" };
   if (!sql) return { status: 503, text: "unavailable" };
-  const text = await answerMessageEvent(sql, body.object);
-  return { status: 200, json: { response: { type: "show_snackbar", text } } };
+  const object = body.object && typeof body.object === "object" ? body.object : {};
+  const text = await answerMessageEvent(sql, object);
+  const answer = options.answerEvent ?? ((payload) => sendVkEventAnswer(config, payload));
+  try {
+    await answer({
+      eventId: object.event_id,
+      userId: object.user_id,
+      peerId: object.peer_id ?? object.user_id,
+      text,
+    });
+  } catch {
+    // Запрос уже обработан, всплывающая подсказка необязательна.
+  }
+  return { status: 200, text: "ok" };
 }
 
 export async function deliverPendingVk(sql, config, options = {}) {
@@ -108,16 +129,26 @@ async function deliverOne(sql, config, row, send) {
     return false;
   }
   const message = vkMessage(note, config.appOrigin);
+  const payload = {
+    peerId: Number(note.vk_user_id),
+    randomId: vkRandomId(row.id),
+    message: message.message,
+    keyboard: message.keyboard,
+  };
   try {
-    await send({
-      peerId: Number(note.vk_user_id),
-      randomId: vkRandomId(row.id),
-      message: message.message,
-      keyboard: message.keyboard,
-    });
+    await send(payload);
     await finish(sql, row.id, "sent", null);
     return true;
   } catch (error) {
+    if (payload.keyboard && keyboardRejected(error)) {
+      try {
+        await send({ ...payload, keyboard: null });
+        await finish(sql, row.id, "sent", "Кнопки ВК недоступны, отправлен текст");
+        return true;
+      } catch (retryError) {
+        error = retryError;
+      }
+    }
     const attempts = Number(row.attempts);
     const permanent = PERMANENT_CODES.has(Number(error?.code));
     if (permanent || attempts >= 5) {
@@ -191,17 +222,34 @@ function button(label, color, payload) {
 }
 
 export async function sendVkMessage(config, { peerId, randomId, message, keyboard }) {
-  const params = new URLSearchParams({
-    access_token: String(config.vkCommunityToken),
-    v: API_VERSION,
+  const fields = {
     peer_id: String(peerId),
     random_id: String(randomId),
     message,
+  };
+  if (keyboard) fields.keyboard = keyboard;
+  return vkMethod(config, "messages.send", fields);
+}
+
+export async function sendVkEventAnswer(config, { eventId, userId, peerId, text }) {
+  if (!eventId || userId == null || peerId == null) return null;
+  return vkMethod(config, "messages.sendMessageEventAnswer", {
+    event_id: String(eventId),
+    user_id: String(userId),
+    peer_id: String(peerId),
+    event_data: JSON.stringify({ type: "show_snackbar", text: clip(text, 90) }),
   });
-  if (keyboard) params.set("keyboard", keyboard);
+}
+
+async function vkMethod(config, method, fields) {
+  const params = new URLSearchParams({
+    access_token: String(config.vkCommunityToken),
+    v: API_VERSION,
+    ...fields,
+  });
   let response;
   try {
-    response = await fetch(SEND_URL, {
+    response = await fetch(`https://api.vk.ru/method/${method}`, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: params,
@@ -242,12 +290,37 @@ async function finish(sql, id, status, lastError) {
   `;
 }
 
+function keyboardRejected(error) {
+  const code = Number(error?.code);
+  if (code === 911 || code === 912 || code === 917) return true;
+  return /chat bot/i.test(String(error?.message || ""));
+}
+
 function vkErrorText(error) {
   const code = Number(error?.code);
   if (code === 901 || code === 902) return "Пользователь не разрешил сообщения сообщества";
+  if (code === 911 || code === 912 || code === 917 || /chat bot/i.test(String(error?.message || ""))) {
+    return "В сообществе не включены возможности бота";
+  }
   if (code === 6 || code === 9) return "ВК ограничил частоту отправки";
   const text = String(error?.message || "Не удалось отправить сообщение ВК");
   return text.slice(0, 500);
+}
+
+function slotWhere(payload) {
+  const when = formatWhen(payload?.startsAt);
+  const place = typeof payload?.place === "string" ? payload.place.trim() : "";
+  if (when && place) return `${when}, ${place}`;
+  return when || place;
+}
+
+function formatWhen(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = studioParts(date);
+  const hour = String(parts.hour).padStart(2, "0");
+  const minute = String(parts.minute).padStart(2, "0");
+  return `${parts.day} ${MONTHS[parts.month - 1]}, ${hour}:${minute}`;
 }
 
 function absoluteUrl(origin, path) {

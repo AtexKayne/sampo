@@ -14,14 +14,18 @@ import {
 import { formatDayNumber, formatDayTitle, formatWeekday, slotClock, studioDayKey, studioMinutes, studioWeekday } from "../time/zone.js";
 import styles from "./TimeGrid.module.scss";
 
+function incomingCount(slot) {
+  return Number(slot.myPendingIncomingCount) || 0;
+}
+
 function slotNotes(slot) {
   const notes = [];
+  if (incomingCount(slot) > 0) notes.push("Вас пригласили");
   if (slot.status === "cancelled") notes.push("Отменён");
   if (slot.visibility === "closed") notes.push("Закрытое");
   if (slot.myAttendance && !slot.myPair && !slot.withPartner) notes.push("Приду один");
   if (slot.unavailable) notes.push("Недоступен");
   if (slot.myPendingOutgoing) notes.push("Ждём ответ");
-  if (slot.myPendingIncomingCount > 0) notes.push("Вас пригласили");
   return notes;
 }
 
@@ -514,6 +518,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
               const time = `${formatMinutes(clock.startMin)}–${formatMinutes(clock.endMin)}`;
               const notes = slotNotes(slot);
               const pairName = slot.myPair?.partnerName;
+              const incoming = incomingCount(slot);
               const label = [`${time}, ${slot.place}`, ...notes, pairName ? `Пара с ${pairName}` : ""].filter(Boolean).join(", ");
               const passed = slotPassed(slot, now);
               const inFree = rangeInsideFree(key, clock.startMin, clock.endMin, freeBlocks, busyBlocks);
@@ -554,7 +559,16 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                 </>
               );
               const tone = slot.status === "cancelled" ? styles.slotCancelled : !showAvailability ? "" : inFree ? styles.slotFree : styles.slotBusy;
-              const className = [styles.slot, tone, stacked ? styles.slotStack : "", shortStack ? styles.slotShort : "", passed ? styles.slotPast : ""].filter(Boolean).join(" ");
+              const className = [
+                styles.slot,
+                tone,
+                stacked ? styles.slotStack : "",
+                shortStack ? styles.slotShort : "",
+                passed ? styles.slotPast : "",
+                incoming > 0 ? styles.slotIncoming : "",
+              ]
+                .filter(Boolean)
+                .join(" ");
               const hoverProps = {
                 onPointerEnter: (event) => onSlotEnter(event, { slot, time, notes, pairName }),
                 onPointerLeave: onSlotLeave,
@@ -563,6 +577,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                 return (
                   <div className={className} data-slot="true" key={slot.id} aria-label={label} style={boxStyle} {...hoverProps}>
                     {body}
+                    {incoming > 0 ? <span className={styles.incoming} aria-hidden="true">{incoming}</span> : null}
                   </div>
                 );
               }
@@ -590,6 +605,7 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                   }}
                 >
                   {body}
+                  {incoming > 0 ? <span className={styles.incoming} aria-hidden="true">{incoming}</span> : null}
                 </div>
               );
             })}

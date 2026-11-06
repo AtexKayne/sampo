@@ -165,6 +165,11 @@ function receiveNotification(queryClient, raw) {
     return { ...current, notifications: [note, ...list].slice(0, 50) };
   });
   if (!stored) queryClient.invalidateQueries({ queryKey: ["notifications"] });
+  if (REQUEST_NOTICE.has(note.type)) {
+    queryClient.invalidateQueries({ queryKey: ["slots"] });
+    queryClient.invalidateQueries({ queryKey: ["slot"] });
+    queryClient.invalidateQueries({ queryKey: ["requests"] });
+  }
 }
 
 function noticeHref(note) {

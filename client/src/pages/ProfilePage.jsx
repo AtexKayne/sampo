@@ -561,15 +561,15 @@ function ProfileSettings({ userId }) {
           <section className={styles.group} aria-labelledby="notify-title">
             <h2 className={styles.groupTitle} id="notify-title">Уведомления</h2>
             {saved?.vkLinked ? (
-              <div className={styles.checks} role="radiogroup" aria-label="Куда присылать уведомления">
-                <Radio
+              <div className={`${styles.choices} ${styles.channelChoice}`} role="radiogroup" aria-label="Куда присылать уведомления">
+                <LevelOption
                   name="notify-channel"
                   label="На телефон"
                   checked={draft.notifyChannel !== "vk"}
                   disabled={busy}
                   onChange={() => setChannel("push")}
                 />
-                <Radio
+                <LevelOption
                   name="notify-channel"
                   label="В личные сообщения ВК"
                   checked={draft.notifyChannel === "vk"}

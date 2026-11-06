@@ -339,6 +339,7 @@ button.stripOn {
 }
 
 .slotRow {
+  position: relative;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -355,6 +356,25 @@ button.stripOn {
   line-height: 1.3;
   text-align: left;
   cursor: pointer;
+}
+
+.incoming {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  transform: translateY(-50%);
 }
 
 .slotRowMain {
@@ -382,6 +402,11 @@ button.stripOn {
   border-color: var(--cal-busy);
   border-left-color: var(--cal-busy);
   background: var(--cal-busy-fill);
+}
+
+.slotRowIncoming {
+  padding-right: 40px;
+  border-left-color: var(--gold);
 }
 
 .slotRowMuted {
