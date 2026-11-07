@@ -224,6 +224,7 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
   assert.equal(failed.last_error, "Пользователь не разрешил сообщения сообщества");
 
   const answers = [];
+  const edits = [];
   const first = await handleVkCallback(sql, config, {
     type: "message_event",
     group_id: "242279722",
@@ -232,11 +233,23 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
       user_id: guestVk,
       peer_id: guestVk,
       event_id: "evt-1",
+      conversation_message_id: 42,
       payload: { requestId: request.id, action: "accept" },
     },
-  }, { answerEvent: (payload) => answers.push(payload) });
+  }, {
+    answerEvent: (payload) => answers.push(payload),
+    editMessage: (payload) => edits.push(payload),
+  });
   assert.equal(first.text, "ok");
   assert.deepEqual(answers[0], { eventId: "evt-1", userId: guestVk, peerId: guestVk, text: "Сампо подтверждено" });
+  assert.equal(edits[0].peerId, guestVk);
+  assert.equal(edits[0].cmid, 42);
+  assert.match(edits[0].message, /Сампо подтверждено/);
+  assert.match(edits[0].message, /У вас новое приглашение от Вера/);
+  const editedKeyboard = JSON.parse(edits[0].keyboard);
+  assert.equal(editedKeyboard.buttons.length, 1);
+  assert.equal(editedKeyboard.buttons[0][0].action.type, "open_link");
+  assert.equal(editedKeyboard.buttons[0][0].action.label, "Посмотреть");
   const [{ pairs }] = await sql`SELECT count(*)::int AS pairs FROM pairs WHERE request_id = ${request.id}`;
   assert.equal(pairs, 1);
   const second = await handleVkCallback(sql, config, {
@@ -244,7 +257,7 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
     group_id: 242279722,
     secret: config.vkCallbackSecret,
     object: { user_id: guestVk, payload: JSON.stringify({ requestId: request.id, action: "accept" }) },
-  }, { answerEvent: () => {} });
+  }, { answerEvent: () => {}, editMessage: () => {} });
   assert.equal(second.text, "ok");
   const [{ pairs: still }] = await sql`SELECT count(*)::int AS pairs FROM pairs WHERE request_id = ${request.id}`;
   assert.equal(still, 1);
@@ -254,7 +267,7 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
     group_id: 242279722,
     secret: config.vkCallbackSecret,
     object: { user_id: vkId(), payload: { requestId: request.id, action: "decline" } },
-  }, { answerEvent: () => {} });
+  }, { answerEvent: () => {}, editMessage: () => {} });
   assert.equal(stranger.text, "ok");
   const [{ status }] = await sql`SELECT status FROM sampo_requests WHERE id = ${request.id}`;
   assert.equal(status, "accepted");

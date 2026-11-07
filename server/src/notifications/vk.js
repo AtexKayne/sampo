@@ -67,6 +67,7 @@ export async function handleVkCallback(sql, config, body, options = {}) {
   const object = body.object && typeof body.object === "object" ? body.object : {};
   const text = await answerMessageEvent(sql, object);
   const answer = options.answerEvent ?? ((payload) => sendVkEventAnswer(config, payload));
+  const edit = options.editMessage ?? ((payload) => sendVkEdit(config, payload));
   try {
     await answer({
       eventId: object.event_id,
@@ -76,6 +77,11 @@ export async function handleVkCallback(sql, config, body, options = {}) {
     });
   } catch {
     // Запрос уже обработан, всплывающая подсказка необязательна.
+  }
+  try {
+    await markInviteMessage(sql, config, object, text, edit);
+  } catch {
+    // Подсказка уже показана, правка исходного сообщения необязательна.
   }
   return { status: 200, text: "ok" };
 }
@@ -247,6 +253,52 @@ export async function sendVkEventAnswer(config, { eventId, userId, peerId, text 
     user_id: String(userId),
     peer_id: String(peerId),
     event_data: JSON.stringify({ type: "show_snackbar", text: clip(text, 90) }),
+  });
+}
+
+export async function sendVkEdit(config, { peerId, cmid, message, keyboard }) {
+  const fields = {
+    peer_id: String(peerId),
+    cmid: String(cmid),
+    conversation_message_id: String(cmid),
+    message,
+  };
+  if (keyboard != null) fields.keyboard = keyboard;
+  return vkMethod(config, "messages.edit", fields);
+}
+
+async function markInviteMessage(sql, config, object, resultText, edit) {
+  const cmid = Number(object.conversation_message_id);
+  const peerId = object.peer_id ?? object.user_id;
+  if (!Number.isInteger(cmid) || cmid <= 0 || peerId == null) return;
+  const payload = readPayload(object.payload);
+  const lines = [];
+  let link = "";
+  if (payload?.requestId) {
+    const [row] = await sql`
+      SELECT u.display_name AS from_name, s.place, s.starts_at
+      FROM sampo_requests r
+      JOIN users u ON u.id = r.from_user_id
+      JOIN slots s ON s.id = r.slot_id
+      WHERE r.id = ${payload.requestId}
+    `;
+    if (row) {
+      lines.push(`У вас новое приглашение от ${row.from_name}`);
+      const where = slotWhere({ place: row.place, startsAt: row.starts_at });
+      if (where) lines.push(where);
+    }
+    link = absoluteUrl(config.appOrigin, `/requests/${payload.requestId}`);
+  }
+  if (lines.length) lines.push("");
+  lines.push(resultText);
+  const look = link ? linkButton(link) : null;
+  await edit({
+    peerId,
+    cmid,
+    message: clip(lines.join("\n")),
+    keyboard: look
+      ? JSON.stringify({ inline: true, buttons: [[look]] })
+      : JSON.stringify({ inline: true, buttons: [] }),
   });
 }
 
