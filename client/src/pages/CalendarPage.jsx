@@ -392,7 +392,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     selection &&
       !selection.insideFree &&
       freeBlocks.some(
-        (block) => block.dayKey === selection.dayKey && block.startMin <= selection.endMin && selection.startMin <= block.endMin,
+        (block) => block.dayKey === selection.dayKey && block.startMin < selection.endMin && selection.startMin < block.endMin,
       ),
   );
   const busyBlocks = [];

@@ -89,7 +89,7 @@ export function RequestsPage() {
               <h2 className={styles.requestEmptyTitle}>{box === "incoming" ? "Входящих пока нет" : "Вы ещё никого не позвали"}</h2>
               <p className={styles.requestEmptyText}>
                 {box === "incoming"
-                  ? "Когда кто-то пригласит вас в пару, запрос появится здесь — его можно будет подтвердить или отклонить."
+                  ? "Когда кто-то пригласит вас в пару, запрос появится здесь — его можно будет принять или отклонить."
                   : "Откройте слот в календаре и нажмите «Пригласить». Пока партнёр не ответит, запрос можно отозвать."}
               </p>
               <Link className={styles.button} to="/calendar">
@@ -103,20 +103,19 @@ export function RequestsPage() {
                 <li className={[styles.requestCard, item.status === "pending" ? styles.requestWait : "", item.status === "accepted" ? styles.requestOk : ""].filter(Boolean).join(" ")} key={item.id}>
                   <div className={styles.requestBody}>
                     <RequestStatus status={item.status} labeled />
-                    <Link className={styles.requestName} to={`/dancers/${item.otherId}`}>
-                      {item.otherName}
-                    </Link>
+                    <div className={styles.requestCopy}>
+                      <Link className={styles.requestName} to={`/dancers/${item.otherId}`}>
+                        {item.otherName}
+                      </Link>
+                      <Link className={styles.requestWhen} to={`/requests/${item.id}`}>
+                        {formatDayTitle(new Date(item.startsAt))}
+                        <span aria-hidden="true"> · </span>
+                        {formatSlotTime(item.startsAt, item.endsAt)}
+                        <span aria-hidden="true"> · </span>
+                        {item.place}
+                      </Link>
+                    </div>
                     <RequestActions aside item={item} pending={run.isPending} onRun={(path, body) => run.mutateAsync({ path, method: "POST", body })} />
-                    <Link className={styles.requestWhen} to={`/requests/${item.id}`}>
-                      {formatDayTitle(new Date(item.startsAt))}
-                      <span aria-hidden="true"> · </span>
-                      {formatSlotTime(item.startsAt, item.endsAt)}
-                      <span aria-hidden="true"> · </span>
-                      {item.place}
-                    </Link>
-                  </div>
-                  <div className={styles.requestActions}>
-                    <RequestActions hideWithdraw item={item} pending={run.isPending} onRun={(path, body) => run.mutateAsync({ path, method: "POST", body })} />
                   </div>
                 </li>
               ))}
@@ -128,7 +127,7 @@ export function RequestsPage() {
   );
 }
 
-export function RequestActions({ item, pending, onRun, aside = false, hideWithdraw = false }) {
+export function RequestActions({ item, pending, onRun, aside = false }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [localError, setLocalError] = useState("");
@@ -156,18 +155,80 @@ export function RequestActions({ item, pending, onRun, aside = false, hideWithdr
   }
 
   const withdraw = item.status === "pending" && item.direction !== "incoming";
+  const cancelDialog = open ? (
+    <Sheet
+      onClose={() => {
+        if (!pending) setOpen(false);
+      }}
+      labelledBy="cancel-request-title"
+    >
+      <div className={styles.dialogHead}>
+        <h2 className={styles.dialogTitle} id="cancel-request-title">Отменить запрос</h2>
+        <button className={styles.close} type="button" aria-label="Закрыть" disabled={pending} onClick={() => setOpen(false)}>
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+      <p className={styles.dialogText}>Пара будет снята. Записи на этот слот тоже снимутся.</p>
+      <FloatField className={styles.field} label="Причина">
+        <textarea
+          className={styles.reason}
+          value={reason}
+          maxLength={300}
+          onChange={(event) => setReason(event.target.value)}
+        />
+      </FloatField>
+      {localError ? <p className={styles.error}>{localError}</p> : null}
+      <div className={styles.row}>
+        <button className={`${styles.button} ${styles.danger}`} type="button" disabled={pending} onClick={confirmCancel}>
+          Отменить
+        </button>
+        <button className={styles.button} type="button" disabled={pending} onClick={() => setOpen(false)}>
+          Назад
+        </button>
+      </div>
+    </Sheet>
+  ) : null;
+
+  function openCancel() {
+    setLocalError("");
+    setOpen(true);
+  }
 
   if (aside) {
-    if (!withdraw) return null;
+    if (item.status === "pending" && item.direction === "incoming") {
+      return (
+        <div className={styles.requestAside}>
+          <button className={styles.primary} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/accept`).catch(() => {})}>
+            Принять
+          </button>
+          <button className={styles.button} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/decline`).catch(() => {})}>
+            Отказать
+          </button>
+        </div>
+      );
+    }
+    if (withdraw) {
+      return (
+        <button
+          className={`${styles.button} ${styles.requestAside}`}
+          type="button"
+          disabled={pending}
+          onClick={() => onRun(`/api/requests/${item.id}/cancel`).catch(() => {})}
+        >
+          Отозвать
+        </button>
+      );
+    }
+    if (!canCancel) return null;
     return (
-      <button
-        className={`${styles.button} ${styles.requestAside}`}
-        type="button"
-        disabled={pending}
-        onClick={() => onRun(`/api/requests/${item.id}/cancel`).catch(() => {})}
-      >
-        Отозвать
-      </button>
+      <>
+        <button className={`${styles.button} ${styles.requestAside}`} type="button" disabled={pending} onClick={openCancel}>
+          Отменить
+        </button>
+        {cancelDialog}
+      </>
     );
   }
 
@@ -176,66 +237,24 @@ export function RequestActions({ item, pending, onRun, aside = false, hideWithdr
       {item.status === "pending" && item.direction === "incoming" ? (
         <div className={styles.row}>
           <button className={styles.primary} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/accept`).catch(() => {})}>
-            Подтвердить
+            Принять
           </button>
           <button className={styles.button} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/decline`).catch(() => {})}>
             Отказать
           </button>
         </div>
       ) : null}
-      {withdraw && !hideWithdraw ? (
+      {withdraw ? (
         <button className={styles.button} type="button" disabled={pending} onClick={() => onRun(`/api/requests/${item.id}/cancel`).catch(() => {})}>
           Отозвать
         </button>
       ) : null}
       {canCancel ? (
-        <button
-          className={styles.button}
-          type="button"
-          disabled={pending}
-          onClick={() => {
-            setLocalError("");
-            setOpen(true);
-          }}
-        >
+        <button className={styles.button} type="button" disabled={pending} onClick={openCancel}>
           Отменить
         </button>
       ) : null}
-      {open ? (
-        <Sheet
-          onClose={() => {
-            if (!pending) setOpen(false);
-          }}
-          labelledBy="cancel-request-title"
-        >
-          <div className={styles.dialogHead}>
-            <h2 className={styles.dialogTitle} id="cancel-request-title">Отменить запрос</h2>
-            <button className={styles.close} type="button" aria-label="Закрыть" disabled={pending} onClick={() => setOpen(false)}>
-              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-                <path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
-          <p className={styles.dialogText}>Пара будет снята. Записи на этот слот тоже снимутся.</p>
-          <FloatField className={styles.field} label="Причина">
-            <textarea
-              className={styles.reason}
-              value={reason}
-              maxLength={300}
-              onChange={(event) => setReason(event.target.value)}
-            />
-          </FloatField>
-          {localError ? <p className={styles.error}>{localError}</p> : null}
-          <div className={styles.row}>
-            <button className={`${styles.button} ${styles.danger}`} type="button" disabled={pending} onClick={confirmCancel}>
-              Отменить
-            </button>
-            <button className={styles.button} type="button" disabled={pending} onClick={() => setOpen(false)}>
-              Назад
-            </button>
-          </div>
-        </Sheet>
-      ) : null}
+      {cancelDialog}
     </>
   );
 }

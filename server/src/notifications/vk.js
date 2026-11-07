@@ -210,7 +210,7 @@ function readPayload(value) {
 
 function requestKeyboard(requestId, look) {
   const rows = [[
-    button("Подтвердить", "positive", { requestId, action: "accept" }),
+    button("Принять", "positive", { requestId, action: "accept" }),
     button("Отказать", "negative", { requestId, action: "decline" }),
   ]];
   if (look) rows.push([look]);

@@ -71,7 +71,7 @@ test("an incoming request message carries confirm and decline buttons", () => {
   assert.equal(keyboard.inline, true);
   assert.deepEqual(
     keyboard.buttons[0].map((item) => item.action.label),
-    ["Подтвердить", "Отказать"],
+    ["Принять", "Отказать"],
   );
   assert.deepEqual(keyboard.buttons[1][0].action, {
     type: "open_link",
@@ -166,7 +166,7 @@ test("a dancer who chose VK gets a community message, and a phone choice skips i
   assert.equal(result.sent, 1);
   assert.equal(sent[0].peerId, guestVk);
   assert.equal(sent[0].randomId, vkRandomId(vk.id));
-  assert.match(sent[0].keyboard, /Подтвердить/);
+  assert.match(sent[0].keyboard, /Принять/);
   const [after] = await sql`SELECT status FROM notification_deliveries WHERE id = ${vk.id}`;
   assert.equal(after.status, "sent");
 

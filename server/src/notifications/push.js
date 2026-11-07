@@ -69,7 +69,7 @@ export function pushMessage(note, options = {}) {
   };
   if (!options.apple && note?.type === "request_received" && requestId) {
     message.actions = [
-      { action: "accept", title: "Подтвердить" },
+      { action: "accept", title: "Принять" },
       { action: "decline", title: "Отказать" },
     ];
   }

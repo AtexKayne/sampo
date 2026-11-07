@@ -169,7 +169,7 @@ describe("push delivery", { concurrency: false }, () => {
     assert.ok(sentTo[0].body.actions);
     assert.deepEqual(
       sentTo[0].body.actions.map((action) => action.title),
-      ["Подтвердить", "Отказать"],
+      ["Принять", "Отказать"],
     );
     assert.equal((await delivery(guest)).status, "sent");
   });

@@ -85,7 +85,7 @@ export function SlotPanel({ id, onClose }) {
           compact ? (
             <>
               <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
-                Подтвердить
+                Принять
               </button>
               <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
                 Отказать
@@ -94,7 +94,7 @@ export function SlotPanel({ id, onClose }) {
           ) : (
             <div className={styles.row}>
               <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
-                Подтвердить
+                Принять
               </button>
               <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
                 Отказать
@@ -135,18 +135,29 @@ export function SlotPanel({ id, onClose }) {
       <li className={[styles.requestCard, item.status === "pending" ? styles.requestWait : "", item.status === "accepted" ? styles.requestOk : ""].filter(Boolean).join(" ")} key={item.id}>
         <div className={styles.requestBody}>
           <RequestStatus status={item.status} labeled />
-          <Link className={styles.requestName} to={`/dancers/${item.otherId}`}>
-            {item.otherName}
-          </Link>
+          <div className={styles.requestCopy}>
+            <Link className={styles.requestName} to={`/dancers/${item.otherId}`}>
+              {item.otherName}
+            </Link>
+            <p className={styles.requestWhen}>{item.direction === "incoming" ? "Приглашение вам" : "Вы пригласили"}</p>
+          </div>
           {item.direction === "outgoing" && item.status === "pending" ? (
             <button className={`${styles.button} ${styles.requestAside}`} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/cancel`, method: "POST" })}>
               Отозвать
             </button>
           ) : null}
-          <p className={styles.requestWhen}>{item.direction === "incoming" ? "Приглашение вам" : "Вы пригласили"}</p>
+          {item.direction === "incoming" && item.status === "pending" ? (
+            <div className={styles.requestAside}>
+              <button className={styles.primary} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/accept`, method: "POST" })}>
+                Принять
+              </button>
+              <button className={styles.button} type="button" disabled={run.isPending} onClick={() => run.mutate({ path: `/api/requests/${item.id}/decline`, method: "POST" })}>
+                Отказать
+              </button>
+            </div>
+          ) : null}
         </div>
-        {((item.direction === "incoming" && item.status === "pending") ||
-          (item.status === "accepted" && slot.myPair && !started && item.otherId === slot.myPair.partnerId)) ? (
+        {item.status === "accepted" && slot.myPair && !started && item.otherId === slot.myPair.partnerId ? (
           <div className={styles.requestActions}>{actions}</div>
         ) : null}
       </li>
