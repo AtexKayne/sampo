@@ -7,6 +7,7 @@ import { registerAuthRoutes } from "./auth/routes.js";
 import { registerSlotRoutes } from "./slots/routes.js";
 import { registerUserRoutes } from "./user/routes.js";
 import { expireDue, remindDue } from "./domain/sampo.js";
+import { expireSlotProposals } from "./domain/slot-proposals.js";
 import { listenForNotifications, registerNotificationStream } from "./notifications/live.js";
 import { deliverPendingPush, prepareVapid, registerPushRoutes } from "./notifications/push.js";
 import { deliverPendingVk, registerVkRoutes } from "./notifications/vk.js";
@@ -34,6 +35,7 @@ if (sql) {
   await listenForNotifications(sql, app.log);
   setInterval(() => {
     expireDue(sql).catch((error) => app.log.error(error));
+    expireSlotProposals(sql).catch((error) => app.log.error(error));
     remindDue(sql).catch((error) => app.log.error(error));
     deliverPendingPush(sql, config).catch((error) => app.log.error(error));
     deliverPendingVk(sql, config).catch((error) => app.log.error(error));

@@ -61,7 +61,7 @@
   padding-bottom: 4px;
 }
 
-.field:is(:focus-within, :has(textarea:not(:placeholder-shown))) textarea {
+.field textarea {
   padding-top: 26px;
 }
 
@@ -73,10 +73,6 @@
 
 .field input {
   min-height: 56px;
-}
-
-.field input,
-.field textarea {
   transition: padding 180ms ease;
 }
 

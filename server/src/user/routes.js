@@ -22,6 +22,7 @@ import {
   setAvailability,
   withdrawRequest,
 } from "../domain/sampo.js";
+import { createSlotProposal } from "../domain/slot-proposals.js";
 import {
   addToBlacklist,
   addToWhitelist,
@@ -36,6 +37,12 @@ import {
 } from "../domain/profile.js";
 
 export function registerUserRoutes(app, { db, sql, config }) {
+  app.post("/api/slot-proposals", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireDancer(user);
+    return createSlotProposal(sql, user.id, request.body);
+  });
+
   app.post("/api/slots/:id/attendance", async (request) => {
     const user = await requireUser(request, db, config);
     requireDancer(user);

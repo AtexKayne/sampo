@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
 import { FloatField } from "../components/FloatField.jsx";
@@ -88,6 +88,13 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const [windowDelete, setWindowDelete] = useState(false);
   const [windowError, setWindowError] = useState("");
   const [helpOpen, setHelpOpen] = useState(false);
+  const [reviewing, setReviewing] = useState(null);
+  const [reviewPlace, setReviewPlace] = useState("Зал 1");
+  const [reviewCapacity, setReviewCapacity] = useState("20");
+  const [reviewDescription, setReviewDescription] = useState("");
+  const [reviewError, setReviewError] = useState("");
+  const [proposalDescription, setProposalDescription] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
   const [agenda, setAgenda] = useState(readCalendarView);
   const [repeat, setRepeat] = useState("once");
   const [intervalDays, setIntervalDays] = useState("2");
@@ -107,13 +114,45 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     queryFn: () => api("/api/me/windows"),
     enabled: session.status === "ready" && session.user?.appRole !== "admin",
   });
+  const showPropose = Boolean(session.user) && session.user.appRole !== "admin" && !adminOnly && !availabilityOnly;
+
+  useEffect(() => {
+    if (!showPropose) return undefined;
+    const root = document.documentElement;
+    root.dataset.proposeSlot = "1";
+    return () => {
+      delete root.dataset.proposeSlot;
+    };
+  }, [showPropose]);
 
   useEffect(() => {
     if (!canCreate && weekOffset < 0) setWeekOffset(0);
   }, [canCreate, weekOffset]);
 
+  const focusProposal = searchParams.get("proposal");
   useEffect(() => {
-    if (!editing && !windowEdit) return undefined;
+    if (!focusProposal || session.user?.appRole !== "admin") return undefined;
+    let cancelled = false;
+    api(`/api/admin/slot-proposals/${focusProposal}`)
+      .then((item) => {
+        if (cancelled) return;
+        setReviewing(item);
+        setReviewPlace(item.proposedPlace || "Зал 1");
+        setReviewCapacity("20");
+        setReviewDescription(item.description ?? "");
+        setReviewError("");
+        const next = new URLSearchParams(searchParams);
+        next.delete("proposal");
+        setSearchParams(next, { replace: true });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [focusProposal, session.user?.appRole, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!editing && !windowEdit && !reviewing) return undefined;
     const clear = () => {
       const picked = window.getSelection();
       if (!picked || picked.isCollapsed) return;
@@ -142,10 +181,10 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       document.removeEventListener("pointerup", stop, true);
       document.removeEventListener("pointercancel", stop, true);
     };
-  }, [editing, windowEdit]);
+  }, [editing, windowEdit, reviewing]);
 
   useEffect(() => {
-    if (!editing && !selection && !windowEdit && !helpOpen) return undefined;
+    if (!editing && !selection && !windowEdit && !helpOpen && !reviewing) return undefined;
     function onKey(event) {
       if (event.key !== "Escape") return;
       if (helpOpen) {
@@ -161,6 +200,11 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
         setWindowError("");
         return;
       }
+      if (reviewing) {
+        setReviewing(null);
+        setReviewError("");
+        return;
+      }
       if (editing) {
         setEditing(null);
         return;
@@ -170,7 +214,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editing, selection, windowEdit, windowDelete, helpOpen]);
+  }, [editing, selection, windowEdit, windowDelete, helpOpen, reviewing]);
 
   const createSlot = useMutation({
     mutationFn: (body) => api("/api/admin/slots", { method: "POST", body }),
@@ -181,6 +225,38 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       await queryClient.invalidateQueries({ queryKey: ["slot-descriptions"] });
     },
     onError: (error) => setFormError(error.message),
+  });
+
+  const createProposal = useMutation({
+    mutationFn: (body) => api("/api/slot-proposals", { method: "POST", body }),
+    onSuccess: async () => {
+      setSelection(null);
+      setProposalDescription("");
+      setPurpose("free");
+      await queryClient.invalidateQueries({ queryKey: ["slots"] });
+    },
+    onError: (error) => setFormError(error.message),
+  });
+
+  const acceptProposal = useMutation({
+    mutationFn: ({ id, body }) => api(`/api/admin/slot-proposals/${id}/accept`, { method: "POST", body }),
+    onSuccess: async () => {
+      setReviewing(null);
+      setReviewError("");
+      await queryClient.invalidateQueries({ queryKey: ["slots"] });
+      await queryClient.invalidateQueries({ queryKey: ["slot-descriptions"] });
+    },
+    onError: (error) => setReviewError(error.message),
+  });
+
+  const declineProposal = useMutation({
+    mutationFn: (id) => api(`/api/admin/slot-proposals/${id}/decline`, { method: "POST" }),
+    onSuccess: async () => {
+      setReviewing(null);
+      setReviewError("");
+      await queryClient.invalidateQueries({ queryKey: ["slots"] });
+    },
+    onError: (error) => setReviewError(error.message),
   });
 
   const saveSlot = useMutation({
@@ -280,11 +356,22 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   }
 
   function openEdit(slot) {
+    if (slot.kind === "proposal") {
+      setSelection(null);
+      setEditing(null);
+      setReviewing(slot);
+      setReviewPlace(slot.proposedPlace || "Зал 1");
+      setReviewCapacity("20");
+      setReviewDescription(slot.description ?? "");
+      setReviewError("");
+      return;
+    }
     if (!canCreate && new Date(slot.endsAt).getTime() <= Date.now()) return;
     setSelection(null);
     setWindowEdit(null);
     setWindowDelete(false);
     setFormError("");
+    setReviewing(null);
     setEditing(slot);
     setEditPlace(slot.place);
     setEditCapacity(String(slot.capacity));
@@ -308,6 +395,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     setWindowEdit(null);
     setWindowDelete(false);
     setFormError("");
+    if (next === "propose") setAgenda(false);
   }
 
   function resetCreateFields() {
@@ -332,7 +420,11 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     }
     setWindowEdit(null);
     setWindowDelete(false);
-    if (result.committed) resetCreateFields();
+    if (result.committed && canCreate) resetCreateFields();
+    if (result.committed && purpose === "propose") {
+      setPlace("");
+      setProposalDescription("");
+    }
     setSelection({
       dayKey,
       startMin: result.startMin,
@@ -372,7 +464,9 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     .sort((left, right) => new Date(left.startsAt) - new Date(right.startsAt));
   const showAgenda = !wide && agenda;
   const dancer = session.user.appRole !== "admin";
-  const markingAvailability = dancer && !adminOnly && (availabilityOnly || !canCreate || purpose !== "slot");
+  const canPropose = dancer && !adminOnly && !availabilityOnly;
+  const proposing = canPropose && purpose === "propose";
+  const markingAvailability = dancer && !adminOnly && !proposing;
   const selectionBusy = Boolean(selection?.insideFree);
   const freeLimits = {
     maxMinutes: 15 * 60,
@@ -405,24 +499,29 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   return (
     <Shell user={session.user} onLogout={onLogout} pending={pending} wide>
       <div className={styles.head}>
-        <h1 className={styles.title}>{heading}</h1>
-        {dancer ? (
-          <button className={styles.helpLink} type="button" onClick={() => setHelpOpen(true)}>
-            Как пользоваться?
-          </button>
+        <div className={styles.headLead}>
+          <h1 className={styles.title}>{heading}</h1>
+          {dancer ? (
+            <button className={styles.helpLink} type="button" onClick={() => setHelpOpen(true)}>
+              Как пользоваться?
+            </button>
+          ) : null}
+        </div>
+        {canPropose ? (
+          <div className={styles.proposeSlot}>
+            <button
+              className={[styles.propose, proposing ? styles.proposeOn : styles.button, proposing ? styles.primary : ""]
+                .filter(Boolean)
+                .join(" ")}
+              type="button"
+              aria-pressed={proposing}
+              onClick={() => choosePurpose(proposing ? "free" : "propose")}
+            >
+              Предложить слот
+            </button>
+          </div>
         ) : null}
       </div>
-      {dancer && canCreate && !adminOnly && !availabilityOnly ? (
-        <div className={styles.modes}>
-          <button
-            className={purpose === "slot" ? styles.primary : styles.button}
-            type="button"
-            onClick={() => choosePurpose(!dancer || purpose !== "slot" ? "slot" : "free")}
-          >
-            Новый слот
-          </button>
-        </div>
-      ) : null}
       <div className={styles.gridBar}>
         {slotsQuery.isSuccess && markingAvailability ? (
           <div className={styles.legend}>
@@ -525,7 +624,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             busyBlocks={busyBlocks}
             selection={selection}
             selectionLimits={markingAvailability ? freeLimits : undefined}
-            interactive={markingAvailability || canCreate}
+            interactive={markingAvailability || canCreate || proposing}
             selectInsideFree={markingAvailability}
             showAvailability={markingAvailability}
             now={now}
@@ -598,6 +697,161 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             removeWindow.mutate({ id: editedWindow.id, scope, day: windowEdit.dayKey });
           }}
         />
+      ) : null}
+      {proposing && selection?.committed && selectedDay ? (
+        <Sheet
+          onClose={() => {
+            setSelection(null);
+            setFormError("");
+          }}
+          labelledBy="slot-propose-title"
+          size="l"
+        >
+          <header className={styles.modalShell}>
+            <div className={styles.modalHead}>
+              <h2 className={styles.modalTitle} id="slot-propose-title">
+                Предложить слот
+              </h2>
+              <ModalClose
+                onClick={() => {
+                  setSelection(null);
+                  setFormError("");
+                }}
+              />
+            </div>
+            <p className={styles.modalNote}>
+              {formatDayTitle(selectedDay)}, {formatMinutes(selection.startMin)}–{formatMinutes(selection.endMin)}
+            </p>
+          </header>
+          <form
+            className={styles.adminFields}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!selection?.ok) return;
+              setFormError("");
+              createProposal.mutate({
+                startsAtLocal: studioLocalValue(selection.dayKey, selection.startMin),
+                endsAtLocal: studioLocalValue(selection.dayKey, selection.endMin),
+                place,
+                description: proposalDescription,
+              });
+            }}
+          >
+            <FloatField className={styles.field} label="Зал">
+              <input
+                className={styles.input}
+                required
+                value={place}
+                onChange={(event) => setPlace(event.target.value)}
+              />
+            </FloatField>
+            <ResponsibleField value={session.user} onChange={() => {}} disabled />
+            <FloatField className={styles.field} label="Описание">
+              <textarea
+                className={styles.area}
+                rows={3}
+                maxLength={1000}
+                value={proposalDescription}
+                onChange={(event) => setProposalDescription(event.target.value)}
+              />
+            </FloatField>
+            {formError ? <p className={styles.error}>{formError}</p> : null}
+            <div className={styles.actions}>
+              <button
+                className={`${styles.primary} ${styles.actionFill}`}
+                type="submit"
+                disabled={!selection.ok || !place.trim() || createProposal.isPending}
+              >
+                Отправить
+              </button>
+            </div>
+          </form>
+        </Sheet>
+      ) : null}
+      {reviewing ? (
+        <Sheet
+          onClose={() => {
+            if (!acceptProposal.isPending && !declineProposal.isPending) {
+              setReviewing(null);
+              setReviewError("");
+            }
+          }}
+          labelledBy="slot-review-title"
+          size="l"
+        >
+          <header className={styles.modalShell}>
+            <div className={styles.modalHead}>
+              <h2 className={styles.modalTitle} id="slot-review-title">
+                Предложение слота
+              </h2>
+              <ModalClose
+                onClick={() => {
+                  if (!acceptProposal.isPending && !declineProposal.isPending) {
+                    setReviewing(null);
+                    setReviewError("");
+                  }
+                }}
+              />
+            </div>
+            <p className={styles.modalNote}>
+              {formatDayTitle(new Date(reviewing.startsAt))}, {formatSlotTime(reviewing.startsAt, reviewing.endsAt)}
+            </p>
+            <p className={styles.modalNote}>От {reviewing.proposedBy?.displayName ?? "участника"}</p>
+            {!canCreate && reviewing.description ? <p className={styles.modalNote}>{reviewing.description}</p> : null}
+          </header>
+          {canCreate ? (
+          <form
+            className={styles.adminFields}
+            onSubmit={(event) => {
+              event.preventDefault();
+              setReviewError("");
+              acceptProposal.mutate({
+                id: reviewing.id,
+                body: { place: reviewPlace, capacity: Number(reviewCapacity), description: reviewDescription },
+              });
+            }}
+          >
+            <FloatField className={styles.field} label="Зал">
+              <input className={styles.input} required value={reviewPlace} onChange={(event) => setReviewPlace(event.target.value)} />
+            </FloatField>
+            <DescriptionField value={reviewDescription} onChange={setReviewDescription} />
+            <FloatField className={styles.field} label="Вместимость">
+              <input
+                className={styles.input}
+                type="number"
+                min="1"
+                max="200"
+                required
+                value={reviewCapacity}
+                onChange={(event) => setReviewCapacity(event.target.value)}
+              />
+            </FloatField>
+            {reviewError ? <p className={styles.error}>{reviewError}</p> : null}
+            <div className={`${styles.actions} ${styles.reviewActions}`}>
+              <button
+                className={styles.primary}
+                type="submit"
+                disabled={acceptProposal.isPending || declineProposal.isPending}
+              >
+                Принять
+              </button>
+              <button
+                className={styles.danger}
+                type="button"
+                disabled={acceptProposal.isPending || declineProposal.isPending}
+                onClick={() => {
+                  setReviewError("");
+                  declineProposal.mutate(reviewing.id);
+                }}
+              >
+                Отклонить
+              </button>
+            </div>
+          </form>
+          ) : (
+            <p className={styles.modalNote}>Заявка отправлена, администратор ещё проверяет запрос</p>
+          )}
+        </Sheet>
       ) : null}
       {canCreate && !markingAvailability && selection?.committed && selectedDay ? (
         <Sheet
@@ -859,6 +1113,11 @@ function dayKeyOfSlot(slot) {
 
 function slotNotes(slot) {
   const notes = [];
+  if (slot.kind === "proposal") {
+    notes.push("Предложение");
+    if (slot.proposedBy?.displayName) notes.push(slot.proposedBy.displayName);
+    return notes;
+  }
   if (slot.myPendingIncomingCount > 0) notes.push("Вас пригласили");
   if (slot.status === "cancelled") notes.push("Отменён");
   if (slot.visibility === "closed") notes.push("Закрытое");
@@ -900,7 +1159,15 @@ function SlotAgenda({ slots, markingAvailability, freeBlocks, onOpen }) {
               const incoming = Number(slot.myPendingIncomingCount) || 0;
               const inFree = markingAvailability && slotOverlapsFree(slot, freeBlocks);
               const tone =
-                slot.status === "cancelled" ? styles.slotRowMuted : markingAvailability ? (inFree ? styles.slotRowFree : styles.slotRowBusy) : "";
+                slot.kind === "proposal"
+                  ? styles.slotRowProposed
+                  : slot.status === "cancelled"
+                    ? styles.slotRowMuted
+                    : markingAvailability
+                      ? inFree
+                        ? styles.slotRowFree
+                        : styles.slotRowBusy
+                      : "";
               return (
                 <li key={slot.id}>
                   <button
@@ -944,6 +1211,9 @@ function HelpDialog({ onClose }) {
           </p>
           <p className={styles.guideText}>
             Если слот сампо попадает в отмеченный интервал, он становится активным, и другой пользователь увидит тебя в списке тех, кого можно пригласить. Или выбери конкретный слот и сделай его активным одной кнопкой.
+          </p>
+          <p className={styles.guideText}>
+            Кнопка «Предложить слот» включает режим заявки: выбери время на сетке и укажи зал. Ответственным будешь ты, описание — по желанию. Студия получит запрос и решит, открывать слот или нет.
           </p>
           <p className={styles.guideText}>
             В профиле можешь настроить списки тех, кто может приглашать тебя на сампо, а также быстрый вход по логину и уведомления. При установке на телефон можно включить пуш-уведомления.

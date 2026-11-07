@@ -60,7 +60,6 @@ export function ProfilePage() {
           </div>
           <div className={styles.adminPage}>
             <AdminUserSearch creating={creatingUser} onCreatingChange={setCreatingUser} />
-            <AdminAudienceLists />
           </div>
         </div>
       </Shell>
@@ -1015,7 +1014,7 @@ function AdminUserSearch({ creating = false, onCreatingChange }) {
   );
 }
 
-function AdminAudienceLists() {
+export function AdminAudienceLists() {
   const [editing, setEditing] = useState(null);
   const listsQuery = useQuery({
     queryKey: ["audience-lists"],
@@ -1759,7 +1758,7 @@ function Radio({ name, label, checked, disabled, onChange }) {
   );
 }
 
-function samePlace(prev, next) {
+export function samePlace(prev, next) {
   return prev.left === next.left && prev.top === next.top && prev.width === next.width && prev.maxHeight === next.maxHeight && prev.upward === next.upward;
 }
 
@@ -1769,7 +1768,7 @@ function visualCover() {
   return { width: viewport.width, height: viewport.height };
 }
 
-function menuPlace(field, probe, limit = 220) {
+export function menuPlace(field, probe, limit = 220) {
   const rect = field.getBoundingClientRect();
   const origin = probe.getBoundingClientRect();
   const cover = visualCover();
@@ -1789,7 +1788,7 @@ function menuPlace(field, probe, limit = 220) {
   };
 }
 
-function InvitePeopleTable({ people, label, listed, busy, compact, head, onAction, actionLabel, doneLabel }) {
+export function InvitePeopleTable({ people, label, listed, busy, compact, head, onAction, actionLabel, doneLabel }) {
   return (
     <div className={compact ? undefined : styles.inviteCard}>
       <table className={styles.inviteTable} aria-label={label}>
@@ -1830,7 +1829,7 @@ function InvitePeopleTable({ people, label, listed, busy, compact, head, onActio
   );
 }
 
-function byName(left, right) {
+export function byName(left, right) {
   return left.displayName.localeCompare(right.displayName, "ru") || left.id.localeCompare(right.id);
 }
 

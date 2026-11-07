@@ -20,6 +20,10 @@ function incomingCount(slot) {
 
 function slotNotes(slot) {
   const notes = [];
+  if (slot.kind === "proposal") {
+    notes.push("Предложение");
+    return notes;
+  }
   if (incomingCount(slot) > 0) notes.push("Вас пригласили");
   if (slot.status === "cancelled") notes.push("Отменён");
   if (slot.visibility === "closed") notes.push("Закрытое");
@@ -558,7 +562,16 @@ export function TimeGrid({ days, slots, freeBlocks = [], busyBlocks = [], select
                   {about}
                 </>
               );
-              const tone = slot.status === "cancelled" ? styles.slotCancelled : !showAvailability ? "" : inFree ? styles.slotFree : styles.slotBusy;
+              const tone =
+                slot.kind === "proposal"
+                  ? styles.slotProposed
+                  : slot.status === "cancelled"
+                    ? styles.slotCancelled
+                    : !showAvailability
+                      ? ""
+                      : inFree
+                        ? styles.slotFree
+                        : styles.slotBusy;
               const className = [
                 styles.slot,
                 tone,

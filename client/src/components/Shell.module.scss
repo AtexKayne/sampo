@@ -497,6 +497,14 @@
     --bottom-nav: calc(6px + 52px + 6px + 1px + 8px + 44px + 8px + 1px + 8px + env(safe-area-inset-bottom, 0px));
   }
 
+  :global(html[data-propose-slot]) .shell {
+    --bottom-nav: calc(6px + 52px + 6px + 1px + 32px + 1px + 8px + env(safe-area-inset-bottom, 0px));
+  }
+
+  :global(html[data-propose-slot]) .toasts {
+    bottom: calc(6px + 52px + 6px + 1px + 32px + 1px + 12px);
+  }
+
   .desktopNav {
     display: none;
   }

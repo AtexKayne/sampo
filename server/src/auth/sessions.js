@@ -1,11 +1,11 @@
-import { and, asc, eq, gt, ne } from "drizzle-orm";
+import { and, asc, eq, gt, notInArray } from "drizzle-orm";
+import { listLinkedUserIds } from "../domain/admin-settings.js";
 import { refreshSessions, users } from "../db/schema.js";
 import { hashRefreshToken, newRefreshToken, REFRESH_TTL_MS } from "./tokens.js";
 
 export const REFRESH_COOKIE = "sampo_refresh";
 
-// Алексей Кремлев может перейти в аккаунт администратора и вернуться.
-// Сессия, открытая входом администратора, такого перехода не получает.
+// Первый связанный пользователь: миграция 0027 кладёт его в admin_setting_users.
 export const ACCOUNT_SWITCH_USER_ID = "3c390d87-222d-457b-b2db-49d76053c09e";
 
 export function publicUser(row) {
@@ -20,31 +20,43 @@ export function publicUser(row) {
   };
 }
 
-export function switchTargetId({ loginUserId, activeUserId, adminId, allowedUserId = ACCOUNT_SWITCH_USER_ID }) {
-  if (!adminId || loginUserId !== allowedUserId) return null;
-  if (activeUserId === allowedUserId) return adminId;
-  if (activeUserId === adminId) return allowedUserId;
+function allowedIdsFrom(options = {}) {
+  if (Array.isArray(options.allowedUserIds)) return options.allowedUserIds;
+  if (options.allowedUserId) return [options.allowedUserId];
   return null;
 }
 
-async function findSwitchAdmin(db, allowedUserId = ACCOUNT_SWITCH_USER_ID) {
+export function switchTargetId({ loginUserId, activeUserId, adminId, allowedUserId, allowedUserIds }) {
+  const allowed = new Set(allowedUserIds ?? (allowedUserId ? [allowedUserId] : []));
+  if (!adminId || !allowed.has(loginUserId)) return null;
+  if (activeUserId === loginUserId) return adminId;
+  if (activeUserId === adminId) return loginUserId;
+  return null;
+}
+
+async function findSwitchAdmin(db, allowedUserIds = []) {
+  const where = allowedUserIds.length
+    ? and(eq(users.appRole, "admin"), notInArray(users.id, allowedUserIds))
+    : eq(users.appRole, "admin");
   const [admin] = await db
     .select({ id: users.id, displayName: users.displayName })
     .from(users)
-    .where(and(eq(users.appRole, "admin"), ne(users.id, allowedUserId)))
+    .where(where)
     .orderBy(asc(users.createdAt))
     .limit(1);
   return admin ?? null;
 }
 
-export async function presentUser(db, user, loginUserId = user.id) {
+export async function presentUser(db, user, loginUserId = user.id, options = {}) {
   const body = publicUser(user);
-  if (loginUserId !== ACCOUNT_SWITCH_USER_ID) return body;
-  const admin = await findSwitchAdmin(db);
+  const allowedUserIds = allowedIdsFrom(options) ?? (await listLinkedUserIds(options.sql));
+  if (!allowedUserIds.includes(loginUserId)) return body;
+  const admin = await findSwitchAdmin(db, allowedUserIds);
   const targetId = switchTargetId({
     loginUserId,
     activeUserId: user.id,
     adminId: admin?.id ?? null,
+    allowedUserIds,
   });
   if (!targetId) return body;
   if (admin && targetId === admin.id) {
@@ -184,7 +196,7 @@ export async function refreshSessionAlive(db, sessionId, now = new Date()) {
 export async function switchRefreshAccount(db, token, options = {}) {
   if (!token) return { status: "unauthorized" };
   const now = options.now ?? new Date();
-  const allowedUserId = options.allowedUserId ?? ACCOUNT_SWITCH_USER_ID;
+  const allowedUserIds = allowedIdsFrom(options) ?? (await listLinkedUserIds(options.sql));
   const tokenHash = hashRefreshToken(token);
   return db.transaction(async (tx) => {
     const [row] = await tx
@@ -198,12 +210,12 @@ export async function switchRefreshAccount(db, token, options = {}) {
       .where(and(eq(refreshSessions.tokenHash, tokenHash), gt(refreshSessions.expiresAt, now)));
     if (!row) return { status: "unauthorized" };
 
-    const admin = options.adminId ? { id: options.adminId } : await findSwitchAdmin(tx, allowedUserId);
+    const admin = options.adminId ? { id: options.adminId } : await findSwitchAdmin(tx, allowedUserIds);
     const targetId = switchTargetId({
       loginUserId: row.loginUserId,
       activeUserId: row.userId,
       adminId: admin?.id ?? null,
-      allowedUserId,
+      allowedUserIds,
     });
     if (!targetId) return { status: "forbidden" };
 

@@ -1,9 +1,18 @@
 .head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 8px 16px;
   margin-top: 28px;
+}
+
+.headLead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  min-width: 0;
+  margin-right: auto;
 }
 
 .title {
@@ -44,11 +53,56 @@
   line-height: 1.4;
 }
 
-.modes {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 16px;
+.proposeSlot {
+  margin-left: auto;
+}
+
+.proposeSlot .propose {
+  min-height: 32px;
+  padding: 0 12px;
+  font-size: 14px;
+}
+
+@media (max-width: 799px) {
+  .proposeSlot {
+    position: fixed;
+    z-index: 3;
+    right: 0;
+    bottom: calc(6px + 52px + 6px + 1px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    margin: 0;
+    border-top: 1px solid var(--line);
+    background: color-mix(in srgb, var(--bg) 92%, transparent);
+    backdrop-filter: blur(16px);
+  }
+
+  .proposeSlot .propose,
+  .proposeSlot .propose.button,
+  .proposeSlot .propose.primary {
+    width: 100%;
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 500;
+    transition:
+      background-color 160ms cubic-bezier(0.32, 0.72, 0, 1),
+      color 160ms cubic-bezier(0.32, 0.72, 0, 1);
+
+    &:active:not(:disabled):not(:has(:disabled)) {
+      transform: none;
+    }
+  }
+
+  .proposeSlot .proposeOn,
+  .proposeSlot .proposeOn.primary {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
 }
 
 .legend {
@@ -414,6 +468,13 @@ button.stripOn {
   border-left-color: var(--muted);
 }
 
+.slotRowProposed {
+  border-style: dashed;
+  border-color: var(--gold);
+  border-left-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 12%, var(--surface));
+}
+
 @media (hover: hover) and (pointer: fine) {
   .slotRow:hover {
     filter: brightness(0.97);
@@ -652,6 +713,25 @@ button.stripOn {
 
 .actionFill {
   width: 100%;
+}
+
+.reviewActions {
+  flex-wrap: nowrap;
+}
+
+.reviewActions .primary,
+.reviewActions .danger {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 799px) {
+  .reviewActions .primary,
+  .reviewActions .danger {
+    min-height: 36px;
+    padding: 0 12px;
+    font-size: 14px;
+  }
 }
 
 .fallback {

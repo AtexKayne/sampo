@@ -1694,6 +1694,7 @@ export async function listNotifications(sql, userId) {
     text: row.payload?.text ?? "",
     requestId: row.payload?.requestId ?? null,
     slotId: row.payload?.slotId ?? null,
+    proposalId: row.payload?.proposalId ?? null,
     readAt: row.read_at ? new Date(row.read_at).toISOString() : null,
     createdAt: new Date(row.created_at).toISOString(),
   }));

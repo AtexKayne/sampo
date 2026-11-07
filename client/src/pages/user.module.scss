@@ -1240,6 +1240,10 @@ input.radio {
   margin-inline: auto;
 }
 
+.adminLayoutNarrow {
+  max-width: 640px;
+}
+
 .adminPage {
   display: flex;
   flex-direction: column;

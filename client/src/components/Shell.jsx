@@ -97,6 +97,7 @@ export function Shell({ user, onLogout, pending, fill = false, wide = false, chi
             <>
               <Tab to="/me" label="Пользователи" icon="users" active={usersActive(location.pathname)} />
               <Tab to="/calendar" label="Календарь" icon="calendar" active={calendarActive(location.pathname)} />
+              <Tab to="/admin/settings" label="Настройки" icon="settings" active={settingsActive(location.pathname)} />
             </>
           ) : (
             <>
@@ -125,6 +126,10 @@ function calendarActive(pathname) {
 
 function usersActive(pathname) {
   return pathname === "/me" || pathname.startsWith("/admin/users");
+}
+
+function settingsActive(pathname) {
+  return pathname.startsWith("/admin/settings");
 }
 
 function profileActive(pathname) {
@@ -203,6 +208,16 @@ function TabIcon({ name }) {
         <path d="M4 19c.9-3.2 2.8-4.8 5-4.8" />
         <circle cx="16.5" cy="9.5" r="2.5" />
         <path d="M20.5 19c-.7-2.6-2.2-4-4-4.2" />
+      </svg>
+    );
+  }
+  if (name === "settings") {
+    return (
+      <svg {...common} strokeWidth="1.4">
+        <g transform="translate(12 12) scale(0.86) translate(-12 -12)">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        </g>
       </svg>
     );
   }
@@ -348,6 +363,14 @@ function ProfileMenu({ user, onLogout, pending, incomingCount, open, onToggle, o
             </span>
             <span className={styles.itemText}>{user.appRole === "admin" ? "Пользователи" : "Профиль"}</span>
           </NavLink>
+          {user.appRole === "admin" ? (
+            <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/admin/settings" onClick={onClose}>
+              <span className={styles.itemIcon} aria-hidden="true">
+                <TabIcon name="settings" />
+              </span>
+              <span className={styles.itemText}>Настройки</span>
+            </NavLink>
+          ) : null}
           {user.appRole === "admin" ? null : (
             <NavLink className={({ isActive }) => (isActive ? styles.itemOn : styles.item)} to="/requests" onClick={onClose}>
               <span className={styles.itemIcon} aria-hidden="true">

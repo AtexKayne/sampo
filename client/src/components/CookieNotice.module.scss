@@ -59,4 +59,8 @@
   :global(html[data-bottom-nav="1"]) .banner {
     bottom: calc(6px + 52px + 6px + 1px + 12px + env(safe-area-inset-bottom));
   }
+
+  :global(html[data-bottom-nav="1"][data-propose-slot]) .banner {
+    bottom: calc(6px + 52px + 6px + 1px + 32px + 1px + 12px + env(safe-area-inset-bottom));
+  }
 }

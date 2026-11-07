@@ -14,6 +14,7 @@ import {
 import { closeSession, closeUser } from "../notifications/live.js";
 import { createPasswordUser, setLoginPassword } from "../domain/credentials.js";
 import { adminProfile, deleteOtherProfile, deleteProfile, parseSampoTotal, requireExistingUser, saveProfile, searchAccounts, setSampoTotal, setUserAchievements } from "../domain/profile.js";
+import { getAdminSettings, saveAdminSettings } from "../domain/admin-settings.js";
 import { requireAdmin, requireDancer, requireUser } from "./access.js";
 import { signAccessToken, verifyAccessToken, REFRESH_TTL_MS } from "./tokens.js";
 import {
@@ -47,9 +48,9 @@ function cookieOptions(config, expiresAt) {
   };
 }
 
-async function sendAuth(reply, db, config, accessToken, user, refresh, loginUserId = user.id) {
+async function sendAuth(reply, db, sql, config, accessToken, user, refresh, loginUserId = user.id) {
   reply.setCookie(COOKIE, refresh.token, cookieOptions(config, refresh.expiresAt));
-  return { accessToken, user: await presentUser(db, user, loginUserId) };
+  return { accessToken, user: await presentUser(db, user, loginUserId, { sql }) };
 }
 
 function requireDatabase(db) {
@@ -111,7 +112,7 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
 
     const refresh = await issueRefreshSession(db, user.id);
     const accessToken = signAccessToken(user, config.jwtAccessSecret);
-    return sendAuth(reply, db, config, accessToken, user, refresh, user.id);
+    return sendAuth(reply, db, sql, config, accessToken, user, refresh, user.id);
   });
 
   app.post("/api/auth/refresh", async (request, reply) => {
@@ -121,19 +122,20 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
     if (!rotated) throw new HttpError(401, "AUTH_INVALID", "Нужно войти");
     const accessToken = signAccessToken(rotated.user, config.jwtAccessSecret);
     const expiresAt = new Date(Date.now() + REFRESH_TTL_MS);
-    return sendAuth(reply, db, config, accessToken, rotated.user, { token: rotated.token, expiresAt }, rotated.loginUserId);
+    return sendAuth(reply, db, sql, config, accessToken, rotated.user, { token: rotated.token, expiresAt }, rotated.loginUserId);
   });
 
   app.post("/api/auth/switch", async (request, reply) => {
     requireDatabase(db);
     requireJwt(config);
-    const switched = await switchRefreshAccount(db, request.cookies?.[COOKIE]);
+    const switched = await switchRefreshAccount(db, request.cookies?.[COOKIE], { sql });
     if (switched.status === "unauthorized") throw new HttpError(401, "AUTH_INVALID", "Нужно войти");
     if (switched.status !== "ok") throw new HttpError(403, "FORBIDDEN", "Переключение аккаунта недоступно");
     const accessToken = signAccessToken(switched.user, config.jwtAccessSecret);
     return sendAuth(
       reply,
       db,
+      sql,
       config,
       accessToken,
       switched.user,
@@ -236,8 +238,20 @@ export function registerAuthRoutes(app, { db, sql, config, limiter }) {
   async function presentCurrent(request, user) {
     const session = await findRefreshSession(db, request.cookies?.[COOKIE]);
     const loginUserId = session?.userId === user.id ? session.loginUserId : user.id;
-    return presentUser(db, user, loginUserId);
+    return presentUser(db, user, loginUserId, { sql });
   }
+
+  app.get("/api/admin/settings", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    return getAdminSettings(sql);
+  });
+
+  app.put("/api/admin/settings", async (request) => {
+    const current = await requireUser(request, db, config);
+    requireAdmin(current);
+    return saveAdminSettings(sql, request.body);
+  });
 
   app.post("/api/me/password", async (request) => {
     const current = await requireUser(request, db, config);

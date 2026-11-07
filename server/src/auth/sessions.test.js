@@ -48,26 +48,43 @@ test.after(async () => {
 test("only the account that logged in can switch to the admin and back", () => {
   const userId = "user";
   const adminId = "admin";
+  const allowedUserIds = [userId, "second"];
   assert.equal(
-    switchTargetId({ loginUserId: userId, activeUserId: userId, adminId, allowedUserId: userId }),
+    switchTargetId({ loginUserId: userId, activeUserId: userId, adminId, allowedUserIds }),
     adminId,
   );
   assert.equal(
-    switchTargetId({ loginUserId: userId, activeUserId: adminId, adminId, allowedUserId: userId }),
+    switchTargetId({ loginUserId: userId, activeUserId: adminId, adminId, allowedUserIds }),
     userId,
   );
   assert.equal(
-    switchTargetId({ loginUserId: adminId, activeUserId: adminId, adminId, allowedUserId: userId }),
+    switchTargetId({ loginUserId: adminId, activeUserId: adminId, adminId, allowedUserIds }),
     null,
   );
   assert.equal(
-    switchTargetId({ loginUserId: "other", activeUserId: "other", adminId, allowedUserId: userId }),
+    switchTargetId({ loginUserId: "other", activeUserId: "other", adminId, allowedUserIds }),
     null,
   );
   assert.equal(
-    switchTargetId({ loginUserId: userId, activeUserId: userId, adminId: null, allowedUserId: userId }),
+    switchTargetId({ loginUserId: userId, activeUserId: userId, adminId: null, allowedUserIds }),
     null,
   );
+});
+
+test("any linked user can switch to the admin and back", async () => {
+  const first = await makeUser("Связанный один");
+  const second = await makeUser("Связанный два");
+  const adminId = await makeUser("Админ двух связанных", "admin");
+  const options = { allowedUserIds: [first, second], adminId };
+
+  const issued = await issueRefreshSession(db, second);
+  const switched = await switchRefreshAccount(db, issued.token, options);
+  assert.equal(switched.status, "ok");
+  assert.equal(switched.user.id, adminId);
+  assert.equal(switched.loginUserId, second);
+
+  const back = await switchRefreshAccount(db, issued.token, options);
+  assert.equal(back.user.id, second);
 });
 
 test("refresh keeps the login account, and switch follows it", async () => {
@@ -115,6 +132,12 @@ test("the chosen profile is offered a switch and an admin login is not", async (
     createdSwitchUser = true;
   }
 
+  await sql`
+    INSERT INTO admin_setting_users (kind, user_id)
+    VALUES ('linked', ${ACCOUNT_SWITCH_USER_ID})
+    ON CONFLICT DO NOTHING
+  `;
+
   const [person] = await db.select().from(users).where(eq(users.id, ACCOUNT_SWITCH_USER_ID));
   const [admin] = await db
     .select()
@@ -123,15 +146,15 @@ test("the chosen profile is offered a switch and an admin login is not", async (
     .orderBy(users.createdAt)
     .limit(1);
 
-  const asSelf = await presentUser(db, person, person.id);
+  const asSelf = await presentUser(db, person, person.id, { sql });
   assert.equal(asSelf.accountSwitch?.to, "admin");
   assert.equal(asSelf.accountSwitch.displayName, admin.displayName);
   assert.equal(asSelf.appRole, person.appRole);
 
-  const asAdmin = await presentUser(db, admin, admin.id);
+  const asAdmin = await presentUser(db, admin, admin.id, { sql });
   assert.equal(asAdmin.accountSwitch, undefined);
 
-  const acting = await presentUser(db, admin, ACCOUNT_SWITCH_USER_ID);
+  const acting = await presentUser(db, admin, ACCOUNT_SWITCH_USER_ID, { sql });
   assert.equal(acting.id, admin.id);
   assert.equal(acting.appRole, "admin");
   assert.equal(acting.accountSwitch?.to, "user");

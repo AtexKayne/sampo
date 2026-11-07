@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { acceptRequest, declineRequest } from "../domain/sampo.js";
+import { acceptSlotProposal, declineSlotProposal } from "../domain/slot-proposals.js";
 import { HttpError } from "../http/errors.js";
 import { studioParts } from "../slots/rules.js";
 
@@ -31,18 +32,36 @@ export function vkMessage(note, origin) {
   const payload = note?.payload && typeof note.payload === "object" ? note.payload : {};
   const text = typeof payload.text === "string" && payload.text.trim() ? payload.text.trim() : "Новое уведомление";
   const requestId = typeof payload.requestId === "string" ? payload.requestId : "";
+  const proposalId = typeof payload.proposalId === "string" ? payload.proposalId : "";
   const slotId = typeof payload.slotId === "string" ? payload.slotId : "";
-  const path = requestId ? `/requests/${requestId}` : slotId ? `/slots/${slotId}` : "/calendar";
+  const path = requestId
+    ? `/requests/${requestId}`
+    : proposalId
+      ? `/calendar?proposal=${proposalId}`
+      : slotId
+        ? `/slots/${slotId}`
+        : "/calendar";
   const link = absoluteUrl(origin, path);
   const lines = [text];
   if (note?.type === "slot_opened" || note?.type === "request_received") {
     const where = slotWhere(payload);
     if (where && !text.includes(where)) lines.push(where);
   }
+  if (note?.type === "slot_proposed") {
+    const where = proposalWhere(payload);
+    if (where && !text.includes(where)) lines.push(where);
+    const responsible = typeof payload.responsibleName === "string" ? payload.responsibleName.trim() : "";
+    if (responsible) lines.push(`Ответственный: ${responsible}`);
+    const extra = typeof payload.description === "string" ? payload.description : payload.comment;
+    if (typeof extra === "string" && extra.trim()) lines.push(extra.trim());
+  }
   const message = clip(lines.join("\n"));
   const look = link ? linkButton(link) : null;
   if (note?.type === "request_received" && REQUEST_ID.test(requestId)) {
     return { message, keyboard: requestKeyboard(requestId, look), link };
+  }
+  if (note?.type === "slot_proposed" && REQUEST_ID.test(proposalId)) {
+    return { message, keyboard: proposalKeyboard(proposalId, look), link };
   }
   if (look) return { message, keyboard: JSON.stringify({ inline: true, buttons: [[look]] }), link };
   return { message, keyboard: null, link };
@@ -182,6 +201,14 @@ async function answerMessageEvent(sql, object) {
   const [user] = await sql`SELECT id FROM users WHERE vk_user_id = ${vkUserId}`;
   if (!user) return "Запрос уже закрыт";
   try {
+    if (payload.proposalId) {
+      if (payload.action === "accept") {
+        await acceptSlotProposal(sql, user.id, payload.proposalId);
+        return "Слот создан";
+      }
+      await declineSlotProposal(sql, user.id, payload.proposalId);
+      return "Вы отказали";
+    }
     const view = payload.action === "accept"
       ? await acceptRequest(sql, user.id, payload.requestId)
       : await declineRequest(sql, user.id, payload.requestId);
@@ -190,10 +217,10 @@ async function answerMessageEvent(sql, object) {
     return "Запрос уже закрыт";
   } catch (error) {
     if (error instanceof HttpError && (error.code === "CAPACITY" || error.code === "CONFLICT" || error.code === "SLOT_NOT_OPEN" || error.code === "SLOT_STARTED")) {
-      return clip(error.message, 90);
+      return payload.proposalId && error.code === "CONFLICT" ? "Предложение уже закрыто" : clip(error.message, 90);
     }
     if (error instanceof HttpError && (error.code === "NOT_FOUND" || error.code === "FORBIDDEN" || error.code === "VALIDATION")) {
-      return "Запрос уже закрыт";
+      return payload.proposalId ? "Предложение уже закрыто" : "Запрос уже закрыт";
     }
     throw error;
   }
@@ -210,6 +237,9 @@ function readPayload(value) {
   }
   if (!payload || typeof payload !== "object") return null;
   if (payload.action !== "accept" && payload.action !== "decline") return null;
+  if (REQUEST_ID.test(String(payload.proposalId || ""))) {
+    return { action: payload.action, proposalId: String(payload.proposalId) };
+  }
   if (!REQUEST_ID.test(String(payload.requestId || ""))) return null;
   return { action: payload.action, requestId: String(payload.requestId) };
 }
@@ -218,6 +248,15 @@ function requestKeyboard(requestId, look) {
   const rows = [[
     button("Принять", "positive", { requestId, action: "accept" }),
     button("Отказать", "negative", { requestId, action: "decline" }),
+  ]];
+  if (look) rows.push([look]);
+  return JSON.stringify({ inline: true, buttons: rows });
+}
+
+function proposalKeyboard(proposalId, look) {
+  const rows = [[
+    button("Принять", "positive", { proposalId, action: "accept" }),
+    button("Отклонить", "negative", { proposalId, action: "decline" }),
   ]];
   if (look) rows.push([look]);
   return JSON.stringify({ inline: true, buttons: rows });
@@ -274,7 +313,22 @@ async function markInviteMessage(sql, config, object, resultText, edit) {
   const payload = readPayload(object.payload);
   const lines = [];
   let link = "";
-  if (payload?.requestId) {
+  if (payload?.proposalId) {
+    const [row] = await sql`
+      SELECT u.display_name AS from_name, p.place, p.starts_at, p.ends_at, p.description
+      FROM slot_proposals p
+      JOIN users u ON u.id = p.user_id
+      WHERE p.id = ${payload.proposalId}
+    `;
+    if (row) {
+      lines.push(`${row.from_name} предлагает слот сампо`);
+      const where = proposalWhere({ place: row.place, startsAt: row.starts_at, endsAt: row.ends_at });
+      if (where) lines.push(where);
+      if (row.from_name) lines.push(`Ответственный: ${row.from_name}`);
+      if (row.description) lines.push(row.description);
+    }
+    link = absoluteUrl(config.appOrigin, `/calendar?proposal=${payload.proposalId}`);
+  } else if (payload?.requestId) {
     const [row] = await sql`
       SELECT u.display_name AS from_name, s.place, s.starts_at
       FROM sampo_requests r
@@ -375,6 +429,13 @@ function slotWhere(payload) {
   return when || place;
 }
 
+function proposalWhere(payload) {
+  const when = formatWhenRange(payload?.startsAt, payload?.endsAt);
+  const place = typeof payload?.place === "string" ? payload.place.trim() : "";
+  if (when && place) return `${when}, ${place}`;
+  return when || place;
+}
+
 function formatWhen(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -382,6 +443,20 @@ function formatWhen(value) {
   const hour = String(parts.hour).padStart(2, "0");
   const minute = String(parts.minute).padStart(2, "0");
   return `${parts.day} ${MONTHS[parts.month - 1]}, ${hour}:${minute}`;
+}
+
+function formatClock(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = studioParts(date);
+  return `${String(parts.hour).padStart(2, "0")}:${String(parts.minute).padStart(2, "0")}`;
+}
+
+function formatWhenRange(startsAt, endsAt) {
+  const start = formatWhen(startsAt);
+  const endClock = formatClock(endsAt);
+  if (start && endClock) return `${start}–${endClock}`;
+  return start;
 }
 
 function absoluteUrl(origin, path) {

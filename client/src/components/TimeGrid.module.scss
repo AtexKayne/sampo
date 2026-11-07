@@ -236,6 +236,7 @@
 
 .slot,
 .slotCancelled,
+.slotProposed,
 .slotFree,
 .slotBusy {
   cursor: pointer;
@@ -292,6 +293,13 @@
 .slotCancelled {
   border-left-color: var(--muted);
   background: var(--surface);
+}
+
+.slotProposed {
+  border-style: dashed;
+  border-color: var(--gold);
+  border-left-color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 14%, var(--surface));
 }
 
 .column .slot {

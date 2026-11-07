@@ -23,6 +23,12 @@ import {
   presentSlot,
 } from "../domain/sampo.js";
 import {
+  acceptSlotProposal,
+  declineSlotProposal,
+  getPendingProposal,
+  listPendingProposals,
+} from "../domain/slot-proposals.js";
+import {
   createAudienceList,
   deleteAudienceList,
   listAudienceLists,
@@ -89,7 +95,27 @@ export function registerSlotRoutes(app, { db, sql, config }) {
     const to = parseRange(request.query?.to, "конец интервала");
     if (to <= from) throw new HttpError(400, "VALIDATION", "Интервал календаря пустой");
     const user = await requireUser(request, db, config);
-    return { slots: await listSlotsForUser(sql, user, from, to) };
+    const slots = await listSlotsForUser(sql, user, from, to);
+    const proposals = await listPendingProposals(sql, from, to, user);
+    return { slots: [...slots, ...proposals] };
+  });
+
+  app.get("/api/admin/slot-proposals/:id", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return getPendingProposal(sql, request.params.id);
+  });
+
+  app.post("/api/admin/slot-proposals/:id/accept", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return acceptSlotProposal(sql, user.id, request.params.id, request.body);
+  });
+
+  app.post("/api/admin/slot-proposals/:id/decline", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireAdmin(user);
+    return declineSlotProposal(sql, user.id, request.params.id);
   });
 
   app.get("/api/slots/:id", async (request) => {

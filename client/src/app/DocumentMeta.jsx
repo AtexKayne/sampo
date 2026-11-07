@@ -9,6 +9,7 @@ const PRIVATE_TITLES = [
   [/^\/requests\//, "Запрос"],
   [/^\/me\/availability$/, "Свободное время"],
   [/^\/admin\/users\//, "Профиль"],
+  [/^\/admin\/settings$/, "Настройки"],
   [/^\/rating$/, "Рейтинг"],
   [/^\/me$/, "Профиль"],
   [/^\/dancers\//, "Участник"],

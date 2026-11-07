@@ -92,6 +92,34 @@ test("an incoming request message carries confirm and decline buttons", () => {
     link: `https://vparaplane.ru/requests/${requestId}`,
   });
 
+  const proposalId = crypto.randomUUID();
+  const proposed = vkMessage({
+    type: "slot_proposed",
+    payload: {
+      text: "Миша предлагает слот сампо",
+      proposalId,
+      place: "Зал 2",
+      description: "После занятия",
+      responsibleName: "Миша",
+      startsAt: "2026-10-14T14:00:00.000Z",
+      endsAt: "2026-10-14T16:00:00.000Z",
+    },
+  }, "https://vparaplane.ru");
+  assert.equal(
+    proposed.message,
+    "Миша предлагает слот сампо\n14 октября, 19:00–21:00, Зал 2\nОтветственный: Миша\nПосле занятия",
+  );
+  const proposedKeys = JSON.parse(proposed.keyboard);
+  assert.deepEqual(
+    proposedKeys.buttons[0].map((item) => item.action.label),
+    ["Принять", "Отклонить"],
+  );
+  assert.deepEqual(proposedKeys.buttons[1][0].action, {
+    type: "open_link",
+    label: "Посмотреть",
+    link: `https://vparaplane.ru/calendar?proposal=${proposalId}`,
+  });
+
   const slotId = crypto.randomUUID();
   const opened = vkMessage({
     type: "slot_opened",

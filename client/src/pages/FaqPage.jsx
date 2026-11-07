@@ -27,7 +27,8 @@ const QUESTIONS = [
     id: "support",
     title: "Баг/Предложение/Предоставить слот под сампо.",
     paragraphs: [
-      "Напиши в сообщения группы <a target='_blank' rel='noopener noreferrer' href='https://vk.ru/club242279722'>VParaplane</a>.",
+      "Новый слот можно предложить из календаря: кнопка «Предложить слот», затем время на сетке. Нужно указать зал; ответственным будешь ты. Студия получит заявку и решит, открывать его или нет.",
+      "Ошибку или идею напиши в сообщения группы <a target='_blank' rel='noopener noreferrer' href='https://vk.ru/club242279722'>VParaplane</a>.",
     ],
   },
   {
