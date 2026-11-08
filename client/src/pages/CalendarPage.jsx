@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, logout } from "../api/client.js";
 import { FloatField } from "../components/FloatField.jsx";
@@ -94,6 +94,8 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
   const [reviewDescription, setReviewDescription] = useState("");
   const [reviewError, setReviewError] = useState("");
   const [proposalDescription, setProposalDescription] = useState("");
+  const navigate = useNavigate();
+  const { proposalId: proposalPathId } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const [agenda, setAgenda] = useState(readCalendarView);
   const [repeat, setRepeat] = useState("once");
@@ -129,7 +131,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     if (!canCreate && weekOffset < 0) setWeekOffset(0);
   }, [canCreate, weekOffset]);
 
-  const focusProposal = searchParams.get("proposal");
+  const focusProposal = proposalPathId || searchParams.get("proposal");
   useEffect(() => {
     if (!focusProposal || session.user?.appRole !== "admin") return undefined;
     let cancelled = false;
@@ -141,6 +143,10 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
         setReviewCapacity("20");
         setReviewDescription(item.description ?? "");
         setReviewError("");
+        if (proposalPathId) {
+          navigate("/calendar", { replace: true });
+          return;
+        }
         const next = new URLSearchParams(searchParams);
         next.delete("proposal");
         setSearchParams(next, { replace: true });
@@ -149,7 +155,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     return () => {
       cancelled = true;
     };
-  }, [focusProposal, session.user?.appRole, searchParams, setSearchParams]);
+  }, [focusProposal, proposalPathId, session.user?.appRole, searchParams, setSearchParams, navigate]);
 
   useEffect(() => {
     if (!editing && !windowEdit && !reviewing) return undefined;

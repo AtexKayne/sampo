@@ -70,7 +70,8 @@ export async function listPendingProposals(sql, from, to, viewer = null) {
   return rows.map(presentProposal);
 }
 
-export async function getPendingProposal(sql, id) {
+export async function getPendingProposal(sql, id, actorId) {
+  if (actorId && !(await canResolve(sql, actorId))) fail(403, "FORBIDDEN", "Недостаточно прав");
   const row = await loadProposal(sql, id);
   if (!row || row.status !== "pending") fail(404, "NOT_FOUND", "Предложение не найдено");
   return presentProposal(row);
@@ -86,6 +87,7 @@ async function canResolve(sql, userId) {
 async function notifyForcedVk(tx, userId, type, payload) {
   const [user] = await tx`SELECT app_role, vk_user_id FROM users WHERE id = ${userId}`;
   if (!user) return;
+  const hasVk = user.vk_user_id != null && String(user.vk_user_id).trim() !== "";
   const id = crypto.randomUUID();
   await tx`INSERT INTO notifications (id, user_id, type, payload) VALUES (${id}, ${userId}, ${type}, ${tx.json(payload)})`;
   const event = JSON.stringify({
@@ -114,8 +116,8 @@ async function notifyForcedVk(tx, userId, type, payload) {
       ${crypto.randomUUID()},
       ${id},
       'vk',
-      ${user.vk_user_id != null ? "pending" : "skipped"},
-      ${user.vk_user_id != null ? null : "Нет привязки ВК"}
+      ${hasVk ? "pending" : "skipped"},
+      ${hasVk ? null : "Нет привязки ВК"}
     )
   `;
 }
@@ -273,13 +275,16 @@ export async function declineSlotProposal(sql, actorId, proposalId) {
       SET status = 'declined', resolved_by = ${actorId}, resolved_at = now()
       WHERE id = ${proposalId}
     `;
-    await notifyProposer(tx, row.user_id, "slot_proposal_declined", {
-      text: "Предложение слота отклонено",
-      proposalId,
-      place: row.place,
-      startsAt: new Date(row.starts_at).toISOString(),
-      endsAt: new Date(row.ends_at).toISOString(),
-    });
+    const recipients = await listSlotRequestRecipientIds(tx);
+    if (!recipients.includes(row.user_id)) {
+      await notifyProposer(tx, row.user_id, "slot_proposal_declined", {
+        text: "Предложение слота отклонено",
+        proposalId,
+        place: row.place,
+        startsAt: new Date(row.starts_at).toISOString(),
+        endsAt: new Date(row.ends_at).toISOString(),
+      });
+    }
     return { ok: true };
   });
 }

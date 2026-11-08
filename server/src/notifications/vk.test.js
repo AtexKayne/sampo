@@ -117,7 +117,7 @@ test("an incoming request message carries confirm and decline buttons", () => {
   assert.deepEqual(proposedKeys.buttons[1][0].action, {
     type: "open_link",
     label: "Посмотреть",
-    link: `https://vparaplane.ru/calendar?proposal=${proposalId}`,
+    link: `https://vparaplane.ru/calendar/proposal/${proposalId}`,
   });
 
   const slotId = crypto.randomUUID();

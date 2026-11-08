@@ -46,6 +46,7 @@ export function App() {
               <Route path="/faq" element={<FaqPage />} />
               <Route path="/cookies" element={<CookiesPage />} />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/calendar/proposal/:proposalId" element={<CalendarPage />} />
               <Route path="/slots/:id" element={<SlotPage />} />
               <Route path="/requests" element={<RequestsPage />} />
               <Route path="/requests/:id" element={<RequestPage />} />

@@ -174,6 +174,16 @@ test("a pending proposal can be declined and does not become a slot", async () =
   proposals.push(proposal.id);
   assert.equal(proposal.place, "Зал 1");
   await declineSlotProposal(sql, staff, proposal.id);
+  const [{ to_staff: toStaff }] = await sql`
+    SELECT count(*)::int AS to_staff FROM notifications
+    WHERE user_id = ${staff} AND type = 'slot_proposal_declined'
+  `;
+  assert.equal(toStaff, 0);
+  const [{ to_author: toAuthor }] = await sql`
+    SELECT count(*)::int AS to_author FROM notifications
+    WHERE user_id = ${dancer} AND type = 'slot_proposal_declined'
+  `;
+  assert.equal(toAuthor, 1);
   const [{ count }] = await sql`SELECT count(*)::int AS count FROM slots WHERE id = (SELECT slot_id FROM slot_proposals WHERE id = ${proposal.id})`;
   assert.equal(count, 0);
   await assert.rejects(

@@ -37,7 +37,7 @@ export function vkMessage(note, origin) {
   const path = requestId
     ? `/requests/${requestId}`
     : proposalId
-      ? `/calendar?proposal=${proposalId}`
+      ? `/calendar/proposal/${proposalId}`
       : slotId
         ? `/slots/${slotId}`
         : "/calendar";
@@ -327,7 +327,7 @@ async function markInviteMessage(sql, config, object, resultText, edit) {
       if (row.from_name) lines.push(`Ответственный: ${row.from_name}`);
       if (row.description) lines.push(row.description);
     }
-    link = absoluteUrl(config.appOrigin, `/calendar?proposal=${payload.proposalId}`);
+    link = absoluteUrl(config.appOrigin, `/calendar/proposal/${payload.proposalId}`);
   } else if (payload?.requestId) {
     const [row] = await sql`
       SELECT u.display_name AS from_name, s.place, s.starts_at

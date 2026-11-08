@@ -33,13 +33,15 @@ registerVkRoutes(app, { sql, config });
 
 if (sql) {
   await listenForNotifications(sql, app.log);
-  setInterval(() => {
+  const tick = () => {
     expireDue(sql).catch((error) => app.log.error(error));
     expireSlotProposals(sql).catch((error) => app.log.error(error));
     remindDue(sql).catch((error) => app.log.error(error));
     deliverPendingPush(sql, config).catch((error) => app.log.error(error));
     deliverPendingVk(sql, config).catch((error) => app.log.error(error));
-  }, 15000);
+  };
+  tick();
+  setInterval(tick, 15000);
 }
 
 app.get("/api/health", async () => ({ ok: true }));

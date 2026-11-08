@@ -103,7 +103,7 @@ export function registerSlotRoutes(app, { db, sql, config }) {
   app.get("/api/admin/slot-proposals/:id", async (request) => {
     const user = await requireUser(request, db, config);
     requireAdmin(user);
-    return getPendingProposal(sql, request.params.id);
+    return getPendingProposal(sql, request.params.id, user.id);
   });
 
   app.post("/api/admin/slot-proposals/:id/accept", async (request) => {
