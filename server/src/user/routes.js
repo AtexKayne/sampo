@@ -22,7 +22,7 @@ import {
   setAvailability,
   withdrawRequest,
 } from "../domain/sampo.js";
-import { createSlotProposal } from "../domain/slot-proposals.js";
+import { createSlotProposal, withdrawSlotProposal } from "../domain/slot-proposals.js";
 import { deliverPendingVk } from "../notifications/vk.js";
 import {
   addToBlacklist,
@@ -44,6 +44,14 @@ export function registerUserRoutes(app, { db, sql, config }) {
     const proposal = await createSlotProposal(sql, user.id, request.body);
     deliverPendingVk(sql, config).catch(() => {});
     return proposal;
+  });
+
+  app.post("/api/slot-proposals/:id/cancel", async (request) => {
+    const user = await requireUser(request, db, config);
+    requireDancer(user);
+    const result = await withdrawSlotProposal(sql, user.id, request.params.id);
+    deliverPendingVk(sql, config).catch(() => {});
+    return result;
   });
 
   app.post("/api/slots/:id/attendance", async (request) => {

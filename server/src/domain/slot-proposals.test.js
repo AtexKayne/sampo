@@ -6,7 +6,7 @@ import { migrate } from "../db/migrate.js";
 import { HttpError } from "../http/errors.js";
 import { TIME_ZONE_OFFSET_MS } from "../../../shared/timezone.js";
 import { saveAdminSettings } from "./admin-settings.js";
-import { acceptSlotProposal, createSlotProposal, declineSlotProposal, listPendingProposals } from "./slot-proposals.js";
+import { acceptSlotProposal, createSlotProposal, declineSlotProposal, listPendingProposals, withdrawSlotProposal } from "./slot-proposals.js";
 
 dotenv.config();
 
@@ -164,7 +164,7 @@ test("a proposal notifies every slot-request recipient over VK", async () => {
 test("a pending proposal can be declined and does not become a slot", async () => {
   const dancer = await makeUser("Второй предлагающий");
   const staff = await makeUser("Второй получатель");
-  await saveAdminSettings(sql, { slotRequestRecipientIds: [...previousRecipients, staff] });
+  await saveAdminSettings(sql, { slotRequestRecipientIds: [...previousRecipients, staff, dancer] });
   const range = futureRange(1);
   const proposal = await createSlotProposal(sql, dancer, {
     startsAtLocal: range.startsAtLocal,
@@ -188,6 +188,55 @@ test("a pending proposal can be declined and does not become a slot", async () =
   assert.equal(count, 0);
   await assert.rejects(
     () => declineSlotProposal(sql, staff, proposal.id),
+    (error) => error instanceof HttpError && error.code === "CONFLICT",
+  );
+});
+
+test("the author can withdraw a pending proposal", async () => {
+  const dancer = await makeUser("Отзывающий");
+  const other = await makeUser("Чужой автор");
+  const staff = await makeUser("Получатель отзыва");
+  await saveAdminSettings(sql, { slotRequestRecipientIds: [staff] });
+  const range = futureRange(3);
+  const proposal = await createSlotProposal(sql, dancer, {
+    startsAtLocal: range.startsAtLocal,
+    endsAtLocal: range.endsAtLocal,
+    place: "Зал 1",
+  });
+  proposals.push(proposal.id);
+  await assert.rejects(
+    () => withdrawSlotProposal(sql, other, proposal.id),
+    (error) => error instanceof HttpError && error.code === "FORBIDDEN",
+  );
+  await assert.rejects(
+    () => withdrawSlotProposal(sql, staff, proposal.id),
+    (error) => error instanceof HttpError && error.code === "FORBIDDEN",
+  );
+  const withdrawn = await withdrawSlotProposal(sql, dancer, proposal.id);
+  assert.equal(withdrawn.ok, true);
+  const listed = await listPendingProposals(sql, range.start, new Date(range.end.getTime() + 1), { id: dancer, appRole: "user" });
+  assert.equal(listed.some((item) => item.id === proposal.id), false);
+  const [status] = await sql`SELECT status FROM slot_proposals WHERE id = ${proposal.id}`;
+  assert.equal(status.status, "withdrawn");
+  const [note] = await sql`
+    SELECT payload FROM notifications
+    WHERE user_id = ${staff} AND type = 'slot_proposal_withdrawn'
+    ORDER BY created_at DESC LIMIT 1
+  `;
+  assert.equal(note.payload.proposalId, proposal.id);
+  const [{ pending_proposed }] = await sql`
+    SELECT count(*)::int AS pending_proposed
+    FROM notification_deliveries d
+    JOIN notifications n ON n.id = d.notification_id
+    WHERE n.type = 'slot_proposed' AND n.payload->>'proposalId' = ${proposal.id} AND d.status = 'pending'
+  `;
+  assert.equal(pending_proposed, 0);
+  await assert.rejects(
+    () => withdrawSlotProposal(sql, dancer, proposal.id),
+    (error) => error instanceof HttpError && error.code === "CONFLICT",
+  );
+  await assert.rejects(
+    () => acceptSlotProposal(sql, staff, proposal.id),
     (error) => error instanceof HttpError && error.code === "CONFLICT",
   );
 });

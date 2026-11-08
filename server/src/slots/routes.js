@@ -38,6 +38,7 @@ import {
   updateAudienceList,
 } from "../domain/audience.js";
 import { listSlotDescriptions } from "./descriptions.js";
+import { deliverPendingVk } from "../notifications/vk.js";
 
 function fail(result) {
   throw new HttpError(result.statusCode, result.code, result.message);
@@ -109,13 +110,17 @@ export function registerSlotRoutes(app, { db, sql, config }) {
   app.post("/api/admin/slot-proposals/:id/accept", async (request) => {
     const user = await requireUser(request, db, config);
     requireAdmin(user);
-    return acceptSlotProposal(sql, user.id, request.params.id, request.body);
+    const result = await acceptSlotProposal(sql, user.id, request.params.id, request.body);
+    deliverPendingVk(sql, config).catch(() => {});
+    return result;
   });
 
   app.post("/api/admin/slot-proposals/:id/decline", async (request) => {
     const user = await requireUser(request, db, config);
     requireAdmin(user);
-    return declineSlotProposal(sql, user.id, request.params.id);
+    const result = await declineSlotProposal(sql, user.id, request.params.id);
+    deliverPendingVk(sql, config).catch(() => {});
+    return result;
   });
 
   app.get("/api/slots/:id", async (request) => {

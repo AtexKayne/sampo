@@ -265,6 +265,16 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
     onError: (error) => setReviewError(error.message),
   });
 
+  const withdrawProposal = useMutation({
+    mutationFn: (id) => api(`/api/slot-proposals/${id}/cancel`, { method: "POST" }),
+    onSuccess: async () => {
+      setReviewing(null);
+      setReviewError("");
+      await queryClient.invalidateQueries({ queryKey: ["slots"] });
+    },
+    onError: (error) => setReviewError(error.message),
+  });
+
   const saveSlot = useMutation({
     mutationFn: ({ id, body }) => api(`/api/admin/slots/${id}`, { method: "PATCH", body }),
     onSuccess: async () => {
@@ -626,7 +636,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           <TimeGrid
             days={visibleDays}
             slots={slots}
-            freeBlocks={freeBlocks}
+            freeBlocks={proposing ? [] : freeBlocks}
             busyBlocks={busyBlocks}
             selection={selection}
             selectionLimits={markingAvailability ? freeLimits : undefined}
@@ -777,7 +787,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       {reviewing ? (
         <Sheet
           onClose={() => {
-            if (!acceptProposal.isPending && !declineProposal.isPending) {
+            if (!acceptProposal.isPending && !declineProposal.isPending && !withdrawProposal.isPending) {
               setReviewing(null);
               setReviewError("");
             }
@@ -792,7 +802,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
               </h2>
               <ModalClose
                 onClick={() => {
-                  if (!acceptProposal.isPending && !declineProposal.isPending) {
+                  if (!acceptProposal.isPending && !declineProposal.isPending && !withdrawProposal.isPending) {
                     setReviewing(null);
                     setReviewError("");
                   }
@@ -855,7 +865,23 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             </div>
           </form>
           ) : (
-            <p className={styles.modalNote}>Заявка отправлена, администратор ещё проверяет запрос</p>
+            <>
+              <p className={styles.modalNote}>Заявка отправлена, администратор ещё проверяет запрос</p>
+              {reviewError ? <p className={styles.error}>{reviewError}</p> : null}
+              <div className={`${styles.actions} ${styles.reviewActions}`}>
+                <button
+                  className={styles.danger}
+                  type="button"
+                  disabled={withdrawProposal.isPending}
+                  onClick={() => {
+                    setReviewError("");
+                    withdrawProposal.mutate(reviewing.id);
+                  }}
+                >
+                  Отозвать
+                </button>
+              </div>
+            </>
           )}
         </Sheet>
       ) : null}
@@ -1219,7 +1245,7 @@ function HelpDialog({ onClose }) {
             Если слот сампо попадает в отмеченный интервал, он становится активным, и другой пользователь увидит тебя в списке тех, кого можно пригласить. Или выбери конкретный слот и сделай его активным одной кнопкой.
           </p>
           <p className={styles.guideText}>
-            Кнопка «Предложить слот» включает режим заявки: выбери время на сетке и укажи зал. Ответственным будешь ты, описание — по желанию. Студия получит запрос и решит, открывать слот или нет.
+            Кнопка «Предложить слот» включает режим заявки: выбери время на сетке и укажи зал. Ответственным будешь ты, описание — по желанию. Студия получит запрос и решит, открывать слот или нет. Пока заявку не приняли, её можно отозвать с пунктирного блока «Предложение».
           </p>
           <p className={styles.guideText}>
             В профиле можешь настроить списки тех, кто может приглашать тебя на сампо, а также быстрый вход по логину и уведомления. При установке на телефон можно включить пуш-уведомления.

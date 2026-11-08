@@ -47,7 +47,7 @@ export function vkMessage(note, origin) {
     const where = slotWhere(payload);
     if (where && !text.includes(where)) lines.push(where);
   }
-  if (note?.type === "slot_proposed") {
+  if (note?.type === "slot_proposed" || note?.type === "slot_proposal_withdrawn") {
     const where = proposalWhere(payload);
     if (where && !text.includes(where)) lines.push(where);
     const responsible = typeof payload.responsibleName === "string" ? payload.responsibleName.trim() : "";

@@ -264,6 +264,44 @@ export async function acceptSlotProposal(sql, actorId, proposalId, body = {}) {
   };
 }
 
+export async function withdrawSlotProposal(sql, actorId, proposalId) {
+  return sql.begin(async (tx) => {
+    const [row] = await tx`SELECT * FROM slot_proposals WHERE id = ${proposalId} FOR UPDATE`;
+    if (!row) fail(404, "NOT_FOUND", "Предложение не найдено");
+    if (row.user_id !== actorId) fail(403, "FORBIDDEN", "Недостаточно прав");
+    if (row.status !== "pending") fail(409, "CONFLICT", "Предложение уже закрыто");
+    await tx`
+      UPDATE slot_proposals
+      SET status = 'withdrawn', resolved_by = ${actorId}, resolved_at = now()
+      WHERE id = ${proposalId}
+    `;
+    await tx`
+      UPDATE notification_deliveries d
+      SET status = 'skipped', last_error = 'Предложение отозвано'
+      FROM notifications n
+      WHERE d.notification_id = n.id
+        AND d.status = 'pending'
+        AND n.type = 'slot_proposed'
+        AND n.payload->>'proposalId' = ${proposalId}
+    `;
+    const [person] = await tx`SELECT display_name FROM users WHERE id = ${actorId}`;
+    const name = person?.display_name ?? "";
+    const recipients = await listSlotRequestRecipientIds(tx);
+    for (const recipientId of recipients) {
+      if (recipientId === actorId) continue;
+      await notifyForcedVk(tx, recipientId, "slot_proposal_withdrawn", {
+        text: `${name} отозвал предложение слота`,
+        proposalId,
+        place: row.place,
+        fromName: name,
+        startsAt: new Date(row.starts_at).toISOString(),
+        endsAt: new Date(row.ends_at).toISOString(),
+      });
+    }
+    return { ok: true };
+  });
+}
+
 export async function declineSlotProposal(sql, actorId, proposalId) {
   if (!(await canResolve(sql, actorId))) fail(403, "FORBIDDEN", "Недостаточно прав");
   return sql.begin(async (tx) => {
@@ -275,16 +313,13 @@ export async function declineSlotProposal(sql, actorId, proposalId) {
       SET status = 'declined', resolved_by = ${actorId}, resolved_at = now()
       WHERE id = ${proposalId}
     `;
-    const recipients = await listSlotRequestRecipientIds(tx);
-    if (!recipients.includes(row.user_id)) {
-      await notifyProposer(tx, row.user_id, "slot_proposal_declined", {
-        text: "Предложение слота отклонено",
-        proposalId,
-        place: row.place,
-        startsAt: new Date(row.starts_at).toISOString(),
-        endsAt: new Date(row.ends_at).toISOString(),
-      });
-    }
+    await notifyProposer(tx, row.user_id, "slot_proposal_declined", {
+      text: "Предложение слота отклонено",
+      proposalId,
+      place: row.place,
+      startsAt: new Date(row.starts_at).toISOString(),
+      endsAt: new Date(row.ends_at).toISOString(),
+    });
     return { ok: true };
   });
 }

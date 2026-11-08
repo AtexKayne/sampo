@@ -174,6 +174,7 @@ function receiveNotification(queryClient, raw) {
 
 function noticeHref(note) {
   if (note.type === "slot_proposed" && note.proposalId) return `/calendar/proposal/${note.proposalId}`;
+  if (note.type === "slot_proposal_withdrawn") return "/calendar";
   if (note.type === "slot_reminder" && note.slotId) return `/slots/${note.slotId}`;
   if (REQUEST_NOTICE.has(note.type)) return "/requests";
   if (note.slotId) return `/slots/${note.slotId}`;
