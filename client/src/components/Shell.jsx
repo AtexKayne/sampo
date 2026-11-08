@@ -55,22 +55,24 @@ export function Shell({ user, onLogout, pending, fill = false, wide = false, chi
           <span className={styles.brandSite}>vparaplane</span>
           <span className={styles.brandName}>Сампо</span>
         </Link>
+        {accountSwitch ? (
+          <button
+            className={styles.switcher}
+            type="button"
+            disabled={pending || switching}
+            aria-label={`Переключить на ${accountSwitch.displayName}`}
+            title={`Переключить на ${accountSwitch.displayName}`}
+            onClick={onSwitch}
+          >
+            <TabIcon name="switch" />
+          </button>
+        ) : null}
         <nav className={styles.nav}>
           {user ? (
             <>
               {user.appRole === "admin" ? null : (
                 <NoticeBell open={menu === "bell"} onToggle={() => setMenu((value) => (value === "bell" ? null : "bell"))} onClose={() => setMenu(null)} />
               )}
-              {accountSwitch ? (
-                <button className={styles.switcher} type="button" disabled={pending || switching} onClick={onSwitch}>
-                  {accountSwitch.to === "admin" ? "А" : "Ю"}
-                </button>
-              ) : null}
-              {user.appRole === "admin" ? (
-                <button className={`${styles.link} ${styles.headerLogout}`} type="button" disabled={pending} onClick={onLogout}>
-                  Выйти
-                </button>
-              ) : null}
               <ProfileMenu
                 user={user}
                 onLogout={onLogout}
@@ -213,11 +215,19 @@ function TabIcon({ name }) {
   }
   if (name === "settings") {
     return (
-      <svg {...common} strokeWidth="1.4">
-        <g transform="translate(12 12) scale(0.86) translate(-12 -12)">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
-        </g>
+      <svg {...common}>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      </svg>
+    );
+  }
+  if (name === "switch") {
+    return (
+      <svg {...common}>
+        <path d="M8 3 4 7l4 4" />
+        <path d="M4 7h16" />
+        <path d="m16 21 4-4-4-4" />
+        <path d="M20 17H4" />
       </svg>
     );
   }

@@ -103,6 +103,18 @@
   }
 }
 
+@keyframes sheetIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (min-width: 800px) {
   .backdrop {
     align-items: center;
@@ -110,7 +122,7 @@
   }
 
   .dim {
-    animation: none;
+    animation: sheetFade 180ms ease-out;
   }
 
   .sheet {
@@ -119,7 +131,22 @@
     border: 1px solid var(--line);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
+    animation: sheetIn 200ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .leaving .dim {
     animation: none;
+    opacity: 0;
+    transition: opacity 180ms ease-out;
+  }
+
+  .leaving .sheet {
+    animation: none;
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+    transition:
+      transform 180ms ease,
+      opacity 180ms ease;
   }
 
   .l {
@@ -156,4 +183,14 @@
 .withFooter .body {
   flex: 1 1 auto;
   padding-bottom: 16px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dim,
+  .sheet,
+  .leaving .dim,
+  .leaving .sheet {
+    animation: none;
+    transition: none;
+  }
 }

@@ -44,7 +44,6 @@
   z-index: 6;
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 16px;
   margin: 0 calc(var(--pad) * -1);
   padding: 16px var(--pad);
@@ -55,7 +54,9 @@
 
 .brand {
   display: grid;
+  flex: 1;
   gap: 3px;
+  min-width: 0;
   color: var(--ink);
   text-decoration: none;
 }
@@ -79,8 +80,11 @@
 
 .nav {
   display: flex;
+  flex: 1;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
+  min-width: 0;
 }
 
 .link {
@@ -390,23 +394,29 @@
 }
 
 .switcher {
-  min-height: 40px;
+  flex: none;
+  width: 44px;
+  min-height: 44px;
   display: inline-flex;
   align-items: center;
-  padding: 0 14px;
-  border: 1px solid var(--line);
+  justify-content: center;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
   background: transparent;
   color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
   cursor: pointer;
+  @include press.control;
+}
+
+.switcher svg {
+  display: block;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .switcher:hover:not(:disabled) {
-    border-color: var(--ink);
+    background: var(--surface);
+    color: var(--accent);
   }
 }
 
@@ -483,15 +493,6 @@
   white-space: nowrap;
 }
 
-.headerLogout {
-  display: none;
-}
-
-.headerLogout:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
 @media (max-width: 799px) {
   :global(html[data-profile-save]) .shell {
     --bottom-nav: calc(6px + 52px + 6px + 1px + 8px + 44px + 8px + 1px + 8px + env(safe-area-inset-bottom, 0px));
@@ -509,8 +510,17 @@
     display: none;
   }
 
-  .headerLogout {
-    display: inline-flex;
+  .header {
+    gap: 8px;
+  }
+
+  .nav {
+    flex: none;
+    order: 1;
+  }
+
+  .switcher {
+    order: 2;
   }
 }
 

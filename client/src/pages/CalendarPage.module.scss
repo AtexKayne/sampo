@@ -38,6 +38,11 @@
   cursor: pointer;
 }
 
+.helpLinkHold {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 @media (hover: hover) and (pointer: fine) {
   .helpLink:hover {
     color: var(--ink);

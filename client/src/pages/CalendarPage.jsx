@@ -521,7 +521,11 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
             <button className={styles.helpLink} type="button" onClick={() => setHelpOpen(true)}>
               Как пользоваться?
             </button>
-          ) : null}
+          ) : (
+            <span className={`${styles.helpLink} ${styles.helpLinkHold}`} aria-hidden="true">
+              Как пользоваться?
+            </span>
+          )}
         </div>
         {canPropose ? (
           <div className={styles.proposeSlot}>
@@ -619,7 +623,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
           })}
         </div>
       ) : null}
-      {slotsQuery.isLoading ? <p className={styles.status}>Загрузка</p> : null}
+      {slotsQuery.isLoading && showAgenda ? <p className={styles.status}>Загрузка</p> : null}
       {slotsQuery.isError ? (
         <div className={styles.fallback}>
           <p className={styles.error}>{slotsQuery.error.message}</p>
@@ -631,7 +635,7 @@ export function CalendarPage({ heading = "Календарь", adminOnly = false
       {slotsQuery.isSuccess && showAgenda ? (
         <SlotAgenda slots={upcomingSlots} markingAvailability={markingAvailability} freeBlocks={freeBlocks} onOpen={openEdit} />
       ) : null}
-      {slotsQuery.isSuccess && !showAgenda ? (
+      {!showAgenda && !slotsQuery.isError ? (
         <>
           <TimeGrid
             days={visibleDays}

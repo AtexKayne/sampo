@@ -48,6 +48,9 @@ export function AdminSettingsPage() {
       <div className={`${styles.adminLayout} ${styles.adminLayoutNarrow}`}>
         <div className={styles.pageHead}>
           <h1 className={styles.title}>Настройки</h1>
+          <button className={`${styles.button} ${styles.mobileLogout}`} type="button" disabled={pendingLogout} onClick={onLogout}>
+            Выйти
+          </button>
         </div>
         <div className={styles.adminPage}>
           <AdminStudioSettings />

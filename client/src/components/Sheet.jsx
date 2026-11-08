@@ -5,6 +5,7 @@ import styles from "./Sheet.module.scss";
 const MOBILE = "(max-width: 799px)";
 const DISMISS = 88;
 const EXIT_MS = 320;
+const DESKTOP_MS = 180;
 let locks = 0;
 
 function lockPage() {
@@ -23,6 +24,11 @@ function unlockPage() {
 
 function mobileSheet() {
   return typeof window !== "undefined" && window.matchMedia(MOBILE).matches;
+}
+
+function exitMs() {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return 0;
+  return mobileSheet() ? EXIT_MS : DESKTOP_MS;
 }
 
 export function Sheet({
@@ -54,10 +60,6 @@ export function Sheet({
   }, []);
 
   useEffect(() => {
-    if (!mobileSheet()) {
-      setReady(true);
-      return undefined;
-    }
     const timer = window.setTimeout(() => setReady(true), EXIT_MS + 30);
     return () => window.clearTimeout(timer);
   }, []);
@@ -72,16 +74,12 @@ export function Sheet({
 
   useEffect(() => {
     if (!leaving) return undefined;
-    const timer = window.setTimeout(() => onCloseRef.current(), EXIT_MS);
+    const timer = window.setTimeout(() => onCloseRef.current(), exitMs());
     return () => window.clearTimeout(timer);
   }, [leaving]);
 
   function dismiss() {
     if (leavingRef.current) return;
-    if (!mobileSheet()) {
-      onCloseRef.current();
-      return;
-    }
     leavingRef.current = true;
     dragging.current = false;
     setDrag(false);
@@ -119,21 +117,24 @@ export function Sheet({
   }
 
   const sizeClass = size === "xl" ? styles.xl : size === "l" ? styles.l : "";
+  const mobile = mobileSheet();
   const interact = ready || drag || leaving || offset > 0;
-  const motion = interact
-    ? {
-        transform: leaving ? "translateY(100%)" : `translateY(${offset}px)`,
-        transition: drag ? "none" : `transform ${EXIT_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-        animation: "none",
-      }
-    : undefined;
-  const dimMotion = interact
-    ? {
-        opacity: leaving ? 0 : offset > 0 ? Math.max(0.12, 1 - offset / 400) : 1,
-        transition: drag ? "none" : `opacity ${EXIT_MS}ms ease-out`,
-        animation: "none",
-      }
-    : undefined;
+  const motion =
+    interact && mobile
+      ? {
+          transform: leaving ? "translateY(100%)" : `translateY(${offset}px)`,
+          transition: drag ? "none" : `transform ${EXIT_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+          animation: "none",
+        }
+      : undefined;
+  const dimMotion =
+    interact && mobile
+      ? {
+          opacity: leaving ? 0 : offset > 0 ? Math.max(0.12, 1 - offset / 400) : 1,
+          transition: drag ? "none" : `opacity ${EXIT_MS}ms ease-out`,
+          animation: "none",
+        }
+      : undefined;
 
   return createPortal(
     <div className={[styles.backdrop, leaving ? styles.leaving : ""].filter(Boolean).join(" ")} onClick={dismiss}>
