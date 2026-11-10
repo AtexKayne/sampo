@@ -719,6 +719,10 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
           aria-autocomplete="list"
           aria-disabled={locked}
           aria-label="Поиск по имени"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="none"
+          spellCheck={false}
           disabled={locked}
           value={query}
           onChange={(event) => {
