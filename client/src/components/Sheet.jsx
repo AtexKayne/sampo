@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./Sheet.module.scss";
 
@@ -9,7 +9,7 @@ const DESKTOP_MS = 180;
 let locks = 0;
 let savedY = 0;
 let touchY = 0;
-let pinnedRoot = null;
+let lockRoot = null;
 
 function canScroll(node, deltaY) {
   if (!(node instanceof HTMLElement)) return false;
@@ -55,18 +55,32 @@ function onTouchMove(event) {
 }
 
 function pinLockedPage() {
-  const root = pinnedRoot;
-  if (!root) return;
+  const root = lockRoot;
+  if (!root || root.style.position !== "fixed") return;
   const offset = window.visualViewport?.offsetTop ?? 0;
   root.style.top = `${-savedY + offset}px`;
 }
 
+function pinRoot() {
+  const root = lockRoot;
+  if (!root || root.style.position === "fixed") return;
+  root.style.position = "fixed";
+  root.style.left = "0";
+  root.style.right = "0";
+  root.style.width = "100%";
+  pinLockedPage();
+  window.scrollTo(0, 0);
+}
+
 function onWindowScroll() {
-  if (window.scrollY !== 0) window.scrollTo(0, 0);
+  if (window.scrollY === 0) return;
+  pinRoot();
+  window.scrollTo(0, 0);
   pinLockedPage();
 }
 
 function onFocusIn() {
+  pinRoot();
   window.scrollTo(0, 0);
   pinLockedPage();
   requestAnimationFrame(() => {
@@ -80,19 +94,10 @@ function lockPage() {
   if (locks !== 1) return;
   savedY = window.scrollY;
   const html = document.documentElement;
-  const root = document.getElementById("root");
+  lockRoot = document.getElementById("root");
   html.dataset.sheet = "1";
   html.style.overflow = "hidden";
   document.body.style.overflow = "hidden";
-  pinnedRoot = root;
-  if (root) {
-    root.style.position = "fixed";
-    root.style.left = "0";
-    root.style.right = "0";
-    root.style.width = "100%";
-    pinLockedPage();
-  }
-  window.scrollTo(0, 0);
   document.addEventListener("wheel", onWheel, { capture: true, passive: false });
   document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
   document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
@@ -106,8 +111,8 @@ function unlockPage() {
   locks = Math.max(0, locks - 1);
   if (locks !== 0) return;
   const html = document.documentElement;
-  const root = pinnedRoot;
-  pinnedRoot = null;
+  const root = lockRoot;
+  lockRoot = null;
   delete html.dataset.sheet;
   html.style.overflow = "";
   document.body.style.overflow = "";
@@ -137,13 +142,17 @@ function fitBackdrop(node) {
     node.style.bottom = "0px";
     node.style.width = "";
     node.style.height = "";
+    node.style.paddingBottom = "";
     return;
   }
+  const visualHeight = viewport.height;
   const layoutBottom = Math.max(window.innerHeight, document.documentElement.clientHeight);
+  const coverHeight = Math.max(visualHeight, layoutBottom - viewport.offsetTop);
   node.style.top = `${viewport.offsetTop}px`;
   node.style.left = `${viewport.offsetLeft}px`;
   node.style.width = `${viewport.width}px`;
-  node.style.height = `${Math.max(viewport.height, layoutBottom - viewport.offsetTop)}px`;
+  node.style.height = `${coverHeight}px`;
+  node.style.paddingBottom = `${Math.max(0, coverHeight - visualHeight)}px`;
   node.style.right = "auto";
   node.style.bottom = "auto";
 }
@@ -186,21 +195,27 @@ export function Sheet({
     return unlockPage;
   }, []);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const node = backdropRef.current;
     if (!node) return undefined;
     const viewport = window.visualViewport;
+    let frame = 0;
     function sync() {
       fitBackdrop(node);
     }
-    sync();
-    viewport?.addEventListener("resize", sync);
-    viewport?.addEventListener("scroll", sync);
-    window.addEventListener("resize", sync);
+    function schedule() {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(sync);
+    }
+    schedule();
+    viewport?.addEventListener("resize", schedule);
+    viewport?.addEventListener("scroll", schedule);
+    window.addEventListener("resize", schedule);
     return () => {
-      viewport?.removeEventListener("resize", sync);
-      viewport?.removeEventListener("scroll", sync);
-      window.removeEventListener("resize", sync);
+      cancelAnimationFrame(frame);
+      viewport?.removeEventListener("resize", schedule);
+      viewport?.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
     };
   }, []);
 

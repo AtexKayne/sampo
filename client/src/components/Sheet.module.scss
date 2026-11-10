@@ -20,6 +20,7 @@
   inset: 0;
   background: var(--overlay);
   animation: sheetFade 220ms ease-out;
+  will-change: opacity;
 }
 
 .leaving {
@@ -42,10 +43,12 @@
   animation: sheetUp 320ms cubic-bezier(0.32, 0.72, 0, 1);
   overscroll-behavior: none;
   touch-action: none;
+  will-change: transform;
 }
 
 .ready {
   animation: none;
+  will-change: auto;
 }
 
 .handle {

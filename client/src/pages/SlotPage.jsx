@@ -670,7 +670,6 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
     function onPointerDown(event) {
       const target = event.target;
       if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      event.preventDefault();
       swallowNextClick();
       hideInvite();
     }
