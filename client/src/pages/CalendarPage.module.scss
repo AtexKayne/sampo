@@ -602,6 +602,7 @@ button.stripOn {
   padding: 4px;
   overflow: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   list-style: none;
   border: 1px solid var(--line);
   border-radius: var(--radius);

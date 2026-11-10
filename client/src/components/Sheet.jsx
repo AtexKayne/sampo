@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import styles from "./Sheet.module.scss";
 
@@ -7,19 +7,144 @@ const DISMISS = 88;
 const EXIT_MS = 320;
 const DESKTOP_MS = 180;
 let locks = 0;
+let savedY = 0;
+let touchY = 0;
+let pinnedRoot = null;
+
+function canScroll(node, deltaY) {
+  if (!(node instanceof HTMLElement)) return false;
+  const overflowY = window.getComputedStyle(node).overflowY;
+  if (overflowY !== "auto" && overflowY !== "scroll") return false;
+  const room = node.scrollHeight - node.clientHeight;
+  if (room <= 0) return false;
+  if (deltaY < 0) return node.scrollTop > 0;
+  if (deltaY > 0) return node.scrollTop < room - 1;
+  return true;
+}
+
+function pathCanScroll(target, deltaY) {
+  let node = target instanceof Text ? target.parentElement : target;
+  while (node instanceof HTMLElement && node !== document.body && node !== document.documentElement) {
+    if (canScroll(node, deltaY)) return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
+function onWheel(event) {
+  if (event.ctrlKey) return;
+  if (pathCanScroll(event.target, event.deltaY)) return;
+  event.preventDefault();
+}
+
+function onTouchStart(event) {
+  touchY = event.touches[0]?.clientY ?? 0;
+}
+
+function onTouchMove(event) {
+  if (event.touches.length !== 1) return;
+  const target = event.target;
+  if (target instanceof Element && target.closest("[data-sheet-handle]")) return;
+  const y = event.touches[0]?.clientY ?? touchY;
+  const deltaY = touchY - y;
+  if (pathCanScroll(target, deltaY)) {
+    touchY = y;
+    return;
+  }
+  event.preventDefault();
+}
+
+function pinLockedPage() {
+  const root = pinnedRoot;
+  if (!root) return;
+  const offset = window.visualViewport?.offsetTop ?? 0;
+  root.style.top = `${-savedY + offset}px`;
+}
+
+function onWindowScroll() {
+  if (window.scrollY !== 0) window.scrollTo(0, 0);
+  pinLockedPage();
+}
+
+function onFocusIn() {
+  window.scrollTo(0, 0);
+  pinLockedPage();
+  requestAnimationFrame(() => {
+    window.scrollTo(0, 0);
+    pinLockedPage();
+  });
+}
 
 function lockPage() {
   locks += 1;
-  document.documentElement.dataset.sheet = "1";
+  if (locks !== 1) return;
+  savedY = window.scrollY;
+  const html = document.documentElement;
+  const root = document.getElementById("root");
+  html.dataset.sheet = "1";
+  html.style.overflow = "hidden";
   document.body.style.overflow = "hidden";
+  pinnedRoot = root;
+  if (root) {
+    root.style.position = "fixed";
+    root.style.left = "0";
+    root.style.right = "0";
+    root.style.width = "100%";
+    pinLockedPage();
+  }
+  window.scrollTo(0, 0);
+  document.addEventListener("wheel", onWheel, { capture: true, passive: false });
+  document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+  document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+  document.addEventListener("focusin", onFocusIn, true);
+  window.addEventListener("scroll", onWindowScroll, { capture: true });
+  window.visualViewport?.addEventListener("scroll", pinLockedPage);
+  window.visualViewport?.addEventListener("resize", pinLockedPage);
 }
 
 function unlockPage() {
   locks = Math.max(0, locks - 1);
-  if (locks === 0) {
-    delete document.documentElement.dataset.sheet;
-    document.body.style.overflow = "";
+  if (locks !== 0) return;
+  const html = document.documentElement;
+  const root = pinnedRoot;
+  pinnedRoot = null;
+  delete html.dataset.sheet;
+  html.style.overflow = "";
+  document.body.style.overflow = "";
+  if (root) {
+    root.style.position = "";
+    root.style.top = "";
+    root.style.left = "";
+    root.style.right = "";
+    root.style.width = "";
   }
+  document.removeEventListener("wheel", onWheel, { capture: true });
+  document.removeEventListener("touchstart", onTouchStart, { capture: true });
+  document.removeEventListener("touchmove", onTouchMove, { capture: true });
+  document.removeEventListener("focusin", onFocusIn, true);
+  window.removeEventListener("scroll", onWindowScroll, { capture: true });
+  window.visualViewport?.removeEventListener("scroll", pinLockedPage);
+  window.visualViewport?.removeEventListener("resize", pinLockedPage);
+  window.scrollTo(0, savedY);
+}
+
+function fitBackdrop(node) {
+  const viewport = window.visualViewport;
+  if (!viewport) {
+    node.style.top = "0px";
+    node.style.left = "0px";
+    node.style.right = "0px";
+    node.style.bottom = "0px";
+    node.style.width = "";
+    node.style.height = "";
+    return;
+  }
+  node.style.top = `${viewport.offsetTop}px`;
+  node.style.left = `${viewport.offsetLeft}px`;
+  node.style.width = `${viewport.width}px`;
+  node.style.height = `${viewport.height}px`;
+  node.style.right = "auto";
+  node.style.bottom = "auto";
 }
 
 function mobileSheet() {
@@ -43,6 +168,7 @@ export function Sheet({
   ...rest
 }) {
   const sheetRef = useRef(null);
+  const backdropRef = useRef(null);
   const startY = useRef(null);
   const dragging = useRef(false);
   const offsetRef = useRef(0);
@@ -57,6 +183,24 @@ export function Sheet({
   useEffect(() => {
     lockPage();
     return unlockPage;
+  }, []);
+
+  useLayoutEffect(() => {
+    const node = backdropRef.current;
+    if (!node) return undefined;
+    const viewport = window.visualViewport;
+    function sync() {
+      fitBackdrop(node);
+    }
+    sync();
+    viewport?.addEventListener("resize", sync);
+    viewport?.addEventListener("scroll", sync);
+    window.addEventListener("resize", sync);
+    return () => {
+      viewport?.removeEventListener("resize", sync);
+      viewport?.removeEventListener("scroll", sync);
+      window.removeEventListener("resize", sync);
+    };
   }, []);
 
   useEffect(() => {
@@ -137,7 +281,11 @@ export function Sheet({
       : undefined;
 
   return createPortal(
-    <div className={[styles.backdrop, leaving ? styles.leaving : ""].filter(Boolean).join(" ")} onClick={dismiss}>
+    <div
+      className={[styles.backdrop, leaving ? styles.leaving : ""].filter(Boolean).join(" ")}
+      ref={backdropRef}
+      onClick={dismiss}
+    >
       <div className={styles.dim} style={dimMotion} />
       <Tag
         className={[styles.sheet, sizeClass, footer ? styles.withFooter : "", ready ? styles.ready : "", className].filter(Boolean).join(" ")}

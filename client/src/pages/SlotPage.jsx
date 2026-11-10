@@ -489,6 +489,46 @@ function visualCover() {
   return { width: viewport.width, height: viewport.height };
 }
 
+function containMenuScroll(node) {
+  let startY = 0;
+
+  function block(event, deltaY) {
+    const room = node.scrollHeight - node.clientHeight;
+    if (room <= 0) {
+      event.preventDefault();
+      return;
+    }
+    const top = node.scrollTop;
+    if ((deltaY < 0 && top <= 0) || (deltaY > 0 && top >= room - 1)) event.preventDefault();
+  }
+
+  function onWheel(event) {
+    if (!node.contains(event.target)) return;
+    block(event, event.deltaY);
+  }
+
+  function onTouchStart(event) {
+    if (!node.contains(event.target)) return;
+    startY = event.touches[0]?.clientY ?? 0;
+  }
+
+  function onTouchMove(event) {
+    if (!node.contains(event.target)) return;
+    const y = event.touches[0]?.clientY ?? startY;
+    block(event, startY - y);
+    startY = y;
+  }
+
+  document.addEventListener("wheel", onWheel, { capture: true, passive: false });
+  document.addEventListener("touchstart", onTouchStart, { capture: true, passive: true });
+  document.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+  return () => {
+    document.removeEventListener("wheel", onWheel, { capture: true });
+    document.removeEventListener("touchstart", onTouchStart, { capture: true });
+    document.removeEventListener("touchmove", onTouchMove, { capture: true });
+  };
+}
+
 function menuPlace(field, probe) {
   const rect = field.getBoundingClientRect();
   const origin = probe.getBoundingClientRect();
@@ -565,6 +605,11 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       frame = requestAnimationFrame(updatePlace);
     }
 
+    function onScroll(event) {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      schedule();
+    }
+
     updatePlace();
     const observer = new ResizeObserver(schedule);
     let node = field;
@@ -573,7 +618,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       node = node.parentElement;
     }
     window.addEventListener("resize", schedule);
-    window.addEventListener("scroll", schedule, true);
+    window.addEventListener("scroll", onScroll, true);
     const viewport = window.visualViewport;
     viewport?.addEventListener("resize", schedule);
     viewport?.addEventListener("scroll", schedule);
@@ -581,7 +626,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       cancelAnimationFrame(frame);
       observer.disconnect();
       window.removeEventListener("resize", schedule);
-      window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("scroll", onScroll, true);
       viewport?.removeEventListener("resize", schedule);
       viewport?.removeEventListener("scroll", schedule);
       probe.remove();
@@ -592,11 +637,16 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
     if (locked) setOpen(false);
   }, [locked]);
 
+  function hideInvite() {
+    setOpen(false);
+    inputRef.current?.blur();
+  }
+
   useEffect(() => {
     function onPointerDown(event) {
       const target = event.target;
       if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
-      setOpen(false);
+      hideInvite();
     }
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
@@ -611,6 +661,13 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
     if (top < menu.scrollTop) menu.scrollTop = top;
     else if (bottom > menu.scrollTop + menu.clientHeight) menu.scrollTop = bottom - menu.clientHeight;
   }, [activeIndex, open]);
+
+  useLayoutEffect(() => {
+    if (!open || !place) return undefined;
+    const menu = menuRef.current;
+    if (!menu) return undefined;
+    return containMenuScroll(menu);
+  }, [open, place]);
 
   function canAsk(person) {
     return Boolean(person?.canInvite) && !blocked && !pending;
@@ -637,7 +694,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       invite(matches[activeIndex]);
       return;
     }
-    if (event.key === "Escape") setOpen(false);
+    if (event.key === "Escape") hideInvite();
   }
 
   async function invite(person) {
@@ -692,7 +749,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       {open && !locked && place
         ? createPortal(
             <>
-              {hole ? <InviteShade rect={hole} onClose={() => setOpen(false)} /> : null}
+              {hole ? <InviteShade rect={hole} onClose={hideInvite} /> : null}
               <ul
               className={[styles.menu, compact ? styles.menuCompact : "", hole ? styles.menuLift : ""].filter(Boolean).join(" ")}
               id="invite-list"

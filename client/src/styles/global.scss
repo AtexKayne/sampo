@@ -15,6 +15,12 @@ html {
 html[data-sheet="1"],
 html[data-sheet="1"] body {
   overflow: hidden;
+  overscroll-behavior: none;
+}
+
+html[data-sheet="1"] #root {
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
