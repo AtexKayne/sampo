@@ -489,6 +489,29 @@ function visualCover() {
   return { width: viewport.width, height: viewport.height };
 }
 
+function layoutCover() {
+  const viewport = window.visualViewport;
+  const width = viewport?.width ?? window.innerWidth;
+  const top = viewport?.offsetTop ?? 0;
+  const visualHeight = viewport?.height ?? window.innerHeight;
+  const layoutBottom = Math.max(window.innerHeight, document.documentElement.clientHeight);
+  return { width, height: Math.max(visualHeight, layoutBottom - top) };
+}
+
+function swallowNextClick() {
+  function onClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    done();
+  }
+  function done() {
+    document.removeEventListener("click", onClick, true);
+    window.clearTimeout(timer);
+  }
+  const timer = window.setTimeout(done, 500);
+  document.addEventListener("click", onClick, true);
+}
+
 function containMenuScroll(node) {
   let startY = 0;
 
@@ -585,7 +608,7 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
       }
       const origin = probe.getBoundingClientRect();
       const rect = (inputRef.current ?? current).getBoundingClientRect();
-      const cover = visualCover();
+      const cover = layoutCover();
       const nextHole = {
         top: rect.top,
         left: rect.left,
@@ -643,14 +666,17 @@ function InvitePicker({ people, pending, blocked, locked, compact = false, onInv
   }
 
   useEffect(() => {
+    if (!open) return undefined;
     function onPointerDown(event) {
       const target = event.target;
       if (rootRef.current?.contains(target) || menuRef.current?.contains(target)) return;
+      event.preventDefault();
+      swallowNextClick();
       hideInvite();
     }
     document.addEventListener("pointerdown", onPointerDown);
     return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, []);
+  }, [open]);
 
   useEffect(() => {
     const item = activeRef.current;
@@ -810,7 +836,17 @@ function InviteShade({ rect, onClose }) {
       aria-hidden="true"
       style={{ top: rect.coverTop, left: rect.coverLeft, width, height }}
     >
-      <path d={inviteShadePath(rect, width, height)} fill="var(--overlay)" fillRule="evenodd" onPointerDown={onClose} />
+      <path
+        d={inviteShadePath(rect, width, height)}
+        fill="var(--overlay)"
+        fillRule="evenodd"
+        onPointerDown={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          swallowNextClick();
+          onClose();
+        }}
+      />
     </svg>
   );
 }

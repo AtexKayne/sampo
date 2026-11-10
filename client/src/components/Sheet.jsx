@@ -139,10 +139,11 @@ function fitBackdrop(node) {
     node.style.height = "";
     return;
   }
+  const layoutBottom = Math.max(window.innerHeight, document.documentElement.clientHeight);
   node.style.top = `${viewport.offsetTop}px`;
   node.style.left = `${viewport.offsetLeft}px`;
   node.style.width = `${viewport.width}px`;
-  node.style.height = `${viewport.height}px`;
+  node.style.height = `${Math.max(viewport.height, layoutBottom - viewport.offsetTop)}px`;
   node.style.right = "auto";
   node.style.bottom = "auto";
 }
