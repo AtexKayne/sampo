@@ -599,26 +599,6 @@ button.help:active:not(:disabled) {
   @include press.control;
 }
 
-.listTabShort {
-  display: none;
-}
-
-@media (max-width: 799px) {
-  .listTabLong {
-    display: none;
-  }
-
-  .listTabShort {
-    display: inline;
-  }
-
-  .groupHead .inboxTab,
-  .groupHead .inboxTabOn {
-    gap: 6px;
-    padding: 0 8px;
-  }
-}
-
 .inboxTabOn {
   background: var(--surface);
   color: var(--ink);
@@ -1940,6 +1920,34 @@ button.userLink {
 .checks {
   display: grid;
   gap: 4px;
+}
+
+.listModes {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 16px 24px;
+}
+
+.listModeLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.listCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--on-accent);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .nested {

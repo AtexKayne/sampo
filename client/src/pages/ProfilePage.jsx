@@ -457,43 +457,29 @@ function ProfileSettings({ userId }) {
             </div>
           </section>
           <section className={styles.group} aria-labelledby="invite-list-title">
-            <div className={styles.groupHead}>
-              <SectionHelp
-                titleId="invite-list-title"
-                title="Списки"
-                text={[
-                  "Чёрный список: эти танцоры не смогут отправлять вам приглашения.",
-                  "Белый список: приглашения смогут отправлять только эти танцоры. Если список пуст, приглашать не сможет никто.",
-                ]}
+            <SectionHelp
+              titleId="invite-list-title"
+              title="Списки"
+              text={[
+                "Чёрный список: эти танцоры не смогут отправлять вам приглашения.",
+                "Белый список: приглашения смогут отправлять только эти танцоры. Если список пуст, приглашать не сможет никто.",
+              ]}
+            />
+            <div className={styles.listModes} role="radiogroup" aria-labelledby="invite-list-title">
+              <Radio
+                name="invite-list"
+                label={<ListModeLabel title="Чёрный список" count={draft.blacklist.length} />}
+                checked={draft.listMode !== "white"}
+                disabled={busy}
+                onChange={() => setListMode("black")}
               />
-              <div className={styles.inboxSwitch} role="tablist" aria-labelledby="invite-list-title">
-                <button
-                  className={draft.listMode !== "white" ? styles.inboxTabOn : styles.inboxTab}
-                  type="button"
-                  role="tab"
-                  aria-label="Чёрный список"
-                  aria-selected={draft.listMode !== "white"}
-                  disabled={busy}
-                  onClick={() => setListMode("black")}
-                >
-                  <span className={styles.listTabLong}>Чёрный список</span>
-                  <span className={styles.listTabShort}>Чёрный</span>
-                  <span className={styles.inboxMark}>{draft.blacklist.length}</span>
-                </button>
-                <button
-                  className={draft.listMode === "white" ? styles.inboxTabOn : styles.inboxTab}
-                  type="button"
-                  role="tab"
-                  aria-label="Белый список"
-                  aria-selected={draft.listMode === "white"}
-                  disabled={busy}
-                  onClick={() => setListMode("white")}
-                >
-                  <span className={styles.listTabLong}>Белый список</span>
-                  <span className={styles.listTabShort}>Белый</span>
-                  <span className={styles.inboxMark}>{draft.whitelist.length}</span>
-                </button>
-              </div>
+              <Radio
+                name="invite-list"
+                label={<ListModeLabel title="Белый список" count={draft.whitelist.length} />}
+                checked={draft.listMode === "white"}
+                disabled={busy}
+                onChange={() => setListMode("white")}
+              />
             </div>
             <div className={styles.stack}>
             <div className={styles.inviteSearch} ref={searchRef}>
@@ -542,7 +528,7 @@ function ProfileSettings({ userId }) {
             </div>
             {activeList.length === 0 ? (
               <p className={styles.groupHint}>
-                {draft.listMode === "white" ? "Пока список пуст, приглашения не сможет отправить никто" : "Пока никого нет"}
+                {draft.listMode === "white" ? "Список пуст. Приглашать не может никто" : "Список пуст. Приглашать могут все"}
               </p>
             ) : null}
             {activeList.length > 0 ? (
@@ -1755,6 +1741,15 @@ function Radio({ name, label, checked, disabled, onChange }) {
       <input type="radio" name={name} checked={checked} disabled={disabled} onChange={onChange} />
       {label}
     </label>
+  );
+}
+
+function ListModeLabel({ title, count }) {
+  return (
+    <span className={styles.listModeLabel}>
+      {title}
+      <span className={styles.listCount}>{count}</span>
+    </span>
   );
 }
 
