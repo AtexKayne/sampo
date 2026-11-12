@@ -212,6 +212,7 @@
   font: inherit;
   line-height: 1.4;
   text-align: left;
+  white-space: pre-line;
   cursor: pointer;
 }
 
@@ -249,6 +250,7 @@
   font: inherit;
   line-height: 1.4;
   text-align: left;
+  white-space: pre-line;
   box-shadow: var(--shadow);
   cursor: pointer;
   pointer-events: auto;

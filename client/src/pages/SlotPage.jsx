@@ -33,7 +33,10 @@ export function SlotPanel({ id, onClose }) {
   const freeQuery = useQuery({
     queryKey: ["free", id],
     queryFn: () => api(`/api/slots/${id}/free`),
-    enabled: session.status === "ready" && session.user?.appRole !== "admin" && slotQuery.isSuccess,
+    enabled: session.status === "ready"
+      && session.user?.appRole !== "admin"
+      && slotQuery.isSuccess
+      && !(onClose && slotQuery.data?.myPair),
   });
 
   const run = useMutation({
@@ -78,6 +81,15 @@ export function SlotPanel({ id, onClose }) {
   }
 
   const compact = Boolean(onClose);
+  const pairAssigned = Boolean(slot?.myPair);
+  const freePeople = freeQuery.data?.users ?? [];
+  const nobodyToInvite = compact && open && !pairAssigned && freeQuery.isSuccess && freePeople.length === 0;
+  const showActions = dancer && (
+    Boolean(error)
+    || (open && !slot?.myAttendance)
+    || (slot?.myAttendance && !pairAssigned && !started)
+    || (slot?.myAttendance && started)
+  );
   const requestItems = requests.map((item) => {
     const actions = (
       <>
@@ -163,29 +175,17 @@ export function SlotPanel({ id, onClose }) {
       </li>
     );
   });
-  const requestsSection = dancer && slot ? (
-    <section className={[compact ? styles.section : styles.inbox, compact ? styles.slotRequests : ""].filter(Boolean).join(" ")}>
+  const requestsSection = dancer && slot && compact && nobodyToInvite && !requests.length ? (
+    <p className={styles.hint}>К сожалению на данный слот позвать больше некого</p>
+  ) : dancer && slot && requests.length ? (
+    <section className={[compact ? styles.section : styles.inbox, compact ? styles.slotRequests : "", compact && pairAssigned ? styles.slotPairSection : ""].filter(Boolean).join(" ")}>
       <h2 className={compact ? styles.lead : styles.slotSectionTitle}>
-        Запросы
-        {!compact && requests.length ? <span className={styles.inboxMark}>{requests.length}</span> : null}
+        {compact && pairAssigned ? "Пара назначена" : "Запросы"}
+        {!compact ? <span className={styles.inboxMark}>{requests.length}</span> : null}
       </h2>
-      {requests.length ? (
-        <ul className={compact ? styles.list : styles.requestList}>{requestItems}</ul>
-      ) : compact ? (
-        <p className={styles.hint}>Запросов на этот слот нет</p>
-      ) : (
-        <div className={styles.requestEmpty}>
-          <svg className={styles.requestEmptyIcon} viewBox="0 0 48 48" width="48" height="48" aria-hidden="true">
-            <rect x="7" y="12" width="34" height="24" rx="4" fill="none" stroke="currentColor" strokeWidth="2" />
-            <path d="M8 14 24 26 40 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          </svg>
-          <h3 className={styles.requestEmptyTitle}>Запросов пока нет</h3>
-          <p className={styles.requestEmptyText}>Когда вы кого-то позовёте или вам пришлют приглашение, оно появится здесь.</p>
-        </div>
-      )}
+      <ul className={compact ? styles.list : styles.requestList}>{requestItems}</ul>
     </section>
   ) : null;
-  const freePeople = freeQuery.data?.users ?? [];
   const invitePicker = (
     <InvitePicker
       people={freePeople}
@@ -196,7 +196,7 @@ export function SlotPanel({ id, onClose }) {
       onInvite={(userId) => run.mutateAsync({ path: `/api/slots/${id}/requests`, method: "POST", body: { toUserId: userId } })}
     />
   );
-  const inviteSection = dancer && slot && open ? (
+  const inviteSection = dancer && slot && open && !(compact && slot.myPair) && !nobodyToInvite ? (
     <section className={compact ? styles.section : styles.inbox}>
       <h2 className={compact ? styles.lead : styles.slotSectionTitle}>Можно пригласить</h2>
       {compact ? (
@@ -298,9 +298,12 @@ export function SlotPanel({ id, onClose }) {
                 </>
               ) : null}
             </header>
-            {dancer ? (
-            <div className={styles.section}>
+            {showActions ? (
+            <div className={[styles.section, slot.myAttendance && !slot.myPair && !started ? styles.slotAlone : ""].filter(Boolean).join(" ")}>
               {error ? <p className={styles.error}>{error}</p> : null}
+              {slot.myAttendance && !slot.myPair && !started ? (
+                <h2 className={onClose ? styles.lead : styles.slotSectionTitle}>Приду один</h2>
+              ) : null}
               <div className={onClose ? styles.slotActionRow : styles.slotActionStack}>
               {open && !slot.myAttendance && !slot.myPair ? (
                 <div className={onClose ? styles.slotActionFit : styles.switch}>
@@ -414,11 +417,11 @@ export function SlotPanel({ id, onClose }) {
           </div>
           <p className={styles.dialogText}>Займу одно место. Отправленные запросы на это время будут отозваны. Пригласить меня на этот слот будет нельзя.</p>
           {error ? <p className={styles.error}>{error}</p> : null}
-          <div className={styles.row}>
-            <button className={styles.primary} type="button" disabled={run.isPending} onClick={confirmChoice}>
+          <div className={styles.confirmRow}>
+            <button className={`${styles.primary} ${styles.slotHalf}`} type="button" disabled={run.isPending} onClick={confirmChoice}>
               Подтвердить
             </button>
-            <button className={styles.button} type="button" disabled={run.isPending} onClick={() => setConfirming(false)}>
+            <button className={`${styles.button} ${styles.slotHalf}`} type="button" disabled={run.isPending} onClick={() => setConfirming(false)}>
               Отмена
             </button>
           </div>

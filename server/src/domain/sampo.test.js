@@ -1151,6 +1151,35 @@ test("new slot notices follow the free-window or all-slots choice", async () => 
   );
 });
 
+test("a repeating series is announced as one notice with the nearest slot", async () => {
+  const listener = await makeUser("Серия слотов");
+  await sql`UPDATE users SET notify_new_slots = true, notify_new_slots_scope = 'all' WHERE id = ${listener}`;
+  const seriesId = crypto.randomUUID();
+  const later = await makeSlot(4, "2026-12-24T13:00:00.000Z", "2026-12-24T15:00:00.000Z");
+  const first = await makeSlot(4, "2026-12-10T13:00:00.000Z", "2026-12-10T15:00:00.000Z");
+  const middle = await makeSlot(4, "2026-12-17T13:00:00.000Z", "2026-12-17T15:00:00.000Z");
+  await sql`UPDATE slots SET series_id = ${seriesId} WHERE id IN ${sql([later, first, middle])}`;
+  const rows = await sql`SELECT * FROM slots WHERE id IN ${sql([later, first, middle])}`;
+  await announceNewSlots(sql, rows);
+
+  const notes = await sql`
+    SELECT payload
+    FROM notifications
+    WHERE user_id = ${listener} AND type = 'slot_opened'
+  `;
+  assert.equal(notes.length, 1);
+  const payload = notes[0].payload;
+  assert.equal(payload.slotId, first);
+  assert.equal(
+    payload.text,
+    "Появились новые слоты сампо\n10 декабря, 18:00, Hall\n17 декабря, 18:00, Hall\n24 декабря, 18:00, Hall",
+  );
+  assert.deepEqual(
+    payload.slots.map((item) => item.slotId),
+    [first, middle, later],
+  );
+});
+
 test("a dancer profile shares the three nearest free slots only when the viewer is allowed", async () => {
   const viewer = await makeUser("Эдуард");
   const dancer = await makeUser("Карина");

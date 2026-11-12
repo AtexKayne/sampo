@@ -323,6 +323,12 @@ button.help:active:not(:disabled) {
   gap: 8px;
 }
 
+.confirmRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .slotActionFit {
   display: contents;
 }
@@ -790,6 +796,14 @@ button.help:active:not(:disabled) {
   border-bottom: 0;
 }
 
+.slotPairSection {
+  margin-top: -12px;
+}
+
+.slotAlone {
+  gap: 8px;
+}
+
 @media (max-width: 799px) {
   .slotRequests {
     font-size: 13px;
@@ -812,6 +826,8 @@ button.help:active:not(:disabled) {
   .slotDialog .primary,
   .slotDialog .switchWait,
   .slotDialog .switchStop,
+  .confirmRow .button,
+  .confirmRow .primary,
   .menuCompact .invite {
     min-height: 32px;
     padding: 0 8px;

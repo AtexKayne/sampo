@@ -10,6 +10,24 @@ let locks = 0;
 let savedY = 0;
 let touchY = 0;
 let lockRoot = null;
+const sheetStack = [];
+
+function notifySheets() {
+  sheetStack.forEach((item, index) => {
+    item.onChange(index, index === sheetStack.length - 1);
+  });
+}
+
+function registerSheet(onChange) {
+  const item = { onChange };
+  sheetStack.push(item);
+  notifySheets();
+  return () => {
+    const index = sheetStack.indexOf(item);
+    if (index >= 0) sheetStack.splice(index, 1);
+    notifySheets();
+  };
+}
 
 function canScroll(node, deltaY) {
   if (!(node instanceof HTMLElement)) return false;
@@ -188,12 +206,21 @@ export function Sheet({
   const [drag, setDrag] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [ready, setReady] = useState(false);
+  const [layer, setLayer] = useState(0);
+  const [top, setTop] = useState(true);
+  const topRef = useRef(true);
   onCloseRef.current = onClose;
 
   useEffect(() => {
     lockPage();
     return unlockPage;
   }, []);
+
+  useEffect(() => registerSheet((index, nextTop) => {
+    topRef.current = nextTop;
+    setLayer(index);
+    setTop(nextTop);
+  }), []);
 
   useEffect(() => {
     const node = backdropRef.current;
@@ -226,7 +253,7 @@ export function Sheet({
 
   useEffect(() => {
     function onKeyDown(event) {
-      if (event.key === "Escape") dismiss();
+      if (event.key === "Escape" && topRef.current) dismiss();
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -247,7 +274,7 @@ export function Sheet({
   }
 
   function beginDrag(event) {
-    if (leavingRef.current || !mobileSheet() || event.pointerType === "mouse") return;
+    if (!topRef.current || leavingRef.current || !mobileSheet() || event.pointerType === "mouse") return;
     if (!event.target.closest("[data-sheet-handle]")) return;
     dragging.current = true;
     startY.current = event.clientY;
@@ -300,6 +327,7 @@ export function Sheet({
     <div
       className={[styles.backdrop, leaving ? styles.leaving : ""].filter(Boolean).join(" ")}
       ref={backdropRef}
+      style={{ zIndex: 20 + layer, pointerEvents: top ? undefined : "none" }}
       onClick={dismiss}
     >
       <div className={styles.dim} style={dimMotion} />

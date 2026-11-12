@@ -2501,11 +2501,11 @@ function FreeTimeDialog({
         {chosen === "once" && selection.ok && !onceOk ? <p className={styles.error}>Разовое окно — не дольше 15 часов</p> : null}
         {chosen !== "once" && selection.ok && !repeatEndOk ? <p className={styles.error}>Повтор можно отметить до 23:30</p> : null}
         {chosen === "interval" && !intervalOk ? <p className={styles.error}>Интервал — от 2 до 30 дней</p> : null}
-        <div className={styles.actions}>
-          <button className={styles.primary} type="button" disabled={!ready || pending} onClick={save}>
+        <div className={styles.confirmRow}>
+          <button className={`${styles.primary} ${styles.rowHalf}`} type="button" disabled={!ready || pending} onClick={save}>
             {blocked ? "Недоступен" : "Отметить"}
           </button>
-          <button className={styles.button} type="button" onClick={onClose}>
+          <button className={`${styles.button} ${styles.rowHalf}`} type="button" onClick={onClose}>
             Сбросить
           </button>
         </div>

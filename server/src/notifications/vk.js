@@ -33,7 +33,7 @@ export function vkMessage(note, origin) {
   const text = typeof payload.text === "string" && payload.text.trim() ? payload.text.trim() : "Новое уведомление";
   const requestId = typeof payload.requestId === "string" ? payload.requestId : "";
   const proposalId = typeof payload.proposalId === "string" ? payload.proposalId : "";
-  const slotId = typeof payload.slotId === "string" ? payload.slotId : "";
+  const slotId = nearestSlotId(payload);
   const path = requestId
     ? `/requests/${requestId}`
     : proposalId
@@ -43,7 +43,11 @@ export function vkMessage(note, origin) {
         : "/calendar";
   const link = absoluteUrl(origin, path);
   const lines = [text];
-  if (note?.type === "slot_opened" || note?.type === "request_received") {
+  if (note?.type === "slot_opened") {
+    for (const where of slotOpenedLines(payload)) {
+      if (where && !text.includes(where)) lines.push(where);
+    }
+  } else if (note?.type === "request_received") {
     const where = slotWhere(payload);
     if (where && !text.includes(where)) lines.push(where);
   }
@@ -427,6 +431,30 @@ function slotWhere(payload) {
   const place = typeof payload?.place === "string" ? payload.place.trim() : "";
   if (when && place) return `${when}, ${place}`;
   return when || place;
+}
+
+function slotOpenedLines(payload) {
+  const listed = Array.isArray(payload?.slots) ? payload.slots : [];
+  const lines = [...listed]
+    .sort((left, right) => new Date(left?.startsAt).getTime() - new Date(right?.startsAt).getTime())
+    .map(slotWhere)
+    .filter(Boolean);
+  if (lines.length) return lines;
+  const where = slotWhere(payload);
+  return where ? [where] : [];
+}
+
+function nearestSlotId(payload) {
+  const listed = Array.isArray(payload?.slots) ? payload.slots : [];
+  const dated = listed
+    .map((item) => ({
+      id: typeof item?.slotId === "string" ? item.slotId : "",
+      at: new Date(item?.startsAt),
+    }))
+    .filter((item) => item.id && !Number.isNaN(item.at.getTime()))
+    .sort((left, right) => left.at.getTime() - right.at.getTime());
+  if (dated.length) return dated[0].id;
+  return typeof payload?.slotId === "string" ? payload.slotId : "";
 }
 
 function proposalWhere(payload) {

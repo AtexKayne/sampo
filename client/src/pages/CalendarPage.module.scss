@@ -717,6 +717,26 @@ button.stripOn {
   gap: 8px;
 }
 
+.confirmRow {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.rowHalf {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+@media (max-width: 799px) {
+  .confirmRow .button,
+  .confirmRow .primary {
+    min-height: 32px;
+    padding: 0 8px;
+    font-size: 13px;
+  }
+}
+
 .actionFill {
   width: 100%;
 }

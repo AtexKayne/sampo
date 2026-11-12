@@ -158,6 +158,29 @@ test("an incoming request message carries confirm and decline buttons", () => {
     label: "Посмотреть",
     link: `https://vparaplane.ru/slots/${slotId}`,
   });
+
+  const nearer = crypto.randomUUID();
+  const farther = crypto.randomUUID();
+  const series = vkMessage({
+    type: "slot_opened",
+    payload: {
+      text: "Появились новые слоты сампо",
+      slotId: farther,
+      slots: [
+        { slotId: farther, place: "Зал 1", startsAt: "2026-10-21T14:00:00.000Z" },
+        { slotId: nearer, place: "Зал 1", startsAt: "2026-10-14T14:00:00.000Z" },
+      ],
+    },
+  }, "https://vparaplane.ru");
+  assert.equal(
+    series.message,
+    "Появились новые слоты сампо\n14 октября, 19:00, Зал 1\n21 октября, 19:00, Зал 1",
+  );
+  assert.deepEqual(JSON.parse(series.keyboard).buttons[0][0].action, {
+    type: "open_link",
+    label: "Посмотреть",
+    link: `https://vparaplane.ru/slots/${nearer}`,
+  });
 });
 
 test("the community confirmation answers with the configured string", async () => {

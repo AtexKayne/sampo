@@ -1547,6 +1547,59 @@ export async function deleteAdminSlot(sql, slotId, scope = "one", now = new Date
   });
 }
 
+function groupOpenedSlots(slots) {
+  const ordered = [...slots].sort((left, right) => {
+    const byStart = left.startsAt.getTime() - right.startsAt.getTime();
+    return byStart !== 0 ? byStart : String(left.id).localeCompare(String(right.id));
+  });
+  const groups = [];
+  const seriesIndex = new Map();
+  for (const slot of ordered) {
+    if (!slot.seriesId) {
+      groups.push([slot]);
+      continue;
+    }
+    const index = seriesIndex.get(slot.seriesId);
+    if (index === undefined) {
+      seriesIndex.set(slot.seriesId, groups.length);
+      groups.push([slot]);
+    } else {
+      groups[index].push(slot);
+    }
+  }
+  return groups;
+}
+
+function slotLine(slot) {
+  const when = formatWhen(slot.startsAt);
+  const place = typeof slot.place === "string" ? slot.place.trim() : "";
+  if (when && place) return `${when}, ${place}`;
+  return when || place;
+}
+
+function slotOpenedPayload(slots) {
+  const nearest = slots[0];
+  const shared = {
+    slotId: nearest.id,
+    place: nearest.place,
+    startsAt: nearest.startsAt.toISOString(),
+    endsAt: nearest.endsAt.toISOString(),
+  };
+  if (slots.length === 1) {
+    return { text: "Появился новый слот сампо", ...shared };
+  }
+  return {
+    text: ["Появились новые слоты сампо", ...slots.map(slotLine)].join("\n"),
+    ...shared,
+    slots: slots.map((slot) => ({
+      slotId: slot.id,
+      place: slot.place,
+      startsAt: slot.startsAt.toISOString(),
+      endsAt: slot.endsAt.toISOString(),
+    })),
+  };
+}
+
 export async function announceNewSlots(sql, rows, now = new Date()) {
   const ids = [...new Set(rows.map((row) => slotOf(row).id).filter(Boolean))];
   if (!ids.length) return;
@@ -1575,16 +1628,14 @@ export async function announceNewSlots(sql, rows, now = new Date()) {
     `;
     for (const listener of listeners) {
       const windows = listener.notify_new_slots_scope === "all" ? null : await loadWindows(tx, listener.id);
+      const visible = [];
       for (const slot of fresh) {
         if (slot.visibility === "closed" && !audience.get(slot.id)?.has(listener.id)) continue;
         if (windows && !fullyResolvedFree(windows, slot.startsAt, slot.endsAt)) continue;
-        await notify(tx, listener.id, "slot_opened", {
-          text: "Появился новый слот сампо",
-          slotId: slot.id,
-          place: slot.place,
-          startsAt: slot.startsAt.toISOString(),
-          endsAt: slot.endsAt.toISOString(),
-        });
+        visible.push(slot);
+      }
+      for (const group of groupOpenedSlots(visible)) {
+        await notify(tx, listener.id, "slot_opened", slotOpenedPayload(group));
       }
     }
   });
